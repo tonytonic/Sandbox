@@ -1391,7 +1391,7 @@ function renderStats() {
           <div class="m5-stat"><div class="m5-stat-val">${window._m5fmtH(mr.totalCompH)}</div><div class="m5-stat-label">Heures comp.</div></div>
         </div>
         <div class="m5-alert info" style="margin-bottom:8px;">
-          <span>📊</span><div>Seuil mensuel : <strong>${window._m5fmtH(mr.seuilMensuel)}</strong> (${contract.hoursBase}h × 52 / 12)</div>
+          <span>📊</span><div>Seuil mensuel : <strong>${window._m5fmtH(mr.seuilMensuel)}</strong> (${(contract.dureeContrat&&contract.dureeContrat.unite==='M'&&contract.dureeContrat.valeur>0)?'ton contrat : '+String(contract.dureeContrat.valeur).replace('.',',')+' h/mois':contract.hoursBase+'h × 52 / 12'})</div>
         </div>
         ${mr.totalCompH>0?`<div class="m5-alert ok"><span>💰</span><div>${window._m5fmtH(mr.compH1)} à +${Math.round((contract.rate1||0.10)*100)}%${mr.compH2>0?' | '+window._m5fmtH(mr.compH2)+' à +'+Math.round((contract.rate2||0.25)*100)+'%':''}</div></div>`:''}
       </div></div>`;
@@ -1471,7 +1471,11 @@ function openMizukiPopup() {
 // ── Contrat ───────────────────────────────────────────────────────
 function openContractModal() {
   const c=M5_Contract.get();
-  document.getElementById('contract-hours').value   =c.hoursBase||'';
+  // Durée affichée dans l'unité du contrat (semaine / mois / an)
+  const _dc=c.dureeContrat, _u=(_dc&&_WIZ_UNITES[_dc.unite])?_dc.unite:'S';
+  setContractUnite(_u, true);
+  document.getElementById('contract-hours').value   =(_u!=='S'&&_dc.valeur>0)?_dc.valeur:(c.hoursBase||'');
+  updateContractHoursPreview();
   document.getElementById('contract-rate').value    =c.hourlyRate||'';
   document.getElementById('contract-ccn').value     =c.idcc||'0';
   // Cap : priorité à la CCN sélectionnée
@@ -1525,16 +1529,58 @@ function snapExerciceStart(dateStr, weekStartDay) {
 }
 window.snapExerciceStart=snapExerciceStart;
 
+// ── Durée du contrat dans ⚙️ Mon contrat : même logique que l'assistant (26/09/2026) ──
+let _contractUnite='S';
+function _contractValeur(){ return parseFloat(String(document.getElementById('contract-hours')?.value||'0').replace(',','.'))||0; }
+function _contractHebdo(){
+  const v=_contractValeur(); if(v<=0) return 0;
+  return Math.round((_contractUnite==='M'? v*12/52 : _contractUnite==='A'? v/52 : v)*100)/100;
+}
+function setContractUnite(u, silencieux){
+  if(!_WIZ_UNITES[u]) return;
+  const avant=_contractUnite, hebdo=_contractHebdo();
+  _contractUnite=u;
+  ['S','M','A'].forEach(k=>document.getElementById('contract-unite-'+k)?.classList.toggle('selected',k===u));
+  const lb=document.getElementById('contract-hours-label');
+  if(lb) lb.textContent='Durée contractuelle (h/'+_WIZ_UNITES[u].court+') *';
+  const inp=document.getElementById('contract-hours');
+  if(inp){
+    inp.placeholder=_WIZ_UNITES[u].ph;
+    // Changement d'unité à la main : on convertit la valeur déjà saisie
+    if(!silencieux && avant!==u && hebdo>0){
+      const v=u==='M'? hebdo*52/12 : u==='A'? hebdo*52 : hebdo;
+      inp.value=String(Math.round(v*100)/100);
+    }
+  }
+  if(!silencieux){
+    // Le mode de calcul suit l'unité (reste modifiable juste en dessous)
+    const modeEl=document.getElementById('contract-mode'); if(modeEl) modeEl.value=_WIZ_UNITES[u].mode;
+    updateContractHoursPreview();
+  }
+}
+function updateContractHoursPreview(){
+  const el=document.getElementById('contract-hours-preview'); if(!el) return;
+  const v=_contractValeur(), h=_contractHebdo(), f=window._m5fmtH;
+  if(!v||v<=0||!f){ el.textContent=''; return; }
+  el.textContent=_contractUnite==='S'?`soit environ ${f((h*52/12).toFixed(2))}/mois`:`soit en moyenne ${f(h)} par semaine`;
+}
+window.setContractUnite=setContractUnite; window.updateContractHoursPreview=updateContractHoursPreview;
+
 function saveContract() {
-  const hoursBase =parseFloat(document.getElementById('contract-hours').value);
+  const _uC=_WIZ_UNITES[_contractUnite], _vC=_contractValeur();
+  if(!_vC||_vC<=0) { toast('Saisis la durée de ton contrat ('+_uC.ph+').','error'); return; }
+  if(_vC>=_uC.plein) { toast('À partir de '+_uC.pleinTxt+', c\u2019est un temps plein : Mizuki suit les temps partiels.','error'); return; }
+  const hoursBase =_contractHebdo();
   const hourlyRate=parseFloat(document.getElementById('contract-rate').value)||0;
   const idcc      =parseInt(document.getElementById('contract-ccn').value)||0;
   const capManuel =parseFloat(document.getElementById('contract-cap').value)||0.10;
   const name      =document.getElementById('contract-name').value.trim();
   if(!hoursBase||hoursBase<=0||hoursBase>=35) { toast('Saisis une durée entre 1 et 34,5h.','error'); return; }
-  // Art. L3123-7 : contrat <24h/sem = durée minimale légale (sauf dérogations : demande salarié, accord branche, étudiant, CDD court, remplacement)
-  if(hoursBase < 24) {
-    toast("⚠️ Contrat < 24h/sem : vérifie qu'une dérogation légale s'applique (Art. L3123-7)",'warn');
+  // Art. L3123-27 et L3123-7 : 24 h/sem minimum, ou l'équivalent mensuel (104 h) ou sur la période
+  // d'aménagement (24/35 de 1 607 h ≈ 1 102 h/an), sauf dérogations (demande du salarié, accord, étudiant…)
+  const _min24={S:24,M:104,A:1102}[_contractUnite];
+  if(_vC < _min24) {
+    toast("⚠️ Moins de 24 h/sem (ou l'équivalent "+(_contractUnite==='S'?'':'sur ton contrat')+") : vérifie qu'une dérogation légale s'applique (art. L3123-7)",'warn');
   }
   const ccnRules=typeof CCN_PARTIEL_API!=='undefined'?CCN_PARTIEL_API.getRules(idcc):{cap:capManuel,rate1:0.10,rate2:0.25,threshold:0.10};
   // Si une CCN est sélectionnée, son cap fait foi — sinon le sélecteur manuel
@@ -1559,7 +1605,8 @@ function saveContract() {
   M5_Contract.save({hoursBase,hourlyRate,idcc,ccnNom:ccnRules.nom||'Droit commun',cap,
     rate1:ccnRules.rate1||0.10,rate2:ccnRules.rate2||0.25,threshold:ccnRules.threshold||0.10,
     weekStartDay,exerciceStart,cloturesDates,modeCalcul,neutraliseFeries,
-    accordCollectifPrevenance,joursOuvresContrat});
+    accordCollectifPrevenance,joursOuvresContrat,
+    dureeContrat:{unite:_contractUnite,valeur:_vC}});
   if(name) localStorage.setItem('M5_USER_NAME',name);
   Mizuki.clearCache();
   // Recalibrer le calendrier avec le nouveau début de semaine

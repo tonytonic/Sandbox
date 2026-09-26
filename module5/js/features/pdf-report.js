@@ -65,7 +65,8 @@ const M5_PdfReport = {
     h1('1. Mon contrat');
     const modeLabel=mode==='MENSUEL'?'Mensuel (par mois de paie)':mode==='ANNUEL'?'Annuel (compteur glissant)':'Hebdomadaire';
     row('Salarié(e)',contract.userName||'Non renseigné');
-    row('Durée contractuelle',`${contract.hoursBase}h/semaine`);
+    { const _dc=contract.dureeContrat, _uc={M:'mois',A:'an'}[_dc&&_dc.unite];
+      row('Durée contractuelle',(_uc&&_dc.valeur>0)?`${String(_dc.valeur).replace('.',',')}h/${_uc} (moyenne ${String(contract.hoursBase).replace('.',',')}h/semaine)`:`${contract.hoursBase}h/semaine`); }
     row('Taux horaire brut',contract.hourlyRate>0?`${(contract.hourlyRate).toFixed(2)} €/h`:'Non renseigné');
     row('Convention collective',contract.ccnNom||'Droit commun');
     const capPct=Math.round((contract.cap||0.10)*100);
