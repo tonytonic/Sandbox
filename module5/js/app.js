@@ -2198,7 +2198,38 @@ function wizFinish() {
     if (_af && _af.parentNode) _af.parentNode.removeChild(_af);
   } catch(_) {}
   refreshUI();
+  // Multi-contrat : « Oui » à la dernière étape → on crée tout de suite le contrat suivant
+  if(_wizAutreContrat && window.M5_Contrats && M5_Contrats.existing().length<3){
+    _wizAutreContrat=false;
+    setTimeout(function(){ M5_Contrats.add(); }, 600);
+  }
 }
+
+// Multi-contrat (26/09/2026) : question « un autre contrat ? » dans l'assistant
+let _wizAutreContrat=false;
+function wizSetAutreContrat(oui){
+  _wizAutreContrat=!!oui;
+  document.getElementById('wiz-autre-oui')?.classList.toggle('selected',!!oui);
+  document.getElementById('wiz-autre-non')?.classList.toggle('selected',!oui);
+  const info=document.getElementById('wiz-autre-info');
+  if(info) info.textContent=oui
+    ? 'Après « Commencer », tu donneras un nom à ton 2ᵉ contrat et je te poserai les mêmes questions pour lui.'
+    : 'Tu pourras en ajouter un à tout moment : ⚙️ Mon contrat → tout en bas, « 👥 Plusieurs employeurs ? ».';
+}
+window.wizSetAutreContrat=wizSetAutreContrat;
+// Question masquée si le maximum de 3 contrats serait déjà atteint
+(function(){try{
+  const b=document.getElementById('wiz-autre-contrat');
+  if(b && window.M5_Contrats){
+    const ex=M5_Contrats.existing(), act=M5_Contrats.active;
+    const apres=ex.length+(ex.indexOf(act)<0?1:0);
+    if(apres>=3) b.style.display='none';
+    else if(ex.length>0 && ex.indexOf(act)<0){
+      const t=b.querySelector('div[style*="font-weight:700"]'); if(t) t.textContent='👥 As-tu encore un autre contrat à suivre ?';
+      const i=document.getElementById('wiz-autre-info'); if(i&&!_wizAutreContrat) i.textContent='Tu pourras en ajouter un à tout moment : ⚙️ Mon contrat → tout en bas, « 👥 Plusieurs employeurs ? ».';
+    }
+  }
+}catch(_){}})();
 
 
 // ── Export / Import JSON ──────────────────────────────────────────

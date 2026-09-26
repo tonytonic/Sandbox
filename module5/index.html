@@ -175,7 +175,7 @@ if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente'
         onerror="this.src='assets/mizuki.svg'">
       <div style="font-size:22px;font-weight:800;color:#E9D5FF;margin-bottom:8px;">Bonjour ! Je suis Mizuki 🦊</div>
       <div style="font-size:14px;color:var(--miz-text2);line-height:1.7;margin-bottom:20px;">
-        Je suis là pour surveiller tes heures complémentaires et t'informer de tes droits en tant que salariée à temps partiel.
+        Je surveille tes heures complémentaires et je t'explique tes droits, que tu sois à temps partiel, en retraite progressive ou avec plusieurs employeurs.
       </div>
     </div>
     <div style="padding:0 16px;">
@@ -192,6 +192,14 @@ if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente'
           <div style="display:flex;gap:10px;align-items:center;font-size:13px;">
             <span style="font-size:20px;">💰</span>
             <div><strong>J'estime ce que tu devrais toucher</strong><br><span style="color:var(--miz-text3);font-size:12px;">Majorations +10% et +25% calculées automatiquement</span></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;font-size:13px;">
+            <span style="font-size:20px;">🧓</span>
+            <div><strong>Retraite progressive</strong><br><span style="color:var(--miz-text3);font-size:12px;">Ton temps de travail réduit est suivi comme un temps partiel</span></div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;font-size:13px;">
+            <span style="font-size:20px;">👥</span>
+            <div><strong>Plusieurs employeurs</strong><br><span style="color:var(--miz-text3);font-size:12px;">Jusqu'à 3 contrats, chacun calculé séparément</span></div>
           </div>
         </div>
       </div>
@@ -409,6 +417,18 @@ if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente'
           <div id="wiz-sum-mode"></div>
           <div id="wiz-sum-feries"></div>
           <div id="wiz-sum-exercice"></div>
+        </div>
+      </div>
+
+      <!-- Multi-contrat (26/09/2026) : proposer un autre contrat dès la configuration -->
+      <div id="wiz-autre-contrat" class="m5-card">
+        <div class="m5-card-body" style="font-size:13px;">
+          <div style="font-weight:700;margin-bottom:8px;">👥 As-tu un autre contrat à suivre en même temps ?</div>
+          <div style="display:flex;gap:8px;">
+            <button type="button" class="m5-quick-btn" id="wiz-autre-oui" onclick="wizSetAutreContrat(true)" style="flex:1;padding:10px 8px;font-weight:700;">Oui</button>
+            <button type="button" class="m5-quick-btn selected" id="wiz-autre-non" onclick="wizSetAutreContrat(false)" style="flex:1;padding:10px 8px;font-weight:700;">Non</button>
+          </div>
+          <div id="wiz-autre-info" style="font-size:12px;color:var(--miz-text3);margin-top:8px;line-height:1.5;">Tu pourras en ajouter un à tout moment : ⚙️ Mon contrat → tout en bas, « 👥 Plusieurs employeurs ? ».</div>
         </div>
       </div>
 
@@ -1000,7 +1020,7 @@ function confirmResetM5() {
 <script src="js/features/glossaire.js?v=r6"></script>
 <script src="js/features/wellbeing.js?v=r7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="js/app.js?v=r7"></script>
+<script src="js/app.js?v=r8"></script>
 <script src="../js/rappel-sauvegarde.js"></script>
 <script>try{var _c=JSON.parse(localStorage.getItem(M5_key("M5_CONTRACT"))||"{}");hsBackupCheckDates(Object.keys((_c&&_c.cloturesDates)||{}).map(function(k){return _c.cloturesDates[k];}));}catch(e){}</script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>

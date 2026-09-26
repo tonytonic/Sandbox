@@ -2,11 +2,13 @@
    Commun à heures, paye, fox, module5, module6.
    Propose une sauvegarde à la clôture d'une période ou au changement d'exercice,
    seulement si la dernière sauvegarde (SH_LAST_BACKUP, écrite par menu.html) a plus de 7 jours,
-   et au plus une fois par jour. Ne lit ni ne modifie aucune donnée des modules. */
+   et au plus UNE fois par mois pour toute l'appli (26/09/2026) : vue dans un module,
+   elle ne revient dans aucun autre avant le mois suivant. Ne lit ni ne modifie aucune donnée des modules. */
 (function(){
   var KEY_LAST='SH_LAST_BACKUP', KEY_SHOWN='SH_BACKUP_NUDGE', DELAI=7;
   var src=(document.currentScript&&document.currentScript.src)||'';
   var MENU=src?src.replace(/js\/rappel-sauvegarde\.js.*$/,'menu.html#sauvegarde'):'../menu.html#sauvegarde';
+  function month(){return today().slice(0,7);}
   function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
   function lastISO(){try{return (localStorage.getItem(KEY_LAST)||'').slice(0,10);}catch(e){return '';}}
   function recent(){var l=lastISO();if(!l)return false;return (Date.now()-Date.parse(l))/86400000<DELAI;}
@@ -26,7 +28,7 @@
     s.addEventListener('click',function(e){var a=e.target&&e.target.getAttribute('data-a');if(!a)return;
       if(s.parentNode)s.remove(); if(a==='go')location.href=MENU;});
     document.body.appendChild(s);
-    try{localStorage.setItem(KEY_SHOWN,today());}catch(e){}
+    try{localStorage.setItem(KEY_SHOWN,month());}catch(e){}
   }
   /* reason : 'period' ou 'year' */
   var TEST=/test-sauvegarde/.test(location.search+location.hash);
@@ -34,7 +36,7 @@
     try{
       if(TEST){if(document.body)show(reason);else document.addEventListener('DOMContentLoaded',function(){show(reason);});return;}
       if(recent())return;
-      if(localStorage.getItem(KEY_SHOWN)===today())return;
+      if((localStorage.getItem(KEY_SHOWN)||'').slice(0,7)===month())return;
       if(document.body)show(reason);else document.addEventListener('DOMContentLoaded',function(){show(reason);});
     }catch(e){}
   };
