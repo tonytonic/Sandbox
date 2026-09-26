@@ -220,9 +220,16 @@ if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente'
         <input type="text" class="m5-input" id="wiz-name" placeholder="ex : Sophie" autocomplete="given-name">
       </div>
       <div class="m5-input-group">
-        <label class="m5-label">Combien d'heures par semaine selon ton contrat ?</label>
+        <!-- Durée du contrat dans l'unité écrite sur le contrat (26/09/2026) -->
+        <label class="m5-label">Ton contrat indique une durée…</label>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <button type="button" class="m5-quick-btn selected" id="wiz-unite-S" onclick="wizSetUnite('S')" style="flex:1;padding:9px 4px;font-weight:700;font-size:13px;">par semaine</button>
+          <button type="button" class="m5-quick-btn" id="wiz-unite-M" onclick="wizSetUnite('M')" style="flex:1;padding:9px 4px;font-weight:700;font-size:13px;">par mois</button>
+          <button type="button" class="m5-quick-btn" id="wiz-unite-A" onclick="wizSetUnite('A')" style="flex:1;padding:9px 4px;font-weight:700;font-size:13px;">par an</button>
+        </div>
+        <label class="m5-label" id="wiz-hours-label">Combien d'heures par semaine selon ton contrat ?</label>
         <input type="number" inputmode="decimal" class="m5-input" id="wiz-hours"
-          min="1" max="34.5" step="0.5" placeholder="ex : 25"
+          min="1" step="0.01" placeholder="ex : 25"
           style="font-size:24px;font-weight:700;text-align:center;"
           oninput="wizUpdateHoursPreview()">
         <div id="wiz-hours-preview" style="font-size:12px;color:var(--miz-text3);margin-top:4px;text-align:center;"></div>
@@ -1020,7 +1027,7 @@ function confirmResetM5() {
 <script src="js/features/glossaire.js?v=r6"></script>
 <script src="js/features/wellbeing.js?v=r7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="js/app.js?v=r8"></script>
+<script src="js/app.js?v=r9"></script>
 <script src="../js/rappel-sauvegarde.js"></script>
 <script>try{var _c=JSON.parse(localStorage.getItem(M5_key("M5_CONTRACT"))||"{}");hsBackupCheckDates(Object.keys((_c&&_c.cloturesDates)||{}).map(function(k){return _c.cloturesDates[k];}));}catch(e){}</script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>

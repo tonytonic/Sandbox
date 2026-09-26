@@ -210,7 +210,8 @@ function refreshUI() {
   // Badge header
   const badge=document.getElementById('header-contract-badge');
   if(badge && contract.hoursBase) {
-    badge.textContent=contract.hoursBase+'h/sem';
+    const _dc=contract.dureeContrat, _uc={M:'mois',A:'an'}[_dc&&_dc.unite];
+    badge.textContent=(_uc&&_dc.valeur>0)?(String(_dc.valeur).replace('.',',')+'h/'+_uc):(contract.hoursBase+'h/sem');
     badge.className='m5-contract-badge ok';
     badge.style.display='inline-flex';
   }
@@ -1985,8 +1986,8 @@ let _wizCCN=null; // {i, n, s, cap, ...}
 function wizNext(step) {
   // Validation avant de passer
   if(step===3) {
-    const h=parseFloat(document.getElementById('wiz-hours')?.value||'0');
-    if(!h||h<=0||h>=35) { toast('Saisis tes heures contractuelles (ex: 25)','error'); return; }
+    const err=_wizHeuresErreur();
+    if(err) { toast(err,'error'); return; }
   }
   _wizGo(step);
 }
@@ -2011,12 +2012,47 @@ function _wizGo(step) {
   window.scrollTo(0,0);
 }
 
+// ── Durée du contrat : semaine, mois ou an (26/09/2026) ──────────
+// L'utilisateur saisit la durée telle qu'écrite sur son contrat ; tout le calcul
+// reste en base hebdomadaire (hoursBase) : mois → × 12 / 52, an → ÷ 52.
+// Temps plein de référence : 35 h/sem, 151,67 h/mois, 1 607 h/an (L3121-27, L3123-1).
+let _wizUnite='S';
+const _WIZ_UNITES={
+  S:{label:"Combien d'heures par semaine selon ton contrat ?",ph:'ex : 25',plein:35,  pleinTxt:'35 h par semaine',court:'semaine',mode:'HEBDO'},
+  M:{label:"Combien d'heures par mois selon ton contrat ?",  ph:'ex : 86,67',plein:151.67,pleinTxt:'151,67 h par mois',court:'mois',mode:'MENSUEL'},
+  A:{label:"Combien d'heures par an selon ton contrat ?",    ph:'ex : 1 000',plein:1607,pleinTxt:'1 607 h par an',court:'an',mode:'ANNUEL'}
+};
+function _wizValeurSaisie(){ return parseFloat(String(document.getElementById('wiz-hours')?.value||'0').replace(',','.'))||0; }
+function _wizHeuresHebdo(){
+  const v=_wizValeurSaisie(); if(v<=0) return 0;
+  const h=_wizUnite==='M'? v*12/52 : _wizUnite==='A'? v/52 : v;
+  return Math.round(h*100)/100;
+}
+function _wizHeuresErreur(){
+  const v=_wizValeurSaisie(), u=_WIZ_UNITES[_wizUnite];
+  if(!v||v<=0) return 'Saisis tes heures contractuelles ('+u.ph+')';
+  if(v>=u.plein) return 'À partir de '+u.pleinTxt+', c\u2019est un temps plein : Mizuki suit les temps partiels.';
+  return '';
+}
+function wizSetUnite(u){
+  if(!_WIZ_UNITES[u]) return;
+  _wizUnite=u;
+  ['S','M','A'].forEach(k=>document.getElementById('wiz-unite-'+k)?.classList.toggle('selected',k===u));
+  const lb=document.getElementById('wiz-hours-label'); if(lb) lb.textContent=_WIZ_UNITES[u].label;
+  const inp=document.getElementById('wiz-hours'); if(inp){ inp.placeholder=_WIZ_UNITES[u].ph; inp.value=''; }
+  // Le mode de calcul suit l'unité du contrat (modifiable à l'étape « Comment on compte ? »)
+  wizSelectMode(_WIZ_UNITES[u].mode);
+  wizUpdateHoursPreview();
+}
+window.wizSetUnite=wizSetUnite;
+
 function wizUpdateHoursPreview() {
-  const h=parseFloat(document.getElementById('wiz-hours')?.value||'0');
   const el=document.getElementById('wiz-hours-preview'); if(!el) return;
-  if(!h||h<=0) { el.textContent=''; return; }
-  const mensuel=(h*52/12).toFixed(1);
-  el.textContent=`soit environ ${window._m5fmtH(mensuel)}/mois`;
+  const v=_wizValeurSaisie(), h=_wizHeuresHebdo();
+  if(!v||v<=0) { el.textContent=''; return; }
+  const f=window._m5fmtH;
+  if(_wizUnite==='S') el.textContent=`soit environ ${f((h*52/12).toFixed(2))}/mois`;
+  else el.textContent=`soit en moyenne ${f(h)} par semaine`+(_wizUnite==='A'?` (${f((h*52/12).toFixed(2))}/mois)`:'');
 }
 
 function wizSearchCCN(term) {
@@ -2075,11 +2111,13 @@ function wizSelectFeries(val) {
 }
 
 function _wizUpdateSummary() {
-  const h=parseFloat(document.getElementById('wiz-hours')?.value||'0');
+  const h=_wizHeuresHebdo();
   const rate=parseFloat(document.getElementById('wiz-rate')?.value||'0');
   const exercice=document.getElementById('wiz-exercice')?.value||'';
   const modeLbls={HEBDO:'Par semaine',MENSUEL:'Par mois',ANNUEL:"Sur l'année"};
-  _set('wiz-sum-hours', `⏱️ Contrat : <strong>${h}h/semaine</strong>${rate>0?' · '+rate.toFixed(2)+' €/h':''}`);
+  const _u=_WIZ_UNITES[_wizUnite];
+  const _dur=_wizUnite==='S'?`${window._m5fmtH(h)}/semaine`:`${window._m5fmtH(_wizValeurSaisie())}/${_u.court} (≈ ${window._m5fmtH(h)}/semaine)`;
+  _set('wiz-sum-hours', `⏱️ Contrat : <strong>${_dur}</strong>${rate>0?' · '+rate.toFixed(2)+' €/h':''}`);
   _set('wiz-sum-ccn',   `🏢 CCN : <strong>${_wizCCN?_wizCCN.n+' ('+Math.round(_wizCCN.cap*100)+'%)':'Droit commun (10%)'}</strong>`);
   _set('wiz-sum-mode',  `📅 Mode : <strong>${modeLbls[_wizMode]||_wizMode}</strong>`);
   _set('wiz-sum-feries',`🎌 Fériés : <strong>${_wizNeutraliseFeries?"Neutralisés (L3133-3 + jurisprudence)":"Dans l'assiette (accord spécifique)"}</strong>`);
@@ -2130,8 +2168,9 @@ function wizAutofillClotures() {
 }
 
 function wizFinish() {
-  const h=parseFloat(document.getElementById('wiz-hours')?.value||'0');
-  if(!h||h<=0||h>=35) { _wizGo(2); toast('Saisis tes heures contractuelles','error'); return; }
+  const _err=_wizHeuresErreur();
+  if(_err) { _wizGo(2); toast(_err,'error'); return; }
+  const h=_wizHeuresHebdo();
   const exerciceRaw=document.getElementById('wiz-exercice')?.value||'';
   if(!exerciceRaw) {
     toast("La date de début d'exercice est obligatoire",'error');
@@ -2186,6 +2225,7 @@ function wizFinish() {
     cloturesDates,
     modeCalcul:_wizMode,
     neutraliseFeries:_wizNeutraliseFeries,
+    dureeContrat:{unite:_wizUnite,valeur:_wizValeurSaisie()},
   });
   if(name) localStorage.setItem('M5_USER_NAME', name);
   calendarMonday=M5_getCurrentMonday();
