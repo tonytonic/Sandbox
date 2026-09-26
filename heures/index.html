@@ -827,7 +827,13 @@ function _hmToDec(hId,mId){var h=Number(document.getElementById(hId).value)||0;v
 function _decToHM(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;}
 function saveManual(){if(!selectedDate)return;if(!data[selectedDate])data[selectedDate]={extra:0,recup:0,absent:0};data[selectedDate].extra=_hmToDec('manualExtraH','manualExtraM');data[selectedDate].recup=_hmToDec('manualRecupH','manualRecupM');data[selectedDate].absent=isAbsent.checked?(_hmToDec('absentH','absentM')||DAILY_WORK_HOURS):0;save();const _sd1=selectedDate;closePopup();showSaveFeedback(_sd1);}
 function closeYearsPopup(){document.getElementById("popupYears").style.display="none";}
-function confirmSwitchYear(){const val=document.getElementById("newYearInput").value;if(!val)return;if(!localStorage.getItem("DATA_REPORT_"+val)){localStorage.setItem("DATA_REPORT_"+val,JSON.stringify({}));localStorage.setItem("CLOSURES_REPORT_"+val,JSON.stringify([]));localStorage.setItem("REPORTS_REPORT_"+val,JSON.stringify({}));localStorage.setItem("PERIOD_META_REPORT_"+val,JSON.stringify({}));}loadExercise(val);if(window.hsBackupNudge)hsBackupNudge("year");}
+function confirmSwitchYear(){const val=document.getElementById("newYearInput").value;if(!val)return;
+  /* 26/09/2026 : nouvelle année qui suit un exercice existant → même chemin que le bandeau
+     (clôtures automatiques ou manuelles, début au lendemain de la clôture annuelle, jours
+     déjà saisis après la clôture rangés dans la nouvelle année) */
+  {const prev=String(Number(val)-1);
+   if(/^\d{4}$/.test(String(val))&&!localStorage.getItem("DATA_REPORT_"+val)&&localStorage.getItem("ANNUAL_DATE_"+prev)&&typeof window.hsChoisirPuisOuvrir==="function"){
+     closeYearsPopup();if(String(currentSuffix)!==prev)loadExercise(prev);window.hsChoisirPuisOuvrir();return;}}if(!localStorage.getItem("DATA_REPORT_"+val)){localStorage.setItem("DATA_REPORT_"+val,JSON.stringify({}));localStorage.setItem("CLOSURES_REPORT_"+val,JSON.stringify([]));localStorage.setItem("REPORTS_REPORT_"+val,JSON.stringify({}));localStorage.setItem("PERIOD_META_REPORT_"+val,JSON.stringify({}));}loadExercise(val);if(window.hsBackupNudge)hsBackupNudge("year");}
 function addRecup(h){if(!data[selectedDate])data[selectedDate]={extra:0,recup:0};const nv=Math.round((data[selectedDate].recup+h)*4)/4;data[selectedDate].recup=ALLOW_RECUP_FREE?nv:Math.min(nv,data[selectedDate].extra);save();closePopup();}
 function addExtra(h){if(!data[selectedDate])data[selectedDate]={extra:0,recup:0};data[selectedDate].extra=Math.round((data[selectedDate].extra+h)*4)/4;save();const _sd2=selectedDate;closePopup();showSaveFeedback(_sd2);}
 
@@ -1033,6 +1039,9 @@ function buildPeriods(){
   else if(found===null){if(today<periods[0].start)found=0;else found=closures.length-1;}
   found=Math.max(0,found);
   currentPeriodIndex=found;periodSelect.selectedIndex=found;
+  // 26/09/2026 : le calendrier se place sur la période choisie (avant : il restait sur le
+  // mois d'aujourd'hui, hors exercice quand on consulte une année passée)
+  {const P=periods[found];if(P){if(today>=P.start&&today<=P.end)hsVoirMois(today);else hsVoirMois(P.end<today?P.end:P.start);}}
   autoLockPastPeriods();updatePeriodLockUI();
   if(typeof update==="function")update();
 }
@@ -1310,6 +1319,27 @@ function closeJSONPopup(){popupJSON.style.display="none";}
 async function importFeries(){const by=Number(currentSuffix),years=[by-1,by,by+1];try{for(const y of years){const res=await fetch(`https://calendrier.api.gouv.fr/jours-feries/metropole/${y}.json`);const f=await res.json();Object.keys(f).forEach(d=>{if(!specialDays[d])specialDays[d]="ferie";});}localStorage.setItem(STORAGE.specialDays,JSON.stringify(specialDays));localStorage.setItem(STORAGE.data,JSON.stringify(data));if(typeof update==="function")update();toast("✅ Jours fériés importés (N-1/N/N+1)","success");}catch(e){toast("❌ Import fériés impossible","error");}}
 
 /* SWIPE CALENDRIER */
+function hsPeriodeN(i){const b=getBaseStartDate();if(!b||i<0||i>=closures.length)return null;let st=new Date(b);st.setHours(0,0,0,0);
+  for(let k=0;k<i;k++){st=new Date(closures[k]);st.setHours(0,0,0,0);st.setDate(st.getDate()+1);}const en=new Date(closures[i]);en.setHours(0,0,0,0);return{start:st,end:en,index:i};}
+function hsVoirMois(d){viewMonth=d.getMonth();viewYear=d.getFullYear();}
+function hsSwipePeriode(dir){
+  const p=hsPeriodeN(currentPeriodIndex)||getCurrentPeriod();if(!p)return;
+  const debM=new Date(viewYear,viewMonth,1),finM=new Date(viewYear,viewMonth+1,0);
+  // Mois affiché hors de la période : on se replace d'abord dessus
+  if(finM<p.start||debM>p.end){hsVoirMois(dir>0?p.start:(p.end.getFullYear()<2099?p.end:p.start));return;}
+  if(dir>0){
+    if(p.end>finM&&p.end.getFullYear()<2099){hsVoirMois(new Date(viewYear,viewMonth+1,1));return;}
+    const n=hsPeriodeN(currentPeriodIndex+1);
+    if(!n){toast("Fin de l'exercice "+currentSuffix,"info");return;}
+    currentPeriodIndex=n.index;if(n.start>finM)hsVoirMois(n.start);
+  }else{
+    if(p.start<debM){hsVoirMois(new Date(viewYear,viewMonth-1,1));return;}
+    const n=hsPeriodeN(currentPeriodIndex-1);
+    if(!n){toast("Début de l'exercice "+currentSuffix,"info");return;}
+    currentPeriodIndex=n.index;if(n.end<debM)hsVoirMois(n.end);
+  }
+  autoLockPastPeriods();updatePeriodLockUI();
+}
 (function(){
   let _sx=null,_sy=null;
   function initSwipe(){
@@ -1322,54 +1352,9 @@ async function importFeries(){const by=Number(currentSuffix),years=[by-1,by,by+1
       const dy=e.changedTouches[0].clientY-_sy;
       if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>50){
         const dir=dx<0?1:-1;
-        const p=getCurrentPeriod();
-        if(dir>0){
-          // Swipe avant : si la période en cours déborde sur le mois suivant → avancer le mois
-          // Sinon → passer à la période suivante
-          const curMonthEnd=new Date(viewYear,viewMonth+1,0);// dernier jour du mois affiché
-          if(p&&p.end>curMonthEnd&&p.end.getFullYear()<2099){
-            // La période continue après ce mois → avancer d'un mois
-            viewMonth++;if(viewMonth>11){viewMonth=0;viewYear++;}
-          } else {
-            // Fin de période dans ce mois (ou période infinie) → passer à la période suivante
-            const newIdx=Math.min(closures.length,currentPeriodIndex+1);
-            if(newIdx!==currentPeriodIndex){
-              currentPeriodIndex=newIdx;
-              // Si le mois actuel n'est pas dans la nouvelle période → aller au début
-              let s2=exerciseStart?new Date(exerciseStart):new Date(viewYear,0,1);
-              for(let i=0;i<newIdx;i++){const e=new Date(closures[i]);s2=new Date(e);s2.setDate(s2.getDate()+1);}
-              const curMonthStart=new Date(viewYear,viewMonth,1);
-              if(curMonthStart<s2){viewMonth=s2.getMonth();viewYear=s2.getFullYear();}
-            }
-          }
-        } else {
-          // Swipe arrière : si le mois précédent est encore dans la période → reculer d'un mois
-          const prevMonthEnd=new Date(viewYear,viewMonth,0);// dernier jour du mois précédent
-          if(p&&p.start<=prevMonthEnd&&viewMonth>0||(viewYear>2000&&viewMonth===0)){
-            const ps=new Date(p?p.start:new Date(viewYear,viewMonth,1));
-            const prevMonth=viewMonth===0?11:viewMonth-1;
-            const prevYear=viewMonth===0?viewYear-1:viewYear;
-            const prevMonthStart=new Date(prevYear,prevMonth,1);
-            if(ps<=new Date(prevYear,prevMonth+1,0)){
-              viewMonth=prevMonth;viewYear=prevYear;
-            } else {
-              // Revenir à la période précédente
-              const newIdx=Math.max(0,currentPeriodIndex-1);
-              if(newIdx!==currentPeriodIndex){
-                currentPeriodIndex=newIdx;
-                const pPrev=getCurrentPeriod();
-                if(pPrev){viewMonth=pPrev.end.getMonth();viewYear=pPrev.end.getFullYear();}
-              }
-            }
-          } else {
-            const newIdx=Math.max(0,currentPeriodIndex-1);
-            if(newIdx!==currentPeriodIndex){
-              currentPeriodIndex=newIdx;
-              const pPrev=getCurrentPeriod();
-              if(pPrev){viewMonth=pPrev.end.getMonth();viewYear=pPrev.end.getFullYear();}
-            }
-          }
-        }
+        /* 26/09/2026 : mois par mois dans la période, puis période voisine ; arrêt au
+           début et à la fin de l'exercice. La liste des périodes suit (update). */
+        hsSwipePeriode(dir);
         update();
       }
       _sx=null;_sy=null;
@@ -1384,6 +1369,9 @@ async function importFeries(){const by=Number(currentSuffix),years=[by-1,by,by+1
    réalisées, indépendamment de leur mode de compensation (paiement ou récupération).
    La récupération ne réduit PAS le contingent. */
 function updateContingent(){
+  // 26/09/2026 : seuls les jours de l'exercice comptent (du début à la clôture annuelle) ;
+  // les jours saisis après la clôture iront dans l'exercice suivant à son ouverture.
+  const _dansExo=d=>(!exerciseStart||d>=String(exerciseStart).slice(0,10))&&(!annualDate||d<=String(annualDate).slice(0,10));
   const rules=getCCNRules();
   BASE_HEBDO = rules.seuil;
   const LIMIT=rules.contingent;
@@ -1394,6 +1382,7 @@ function updateContingent(){
     const _fr2=typeof window.CCN_API!=='undefined'?window.CCN_API.getCCNFeriesRules(parseInt(localStorage.getItem('CCN_IDCC')||'0')):{feriesChomes:11,seul1erMaiChome:false};
     Object.entries(specialDays).forEach(([date,type])=>{
       if(type!=="ferie")return;
+      if(!_dansExo(date))return;
       // CCN restreintes : seul 1er mai chômé — override par AUTO_FERIE actif
       const d=new Date(date);const dow=d.getDay();
       if(_isCCNRestDay(dow))return;
@@ -1405,6 +1394,7 @@ function updateContingent(){
   }
   Object.entries(data).forEach(([date,v])=>{
     if(!v||typeof v!=="object")return;
+    if(!_dansExo(date))return;
     const[y,m,d]=date.split("-").map(Number);
     const dd=new Date(y,m-1,d);const dow=dd.getDay();
     const wk=getWeekKey(dd);
@@ -1468,6 +1458,7 @@ function showSaveFeedback(dateKey){
 }
 
 function update(){
+  try{if(periodSelect&&periodSelect.options.length)periodSelect.selectedIndex=Math.min(currentPeriodIndex,periodSelect.options.length-1);}catch(e){}
   checkExerciseStartAlert();initSelectors();generateCalendar();calculate();applyConfigLock();updateSaveBadges();updateContingent();
   const _esi=document.getElementById("exerciseStartInput");if(_esi)_esi.value=exerciseStart;
   const _bhi=document.getElementById("baseHebdoInput");if(_bhi)_bhi.value=BASE_HEBDO;
