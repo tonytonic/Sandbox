@@ -1571,6 +1571,12 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
       </button>
     </div>
     <div id="qsChoice" style="display:none;margin-top:14px;background:#0a0a0c;border:1px solid rgba(255,255,255,0.16);border-radius:18px;padding:12px;box-shadow:0 4px 14px rgba(0,0,0,0.45);">
+      <!-- 26/09/2026 : prénom commun à toute l'appli (SH_PRENOM) et raccourci vers la CCN -->
+      <label for="shPrenom" style="display:block;color:#fff;font-size:13px;font-weight:700;margin-bottom:6px;">Ton prénom <span style="font-weight:500;color:rgba(255,255,255,0.6)">(facultatif)</span></label>
+      <input id="shPrenom" type="text" maxlength="30" autocomplete="given-name" placeholder="Pour que Kitsune, Mizuki et Zenji t'appellent par ton prénom" oninput="shPrenomSet(this.value)" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.06);color:#fff;font-size:16px;font-family:inherit;margin-bottom:12px;">
+      <div style="color:#fff;font-size:13px;font-weight:700;margin-bottom:6px;">Ma convention collective</div>
+      <button type="button" class="qs-opt" onclick="openCCNModal()" style="width:100%;margin-bottom:6px;"><span id="shCcnLbl">Droit commun</span> <span style="color:rgba(255,255,255,0.55);font-weight:600">· changer</span></button>
+      <div style="color:rgba(255,255,255,0.6);font-size:11.5px;line-height:1.4;margin-bottom:14px;">Reprise dans tous les modules. GrillePaye s'ouvre directement dessus.</div>
       <div id="qsChoiceTitle" style="color:#fff;font-size:13px;font-weight:700;margin-bottom:8px;">Où saisis-tu tes heures ?</div>
       <div id="qsOpts" style="display:grid;grid-template-columns:1fr;gap:8px;"></div>
     </div>
@@ -1601,7 +1607,13 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
     c.forEach(function(x){var b=document.createElement('button');b.type='button';b.className='qs-opt';b.textContent=x.nom;
       b.setAttribute('aria-pressed',x.id===v?'true':'false');b.onclick=function(){qsSet(x.id);};box.appendChild(b);});
   }
-  function qsToggleChoice(){qsRefresh();var c=document.getElementById('qsChoice');c.style.display=c.style.display==='none'?'block':'none';}
+  function shPrenomSet(v){try{v=String(v||'').trim();if(v)localStorage.setItem('SH_PRENOM',v);else localStorage.removeItem('SH_PRENOM');}catch(e){}}
+  function shParamsRefresh(){
+    try{var p=document.getElementById('shPrenom');if(p&&document.activeElement!==p)p.value=localStorage.getItem('SH_PRENOM')||'';}catch(e){}
+    try{var l=document.getElementById('shCcnLbl'),cu=localStorage.getItem('CCN_CUSTOM'),id=localStorage.getItem('CCN_IDCC'),n=localStorage.getItem('CCN_NOM');
+      if(l)l.textContent=cu?((JSON.parse(cu)||{}).nom||'Accord personnalisé'):(id&&n?n+' · IDCC '+id:'Droit commun (je ne connais pas ma CCN)');}catch(e){}
+  }
+  function qsToggleChoice(){qsRefresh();shParamsRefresh();var c=document.getElementById('qsChoice');c.style.display=c.style.display==='none'?'block':'none';}
   function qsSet(m){try{localStorage.setItem(QS_KEY,m);}catch(e){}document.getElementById('qsChoice').style.display='none';qsRefresh();qsGo();}
   function qsGo(){var v=qsGet();if(!v){qsRefresh();document.getElementById('qsChoice').style.display='block';return;}location.href=v+'/index.html#saisie-aujourdhui';}
   qsRefresh();
@@ -3556,6 +3568,7 @@ document.addEventListener('DOMContentLoaded', function(){
     if (custom) { try { const c = JSON.parse(custom); label = '⚙️ ' + (c.nom || 'Accord personnalisé'); } catch(e){} }
     else if (idcc && nom) { label = nom + ' · IDCC ' + idcc; }
     document.getElementById('ccn-badge-name').textContent = label;
+    if (typeof shParamsRefresh === 'function') shParamsRefresh();
   }
 
   function openCCNModal() {

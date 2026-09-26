@@ -102,7 +102,7 @@ function _nextMsg(pool) {
 const Mizuki = {
 
   getBubbleText(analysis) {
-    const name = _get(K.USER_NAME,'');
+    const name = (_get(K.USER_NAME,'')||_get('SH_PRENOM',''));
     const n = name ? name + ' ! ' : '';
     const {weekResult, rule12, isVacWeek} = analysis || {};
 
@@ -134,7 +134,7 @@ const Mizuki = {
   getPopupContent(analysis) {
     const {weekResult, rule12, isVacWeek} = analysis || {};
     const daily = analysis && analysis.dailyFlags;
-    const name = _get(K.USER_NAME,'');
+    const name = (_get(K.USER_NAME,'')||_get('SH_PRENOM',''));
     // pr = prénom si disponible (3e pers.), sinon 'tu' (2e pers.)
     // v(v3, v2) retourne la bonne conjugaison selon le cas
     const pr = name || 'tu';

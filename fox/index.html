@@ -1289,7 +1289,7 @@ function _getContextualGreeting() {
   const hour  = now.getHours();
   const date  = now.getDate();
   const month = now.getMonth() + 1;
-  const name  = localStorage.getItem('FOX_USER_NAME') || '';
+  const name  = (localStorage.getItem('FOX_USER_NAME') || localStorage.getItem('SH_PRENOM') || '');
   const pr    = name ? name + ', ' : '';
   const JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 
@@ -1539,7 +1539,7 @@ function _getTodayOT() {
 function _getHourlyBubble(hour, day, todayOT) {
   const JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const jr    = JOURS[day];
-  const name  = localStorage.getItem('FOX_USER_NAME') || '';
+  const name  = (localStorage.getItem('FOX_USER_NAME') || localStorage.getItem('SH_PRENOM') || '');
   const pr    = name ? name + ' ' : '';
 
   // Seed : varie par heure + jour + HS → message change à chaque tranche horaire
@@ -1741,7 +1741,7 @@ function _getHourlyBubble(hour, day, todayOT) {
 function _getExtendedBubble(hour, day, todayOT, _seed) {
   const JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
   const jr  = JOURS[day];
-  const nm  = localStorage.getItem('FOX_USER_NAME') || '';
+  const nm  = (localStorage.getItem('FOX_USER_NAME') || localStorage.getItem('SH_PRENOM') || '');
   const pr  = nm ? nm + ' ' : '';
   const xh  = todayOT ? todayOT.extra : 0;
   const th  = todayOT ? todayOT.total : 0;
@@ -2860,7 +2860,7 @@ function _generateDynamicMessage(situation, deltaH, burnoutScore) {
     const now_pr  = new Date();
     const jours   = ['Dim.','Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.'];
     const jourNow = jours[now_pr.getDay()];
-    const name_pr = localStorage.getItem('FOX_USER_NAME') || '';
+    const name_pr = (localStorage.getItem('FOX_USER_NAME') || localStorage.getItem('SH_PRENOM') || '');
     const pr_pr   = name_pr ? name_pr + ', ' : '';
     const _isPrevW = !!(s.weekly && s.weekly.isPrevWeek);
     const _semLbl  = _isPrevW ? 'La semaine passée' : 'Ta semaine';
@@ -2929,7 +2929,7 @@ function _generateDynamicMessage(situation, deltaH, burnoutScore) {
     const now = new Date();
     const hr  = now.getHours();
     const jr  = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'][now.getDay()];
-    const name = localStorage.getItem('FOX_USER_NAME') || '';
+    const name = (localStorage.getItem('FOX_USER_NAME') || localStorage.getItem('SH_PRENOM') || '');
     const pr   = name ? name + ', ' : '';
 
     const pool = [
@@ -3877,7 +3877,7 @@ function _generateDynamicMessage(situation, deltaH, burnoutScore) {
       const _dowNow_g = (new Date().getDay() + 6) % 7; // 0=lun … 5=sam, 6=dim
       const _semBouclee_g = _dowNow_g >= 5; // sam/dim : la PRIORITÉ -1 gère déjà le total réel
       if (_cwHS_g > 0 && _cwDay_g > 0 && !_semBouclee_g) {
-        const _nm_g  = localStorage.getItem('FOX_USER_NAME') || '';
+        const _nm_g  = (localStorage.getItem('FOX_USER_NAME') || localStorage.getItem('SH_PRENOM') || '');
         const _prn_g = _nm_g ? _nm_g + ', ' : '';
         const _jr_g  = ['lundi','mardi','mercredi','jeudi','vendredi'][_dowNow_g] || 'cette semaine';
         const _hsf_g = _fmtH(_cwHS_g);
@@ -4382,7 +4382,7 @@ function _buildDailyLoop5(s, h, todayOT) {
   const th   = todayOT ? todayOT.total : 0;
   const now  = new Date();
   const jr   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'][now.getDay()];
-  const name = localStorage.getItem('FOX_USER_NAME') || '';
+  const name = (localStorage.getItem('FOX_USER_NAME') || localStorage.getItem('SH_PRENOM') || '');
   const pr   = name ? name + '\u00a0: ' : '';
   const bo   = (typeof gameState !== 'undefined' ? (gameState.burnout || 0) : 0);
 
@@ -15033,8 +15033,11 @@ function renderAnnualComparison() {
 const _PROFILE_KEY = 'FOX_KITSUNE_PROFILE';
 
 function loadKitsuneProfile() {
-  try { return JSON.parse(localStorage.getItem(_PROFILE_KEY) || '{}'); }
-  catch(e) { return {}; }
+  // 26/09/2026 : sans prénom propre à Kitsune, celui des Paramètres du menu (SH_PRENOM)
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem(_PROFILE_KEY) || '{}') || {}; } catch(e) { p = {}; }
+  if (!p.prenom) { try { const g = localStorage.getItem('SH_PRENOM'); if (g) p.prenom = g; } catch(e) {} }
+  return p;
 }
 
 function saveKitsuneProfile() {

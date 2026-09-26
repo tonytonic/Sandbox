@@ -4587,6 +4587,23 @@ function resetRole() {
   // else: role-screen déjà visible par défaut
 })();
 
+/* 26/09/2026 : la CCN choisie dans le menu général (CCN_IDCC) s'ouvre directement,
+   une fois par visite. « ← Retour » ramène à la liste pour chercher une autre CCN.
+   Droit commun ou accord personnalisé : liste habituelle. */
+let _gpMaCCNFaite=false;
+function gpOuvrirMaCCN(){
+  if(_gpMaCCNFaite)return;
+  try{
+    if(!localStorage.getItem('gp_role'))return;              // écran de choix du rôle encore affiché
+    if(!document.getElementById('panel-grilles')?.classList.contains('active'))return;
+    const idcc=parseInt(localStorage.getItem('CCN_IDCC')||'0',10);if(!idcc)return;
+    const idx=CCN_ALL.findIndex(x=>x[0]===idcc);if(idx<0)return;
+    _gpMaCCNFaite=true;showGD(idx);window.scrollTo(0,0);
+  }catch(e){}
+}
+gpOuvrirMaCCN();
+(function(){const f=window.setRole;if(typeof f==='function')window.setRole=function(r){f(r);gpOuvrirMaCCN();};})();
+
 
 // Indicateur de données restaurées dans l'onglet Conformité
 (function(){

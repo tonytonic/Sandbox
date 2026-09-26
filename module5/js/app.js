@@ -227,7 +227,7 @@ function refreshUI() {
   // Bulle Mizuki — wellbeing en priorité si signal fort
   let bubbleText=Mizuki.getBubbleText(_analysisForMizuki(analysis));
   if(analysis.wellbeing&&analysis.wellbeing.available&&analysis.wellbeing.niveau==='critique') {
-    const name=localStorage.getItem('M5_USER_NAME')||'';
+    const name=(localStorage.getItem('M5_USER_NAME')||localStorage.getItem('SH_PRENOM')||'');
     bubbleText=M5_Wellbeing.getMizukiText(analysis.wellbeing,name)||bubbleText;
   }
   const bubbleEl=document.getElementById('mizuki-bubble-text');
@@ -1492,7 +1492,7 @@ function openContractModal() {
     if(ccnR && ccnR.cap) capToShow=ccnR.cap;
   }
   document.getElementById('contract-cap').value = capToShow===0.33?'0.33':'0.10';
-  document.getElementById('contract-name').value    =localStorage.getItem('M5_USER_NAME')||'';
+  document.getElementById('contract-name').value    =(localStorage.getItem('M5_USER_NAME')||localStorage.getItem('SH_PRENOM')||'');
   const startDayEl=document.getElementById('contract-start-day');
   if(startDayEl) startDayEl.value=String(c.weekStartDay||0);
   const exEl=document.getElementById('contract-exercice');
@@ -1689,7 +1689,7 @@ function launchPDF() {
     const weeks=filterWeeksByPeriode(allWeeks, periode, year);
     const stats=M5_DataStore.getAnnualStats(year,contract.hoursBase,contract);
     const analysis=currentAnalysis||runAnalysis();
-    const userName=localStorage.getItem('M5_USER_NAME')||'';
+    const userName=(localStorage.getItem('M5_USER_NAME')||localStorage.getItem('SH_PRENOM')||'');
     const periodeLabel=periode==='MENSUEL'
       ? ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][parseInt(document.getElementById('pdf-mois')?.value||'1')-1]+' '+year
       : periode==='CUSTOM'
@@ -2053,6 +2053,41 @@ let _wizMode='HEBDO';
 let _wizNeutraliseFeries=true;
 let _wizCCN=null; // {i, n, s, cap, ...}
 
+/* 26/09/2026 : prénom (SH_PRENOM) et CCN (CCN_IDCC) choisis dans les Paramètres du menu.
+   L'assistant les préremplit ; la CCN seulement pour le contrat 1 (un 2e contrat peut
+   relever d'une autre convention). Tout reste modifiable, « Droit commun » compris. */
+let _wizMenuFait=false;
+function _wizPrefillMenu(){
+  if(_wizMenuFait) return; _wizMenuFait=true;
+  try{ const n=document.getElementById('wiz-name'), p=localStorage.getItem('SH_PRENOM'); if(n&&!n.value&&p) n.value=p; }catch(e){}
+  try{
+    if(_wizCCN||localStorage.getItem('CCN_CUSTOM')) return;
+    if(window.M5_Contrats&&M5_Contrats.active!==1) return;
+    const idcc=parseInt(localStorage.getItem('CCN_IDCC')||'0',10);
+    if(!idcc||typeof CCN_PARTIEL_API==='undefined') return;
+    const x=CCN_PARTIEL_API.getById(idcc); if(!x) return;
+    wizPickCCN(x.i,x.n,x.s,x.cap);
+  }catch(e){}
+}
+/* Contrat 1 déjà enregistré en droit commun : la CCN choisie dans le menu y est reprise
+   une fois (M5_CCN_MENU garde l'IDCC déjà proposé : un retour manuel au droit commun
+   dans Mizuki est respecté). Un contrat qui a déjà sa CCN n'est jamais modifié. */
+function M5_ccnDuMenu(){
+  try{
+    if(window.M5_Contrats&&M5_Contrats.active!==1) return;
+    if(localStorage.getItem('CCN_CUSTOM')) return;
+    const idcc=parseInt(localStorage.getItem('CCN_IDCC')||'0',10); if(!idcc) return;
+    if(localStorage.getItem('M5_CCN_MENU')===String(idcc)) return;
+    if(typeof CCN_PARTIEL_API==='undefined'||!CCN_PARTIEL_API.getById(idcc)) return;
+    const c=M5_Contract.get();
+    localStorage.setItem('M5_CCN_MENU',String(idcc));
+    if(!c.hoursBase||(c.idcc&&c.idcc>0)) return;
+    const r=CCN_PARTIEL_API.getRules(idcc);
+    M5_Contract.save({...c,idcc,ccnNom:r.nom,cap:r.cap,rate1:r.rate1||0.10,rate2:r.rate2||0.25,threshold:r.threshold||0.10});
+    setTimeout(()=>toast('Ta convention collective est reprise du menu : '+r.nom,'success',4000),900);
+  }catch(e){}
+}
+
 function wizNext(step) {
   // Validation avant de passer
   if(step===3) {
@@ -2065,6 +2100,7 @@ function wizPrev(step) { _wizGo(step); }
 function wizSkip() { wizFinish(); }
 
 function _wizGo(step) {
+  _wizPrefillMenu();
   document.querySelectorAll('.wiz-step').forEach(s=>s.classList.remove('active'));
   const target=document.getElementById('wStep'+step);
   if(target) target.classList.add('active');
@@ -2535,6 +2571,7 @@ window.filterGlossaire=filterGlossaire;
 window.toggleGlos=toggleGlos;
 
 document.addEventListener('DOMContentLoaded',()=>{
+  M5_ccnDuMenu();
   initCCNSelect(); showSection('accueil'); updateYearBadge(); refreshUI();
   document.documentElement.classList.remove('m5-attente'); // premier affichage réel : on montre
   setInterval(()=>{ if(currentSection==='accueil') refreshUI(); },15000);

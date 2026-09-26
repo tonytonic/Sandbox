@@ -264,6 +264,12 @@ if ('serviceWorker' in navigator) {
       if(M6_Storage.getActiveYear(reg)!==bon)M6_Storage.setActiveYear(reg,bon);
     }
   }catch(e){}
+  /* 26/09/2026 : CCN choisie dans le menu, reprise dans un contrat encore sans CCN */
+  try{
+    var regC=localStorage.getItem('M6_REGIME');
+    var nomC=regC&&window.M6_CCN_Adapter&&M6_CCN_Adapter.appliquerDuMenu?M6_CCN_Adapter.appliquerDuMenu(regC):'';
+    if(nomC)window.addEventListener('load',function(){setTimeout(function(){if(window.M6_toast)M6_toast('Ta convention collective est reprise du menu : '+nomC);},900);});
+  }catch(e){}
   if(location.hash!=='#saisie-aujourdhui')return;
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
   function go(){try{

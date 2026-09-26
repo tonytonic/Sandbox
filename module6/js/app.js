@@ -251,7 +251,7 @@ const M6_Router = {
           <div class="m6-card"><div class="m6-card-body">
             <div class="m6-field"><label>Début de l'exercice <small style="color:var(--pierre);font-weight:400">(laisser vide = 1er janvier)</small></label><input type="date" id="wiz-debut" value="${existing.dateDebutExercice||''}" placeholder="${new Date().getFullYear()}-01-01" style="font-size:16px"></div>
             <div class="m6-field"><label>Fin de l'exercice <small style="color:var(--pierre);font-weight:400">(laisser vide = 31 décembre)</small></label><input type="date" id="wiz-fin" value="${existing.dateFinExercice||''}" placeholder="${new Date().getFullYear()}-12-31" style="font-size:16px"></div>
-            <div class="m6-field"><label>Votre nom (pour les exports PDF)</label><input type="text" id="wiz-nom" value="${((existing.nomCadre||existing.nom)||'').replace(/"/g,'&quot;')}" placeholder="Prénom NOM" style="font-size:16px"></div>
+            <div class="m6-field"><label>Votre nom (pour les exports PDF)</label><input type="text" id="wiz-nom" value="${((existing.nomCadre||existing.nom)||(()=>{try{return localStorage.getItem('SH_PRENOM')||'';}catch(_){return '';}})()).replace(/"/g,'&quot;')}" placeholder="Prénom NOM" style="font-size:16px"></div>
           </div></div>
           <button class="m6-btn m6-btn-gold" id="wiz-next" style="width:100%">Continuer →</button>
           <button class="m6-btn m6-btn-ghost" id="wiz-prev" style="width:100%;margin-top:8px;font-size:0.78rem">← Précédent</button>
@@ -338,7 +338,7 @@ const M6_Router = {
         const wDrop = this._root.querySelector('#wiz-ccn-drop');
         const wInfo = this._root.querySelector('#wiz-ccn-info');
         if (wInp && wDrop) {
-          M6_CCN_Adapter.bindAutocomplete(wInp, wDrop, (ccn) => {
+          const cbFJ = (ccn) => {
             // Sauvegarder l'IDCC pour la validation
             wInp.dataset.idcc = ccn.idcc || '';
             const pEl = this._root.querySelector('#wiz-plafond');
@@ -353,7 +353,9 @@ const M6_Router = {
             }
             // Afficher la carte CCN
             if (wInfo) wInfo.innerHTML = M6_CCN_Adapter.renderCCNCard(ccn, 'forfait_jours');
-          }, 'forfait_jours');
+          };
+          M6_CCN_Adapter.bindAutocomplete(wInp, wDrop, cbFJ, 'forfait_jours');
+          M6_ccnDuMenuWizard(wInp, 'forfait_jours', cbFJ);
         }
       }
       if (step === 2 && regime === 'forfait_heures' && window.M6_CCN_Adapter) {
@@ -361,7 +363,7 @@ const M6_Router = {
         const wDropFH = this._root.querySelector('#wiz-ccn-fh-drop');
         const wInfoFH = this._root.querySelector('#wiz-ccn-fh-info');
         if (wInpFH && wDropFH) {
-          M6_CCN_Adapter.bindAutocomplete(wInpFH, wDropFH, (ccn) => {
+          const cbFH = (ccn) => {
             wInpFH.dataset.idcc = ccn.idcc || '';
             const defs = M6_CCN_Adapter.buildContractDefaults?.(ccn, 'forfait_heures');
             const contEl  = this._root.querySelector('#wiz-cont');
@@ -369,7 +371,9 @@ const M6_Router = {
             if (contEl  && defs?.contingent) contEl.value  = defs.contingent;
             if (seuilEl && defs?.seuilHebdo) seuilEl.value = defs.seuilHebdo;
             if (wInfoFH) wInfoFH.innerHTML = M6_CCN_Adapter.renderCCNCard(ccn, 'forfait_heures');
-          }, 'forfait_heures');
+          };
+          M6_CCN_Adapter.bindAutocomplete(wInpFH, wDropFH, cbFH, 'forfait_heures');
+          M6_ccnDuMenuWizard(wInpFH, 'forfait_heures', cbFH);
         }
       }
       if (step === 2 && regime === 'cadre_dirigeant' && window.M6_CCN_Adapter) {
@@ -377,10 +381,12 @@ const M6_Router = {
         const wDropCD = this._root.querySelector('#wiz-cd-ccn-drop');
         const wInfoCD = this._root.querySelector('#wiz-cd-ccn-info');
         if (wInpCD && wDropCD) {
-          M6_CCN_Adapter.bindAutocomplete(wInpCD, wDropCD, (ccn) => {
+          const cbCD = (ccn) => {
             wInpCD.dataset.idcc = ccn.idcc || '';
             if (wInfoCD) wInfoCD.innerHTML = M6_CCN_Adapter.renderCCNCard?.(ccn, 'cadre_dirigeant') || '';
-          }, 'cadre_dirigeant');
+          };
+          M6_CCN_Adapter.bindAutocomplete(wInpCD, wDropCD, cbCD, 'cadre_dirigeant');
+          M6_ccnDuMenuWizard(wInpCD, 'cadre_dirigeant', cbCD);
         }
       }
       this._root.querySelector('#wiz-prev')?.addEventListener('click', () => { step--; render(); });
