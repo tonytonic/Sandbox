@@ -61,6 +61,7 @@
 <script src="js/data/ccn-adapter.js"></script>
 <script src="../legi-ref.js"></script>
 <script src="../js/rappel-sauvegarde.js"></script>
+<script src="../js/bilan-annee.js"></script>
 <script src="js/data/glossaire-cadres.js"></script>
 <script src="js/features/zenji.js"></script>
 <script src="js/features/zenji-popup.js"></script>
@@ -78,6 +79,67 @@
 <script src="js/views/view-forfait-heures.js"></script>
 <script src="js/views/view-cadre-dirigeant.js"></script>
 <script src="js/app.js"></script>
+<script>
+/* ═══ Bilan de fin d'année — Zenji (26/09/2026) ═══════════════════════════
+   Zenji passe seul à la nouvelle année (pas de bouton « ouvrir l'exercice
+   suivant »). Après la fin de l'exercice précédent, un bandeau propose
+   pendant 4 mois de voir le bilan de l'année écoulée, une seule fois par
+   régime et par année. Forfait jours et forfait heures uniquement. */
+(function(){
+  function fH(h){h=Math.round((h||0)*60);var s=h<0?'-':'';h=Math.abs(h);return s+Math.floor(h/60)+'h'+(h%60?String(h%60).padStart(2,'0'):'');}
+  function j(n){n=Math.round((n||0)*10)/10;return String(n).replace('.',',')+' j';}
+  function moinsUnAn(s){if(!s)return s;var d=new Date(s+'T12:00:00');d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
+  function contexte(){
+    var regime=localStorage.getItem('M6_REGIME');
+    if(regime!=='forfait_jours'&&regime!=='forfait_heures')return null;
+    if(!window.M6_Storage)return null;
+    var cur=M6_Storage.getActiveYear(regime),prec=cur-1,data=M6_Storage.getData(regime,prec)||{};
+    if(!Object.keys(data).some(function(k){return /^\d{4}-\d{2}-\d{2}$/.test(k);}))return null;
+    var c=Object.assign({},M6_Storage.getContract(regime)||{});
+    // Le contrat porte les dates de l'exercice en cours : on les recule d'un an pour l'exercice écoulé
+    if(c.dateDebutExercice&&c.dateDebutExercice.slice(0,4)>String(prec)){c.dateDebutExercice=moinsUnAn(c.dateDebutExercice);if(c.dateFinExercice)c.dateFinExercice=moinsUnAn(c.dateFinExercice);}
+    var fin=c.dateFinExercice||(prec+'-12-31');
+    return {regime:regime,prec:prec,data:data,c:c,fin:fin};
+  }
+  function lignes(x){
+    if(x.regime==='forfait_jours'){
+      var a=M6_ForfaitJours.analyze(x.c,x.data,x.prec);
+      var l=[['Jours travaillés',j(a.joursEffectifs)+' / '+j(a.plafond)],['Jours de RTT pris',j(a.rttPris)+' sur '+j(a.rttTheoriques)],['Congés payés pris',j(a.cpPris)]];
+      if(a.rachetes>0)l.push(['Jours de repos rachetés',j(a.rachetes)]);
+      if(a.deplacements>0)l.push(['Jours en déplacement',j(a.deplacements)]);
+      return l;
+    }
+    var b=M6_ForfaitHeures.analyze(x.c,x.data,x.prec);if(!b.totalHeures)return null;
+    var l2=[['Heures travaillées',fH(b.totalHeures)],['Semaines saisies',String(b.semaines)],['Heures supplémentaires',fH(b.totalHS)],['Dont majorées à '+b.taux1+' %',fH(b.totalHSTaux1)]];
+    if(b.a3Paliers)l2.push(['Dont majorées à '+b.taux_inter+' %',fH(b.totalHSTaux_inter)]);
+    l2.push(['Dont majorées à '+b.taux2+' %',fH(b.totalHSTaux2)],['Contingent annuel utilisé',fH(b.totalHS)+' / '+b.contingent+'h']);
+    if(b.montantTotal>0)l2.push(['Valeur estimée (brut)',Math.round(b.montantTotal).toLocaleString('fr-FR')+' €']);
+    return l2;
+  }
+  window.M6_voirBilan=function(){
+    var x=contexte();if(!x)return;var l=null;try{l=lignes(x);}catch(e){}
+    try{localStorage.setItem('M6_BILAN_VU_'+x.regime,String(x.prec));}catch(e){}
+    var el=document.getElementById('m6BilanAnnee');if(el)el.remove();
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:String(x.prec),module:'Zenji · '+(x.regime==='forfait_jours'?'forfait jours':'forfait heures'),couleur:'#8a6d2f',image:'images/Cadremenu.PNG',lignes:l});
+  };
+  window.M6_bilanPlusTard=function(){var x=contexte();if(x)try{localStorage.setItem('M6_BILAN_VU_'+x.regime,String(x.prec));}catch(e){}var el=document.getElementById('m6BilanAnnee');if(el)el.remove();};
+  function verifier(){
+    var x=contexte();if(!x)return;
+    if(localStorage.getItem('M6_BILAN_VU_'+x.regime)===String(x.prec))return;
+    var auj=new Date().toISOString().slice(0,10),limite=new Date(x.fin+'T12:00:00');limite.setDate(limite.getDate()+120);
+    if(auj<=x.fin||auj>limite.toISOString().slice(0,10))return;
+    var l=null;try{l=lignes(x);}catch(e){}if(!l)return;
+    if(document.getElementById('m6BilanAnnee'))return;
+    var d=document.createElement('div');d.id='m6BilanAnnee';
+    d.style.cssText='margin:10px 12px;padding:12px 14px;border-radius:14px;background:#fff8e6;border:1.5px solid #f0c040;font-size:13.5px;line-height:1.45;color:#5a4300';
+    d.innerHTML='📊 <b>Ton bilan '+x.prec+' est prêt.</b> Jours, repos et heures de l\'année écoulée, en un coup d\'œil.'
+      +'<div style="display:flex;gap:8px;margin-top:10px"><button onclick="M6_voirBilan()" style="flex:1;padding:10px;border-radius:10px;border:none;background:#8a6d2f;color:#fff;font-weight:800">Voir mon bilan</button>'
+      +'<button onclick="M6_bilanPlusTard()" style="padding:10px 12px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:700">Non merci</button></div>';
+    var root=document.getElementById('m6-app-root');if(root&&root.parentNode)root.parentNode.insertBefore(d,root);
+  }
+  if(document.readyState==='complete')setTimeout(verifier,700);else window.addEventListener('load',function(){setTimeout(verifier,700);});
+})();
+</script>
 <script>
 // Enregistrement Service Worker PWA
 if ('serviceWorker' in navigator) {

@@ -2479,6 +2479,7 @@ function closeTip(){
 })();
 </script>
 <script src="../js/rappel-sauvegarde.js"></script>
+<script src="../js/bilan-annee.js"></script>
 <script>try{hsBackupCheckDates(JSON.parse(localStorage.getItem("CLOSURES_REPORT_"+(localStorage.getItem("ACTIVE_YEAR_SUFFIX")||new Date().getFullYear()))||"[]"));}catch(e){}</script>
 <!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
 <script>
@@ -2548,6 +2549,35 @@ function closeTip(){
     if(window.hsBackupNudge)hsBackupNudge('year');
     verifier();
   };
+  /* Bilan de fin d'année (26/09/2026) : mêmes calculs que le bilan annuel PDF */
+  function bilanLignes(){
+    var r=getCCNRules(),annualNet=0,h1=0,h2=0,hI=0,rec=0,ext=0,nb=0;
+    var c1=1+r.taux1/100,c2=1+r.taux2/100,cI=r.taux_inter?(1+r.taux_inter/100):0;
+    (closures||[]).forEach(function(_,idx){
+      if(periodMeta[idx]&&periodMeta[idx].status==='deleted')return;
+      var start=getBaseStartDate();
+      for(var i=0;i<idx;i++){var e=new Date(closures[i]);start=new Date(e);start.setDate(start.getDate()+1);}
+      var p=calcPeriodWeeks(start,new Date(closures[idx]));
+      annualNet+=p.t25*c1+(p.tInter||0)*cI+p.t50*c2-p.tR;h1+=p.t25;h2+=p.t50;hI+=(p.tInter||0);rec+=p.tR;ext+=p.tExtra;nb++;
+    });
+    if(!nb||ext<=0&&rec<=0)return null;
+    var l=[['Heures supplémentaires',fmtH(ext)],['Dont majorées à '+r.taux1+' %',fmtH(h1)]];
+    if(r.taux_inter)l.push(['Dont majorées à '+r.taux_inter+' %',fmtH(hI)]);
+    l.push(['Dont majorées à '+r.taux2+' %',fmtH(h2)]);
+    if(rec>0)l.push(['Heures récupérées',fmtH(rec)]);
+    var ct=document.getElementById('contingentText');
+    if(ct&&ct.textContent)l.push(['Contingent annuel utilisé',ct.textContent.trim()]);
+    l.push(['Périodes de paie',String(nb)]);
+    if(localStorage.getItem('ANNUAL_RATE_'+currentSuffix)!==null&&annualRate>0&&annualNet>0)
+      l.push(['Valeur estimée (brut)',(Math.round(annualNet*annualRate)).toLocaleString('fr-FR')+' €']);
+    return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
+  }
+  window.hsBilanPuisOuvrir=function(){
+    var nx=suivant(),l=null;try{l=bilanLignes();}catch(e){}
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:String(currentSuffix),module:'Compteur annuel · heures sup',couleur:'#2196a6',lignes:l,
+      continuer:{libelle:'Ouvrir '+nx,action:window.hsOuvrirExerciceSuivant}});
+    else window.hsOuvrirExerciceSuivant();
+  };
   window.hsPlusTardExercice=function(){try{localStorage.setItem('HS_EXO_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
   function verifier(){
     var el=document.getElementById('hsExoSuivant');if(!el)return;
@@ -2556,7 +2586,7 @@ function closeTip(){
     var pret=!!localStorage.getItem('EXERCISE_START_'+nx);
     el.innerHTML='📅 <b>Ton exercice '+currentSuffix+' est terminé</b> (clôture le '+fr(annualDate)+').<br>'+
       (pret?'L\'exercice '+nx+' est déjà prêt.':'L\'exercice '+nx+' commencera le '+fr(plus(annualDate,1))+', avec les mêmes réglages et le même rythme de clôtures (modifiables ensuite).')+
-      '<div style="display:flex;gap:8px;margin-top:10px"><button onclick="hsOuvrirExerciceSuivant()" style="flex:1;margin:0;padding:10px;border-radius:10px;border:none;background:#2196a6;color:#fff;font-weight:800">Ouvrir '+nx+'</button>'+
+      '<div style="display:flex;gap:8px;margin-top:10px"><button onclick="hsBilanPuisOuvrir()" style="flex:1;margin:0;padding:10px;border-radius:10px;border:none;background:#2196a6;color:#fff;font-weight:800">Ouvrir '+nx+'</button>'+
       '<button onclick="hsPlusTardExercice()" style="width:auto;margin:0;padding:10px 12px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:700">Plus tard</button></div>'+
       '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">Ton exercice '+currentSuffix+' reste consultable avec le bouton '+currentSuffix+' ⇄.</div>';
     el.style.display='block';

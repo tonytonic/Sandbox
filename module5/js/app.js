@@ -1475,6 +1475,7 @@ function openContractModal() {
   const _dc=c.dureeContrat, _u=(_dc&&_WIZ_UNITES[_dc.unite])?_dc.unite:'S';
   setContractUnite(_u, true);
   document.getElementById('contract-hours').value   =(_u!=='S'&&_dc.valeur>0)?_dc.valeur:(c.hoursBase||'');
+  const _rp=document.getElementById('contract-retraite-prog'); if(_rp) _rp.checked=!!c.retraiteProgressive;
   updateContractHoursPreview();
   document.getElementById('contract-rate').value    =c.hourlyRate||'';
   document.getElementById('contract-ccn').value     =c.idcc||'0';
@@ -1559,6 +1560,7 @@ function setContractUnite(u, silencieux){
   }
 }
 function updateContractHoursPreview(){
+  _rpMaj('contract',_contractUnite,_contractValeur());
   const el=document.getElementById('contract-hours-preview'); if(!el) return;
   const v=_contractValeur(), h=_contractHebdo(), f=window._m5fmtH;
   if(!v||v<=0||!f){ el.textContent=''; return; }
@@ -1606,7 +1608,8 @@ function saveContract() {
     rate1:ccnRules.rate1||0.10,rate2:ccnRules.rate2||0.25,threshold:ccnRules.threshold||0.10,
     weekStartDay,exerciceStart,cloturesDates,modeCalcul,neutraliseFeries,
     accordCollectifPrevenance,joursOuvresContrat,
-    dureeContrat:{unite:_contractUnite,valeur:_vC}});
+    dureeContrat:{unite:_contractUnite,valeur:_vC},
+    retraiteProgressive:!!document.getElementById('contract-retraite-prog')?.checked});
   if(name) localStorage.setItem('M5_USER_NAME',name);
   Mizuki.clearCache();
   // Recalibrer le calendrier avec le nouveau début de semaine
@@ -2093,7 +2096,16 @@ function wizSetUnite(u){
 }
 window.wizSetUnite=wizSetUnite;
 
+// Retraite progressive : repère « X % d'un temps plein » sous la durée (26/09/2026)
+function _rpMaj(prefixe, unite, valeur){
+  const cb=document.getElementById(prefixe+'-retraite-prog'), info=document.getElementById(prefixe+'-rp-info');
+  if(!cb||!info) return;
+  if(!cb.checked||!(valeur>0)||!window.M5_rpPct){ info.style.display='none'; return; }
+  const c={dureeContrat:{unite:unite,valeur:valeur},hoursBase:unite==='S'?valeur:0};
+  info.innerHTML=M5_rpTexte(M5_rpPct(c),false); info.style.display='block';
+}
 function wizUpdateHoursPreview() {
+  _rpMaj('wiz',_wizUnite,_wizValeurSaisie());
   const el=document.getElementById('wiz-hours-preview'); if(!el) return;
   const v=_wizValeurSaisie(), h=_wizHeuresHebdo();
   if(!v||v<=0) { el.textContent=''; return; }
@@ -2273,6 +2285,7 @@ function wizFinish() {
     modeCalcul:_wizMode,
     neutraliseFeries:_wizNeutraliseFeries,
     dureeContrat:{unite:_wizUnite,valeur:_wizValeurSaisie()},
+    retraiteProgressive:!!document.getElementById('wiz-retraite-prog')?.checked,
   });
   if(name) localStorage.setItem('M5_USER_NAME', name);
   calendarMonday=M5_getCurrentMonday();
@@ -3127,6 +3140,30 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(window.hsBackupNudge)hsBackupNudge('year');
     verifier();
   };
+  /* Bilan de fin d'année (26/09/2026) : l'exercice qui se termine, contrat actif */
+  function bilanLignes(c,last){
+    var deb=c.exerciceStart,fin=last;if(!deb||!fin||!c.hoursBase)return null;
+    var ans={},sem={},f=window._m5fmtH||function(h){return h+'h';};
+    for(var a=parseInt(deb.slice(0,4),10);a<=parseInt(fin.slice(0,4),10)+1;a++)ans[a]=1;
+    Object.keys(ans).forEach(function(a){try{M5_DataStore.getWeeksSorted(String(a)).forEach(function(w){if(w.monday>=deb&&w.monday<=fin&&w.worked>0)sem[w.monday]=w.worked;});}catch(e){}});
+    var ws=Object.keys(sem);if(!ws.length)return null;
+    var base=c.hoursBase,seuil=base*(c.threshold||0.10),tot=0,hc=0,h1=0,h2=0,n35=0;
+    ws.forEach(function(k){var w=sem[k],d=Math.max(0,w-base);tot+=w;hc+=d;h1+=Math.min(d,seuil);h2+=Math.max(0,d-seuil);if(w>=35)n35++;});
+    var r=function(x){return Math.round(x*100)/100;};
+    var l=[['Heures travaillées',f(r(tot))],['Semaines saisies',String(ws.length)]];
+    if(c.modeCalcul==='ANNUEL'){var obj=r(base*52),so=r(tot-obj);l.push(['Objectif annuel du contrat',f(obj)],['Écart avec l\'objectif',(so>0?'+':so<0?'−':'')+f(Math.abs(so))]);}
+    else{l.push(['Heures au-delà du contrat',f(r(hc))],['Dont à +'+Math.round((c.rate1||0.10)*100)+' %',f(r(h1))],['Dont à +'+Math.round((c.rate2||0.25)*100)+' %',f(r(h2))]);}
+    if(n35>0)l.push(['Semaines à 35 h ou plus',String(n35)]);
+    return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
+  }
+  window.M5_bilanPuisSuivant=function(){
+    var c=M5_Contract.get(),last=derniere(c),l=null;try{l=bilanLignes(c,last);}catch(e){}
+    var nomC='';try{if(window.M5_Contrats&&M5_Contrats.existing().length>1)nomC=' · '+M5_Contrats.nom(M5_Contrats.active);}catch(e){}
+    var an=last?(c.exerciceStart.slice(0,4)===last.slice(0,4)?last.slice(0,4):c.exerciceStart.slice(0,4)+'-'+last.slice(2,4)):'';
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:an,module:'Mizuki · temps partiel'+nomC,couleur:'#6C3FC5',image:'../images/Mizuki.PNG',lignes:l,
+      continuer:{libelle:'Ouvrir l\'exercice suivant',action:window.M5_exerciceSuivant}});
+    else window.M5_exerciceSuivant();
+  };
   window.M5_exercicePlusTard=function(){try{localStorage.setItem('M5_EXO_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
   function verifier(){
     var main=document.getElementById('view-main');if(!main)return;
@@ -3138,7 +3175,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!c.hoursBase||!last||auj<=last||localStorage.getItem('M5_EXO_PLUS_TARD')===auj){el.style.display='none';return;}
     var deb=plus(last,1);if(window.snapExerciceStart)deb=snapExerciceStart(deb,c.weekStartDay||0);
     el.innerHTML='📅 <b>Ton exercice s\'est terminé le '+fr(last)+'.</b><br>Le suivant commencera le '+fr(deb)+', avec le même rythme de clôtures (modifiable dans ⚙️ Mon contrat).'+
-      '<div style="display:flex;gap:8px;margin-top:10px"><button onclick="M5_exerciceSuivant()" style="flex:1;padding:10px;border-radius:10px;border:none;background:#c2185b;color:#fff;font-weight:800">Ouvrir l\'exercice suivant</button>'+
+      '<div style="display:flex;gap:8px;margin-top:10px"><button onclick="M5_bilanPuisSuivant()" style="flex:1;padding:10px;border-radius:10px;border:none;background:#c2185b;color:#fff;font-weight:800">Ouvrir l\'exercice suivant</button>'+
       '<button onclick="M5_exercicePlusTard()" style="padding:10px 12px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:700">Plus tard</button></div>'+
       '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">Tes semaines déjà saisies ne bougent pas, et l\'exercice terminé reste consultable.</div>';
     el.style.display='block';

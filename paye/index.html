@@ -3095,6 +3095,7 @@ function closeTip(){
 </script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>
 <script src="../js/rappel-sauvegarde.js"></script>
+<script src="../js/bilan-annee.js"></script>
 <!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
 <script>
 (function(){
@@ -3130,6 +3131,32 @@ function closeTip(){
     if(window.hsBackupNudge) hsBackupNudge('year');
     verifier();
   };
+  /* Bilan de fin d'année (26/09/2026) : mêmes calculs que le bilan annuel PDF */
+  function m2BilanLignes(yearStr){
+    try{
+      var r=getCCNRules(),tot=0,paid=0,h1=0,hI=0,h2=0,mois=0,carry=0;
+      for(var mi=0;mi<12;mi++){
+        var mk=yearStr+'-'+String(mi+1).padStart(2,'0'),b=getPeriodBounds(mk);
+        var md=(ALL_DATA[yearStr]||{})[mk]||{days:{},paid:0,carry:0};
+        var days=buildDayList(b.start,b.end),t=days.reduce(function(s,x){return s+x.h;},0),w=calcWeeks(days);
+        tot+=t;paid+=(md.paid||0);h1+=w.h25;hI+=(w.hInter||0);h2+=w.h50;if(t>0)mois++;carry=md.carry||0;
+      }
+      if(tot<=0)return null;
+      var l=[['Heures supplémentaires',fmtH(tot)],['Dont majorées à '+r.taux1+' %',fmtH(h1)]];
+      if(r.taux_inter!==null&&r.taux_inter!==undefined)l.push(['Dont majorées à '+r.taux_inter+' %',fmtH(hI)]);
+      l.push(['Dont majorées à '+r.taux2+' %',fmtH(h2)]);if(paid>0)l.push(['Heures payées',fmtH(paid)]);
+      if(carry>0)l.push(['Reliquat en fin d\'année',fmtH(carry)]);
+      l.push(['Contingent annuel utilisé',fmtH(tot)+' / '+r.contingent+'h'],['Mois avec des heures sup',mois+' mois']);
+      return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
+    }catch(e){return null;}
+  }
+  window.m2BilanLignes=m2BilanLignes;
+  window.m2VoirBilan=function(yearStr){var l=m2BilanLignes(yearStr);if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:yearStr,module:'Heures mensualisées',couleur:'#2196a6',lignes:l});};
+  window.m2BilanPuisOuvrir=function(){
+    var cur=String(currentYear),y=String(new Date().getFullYear()),l=m2BilanLignes(cur);
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:cur,module:'Heures mensualisées',couleur:'#2196a6',lignes:l,continuer:{libelle:'Ouvrir '+y,action:window.m2OuvrirNouvelleAnnee}});
+    else window.m2OuvrirNouvelleAnnee();
+  };
   window.m2PlusTardAnnee=function(){try{localStorage.setItem('M2_ANNEE_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
   window.m2VuNouvelleAnnee=function(){try{localStorage.setItem('M2_NOUVELLE_ANNEE_VU',String(new Date().getFullYear()));}catch(e){}verifier();};
   function verifier(){
@@ -3139,7 +3166,7 @@ function closeTip(){
     if(cur<y){
       if(localStorage.getItem('M2_ANNEE_PLUS_TARD')===iso(now)){el.style.display='none';return;}
       el.innerHTML='📅 <b>L\'année '+cur+' est terminée.</b> Tu consultes encore '+cur+' : les heures de '+y+' doivent aller dans l\'exercice '+y+', avec un contingent remis à zéro.'+
-        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('Ouvrir '+y,'m2OuvrirNouvelleAnnee()',true)+bouton('Plus tard','m2PlusTardAnnee()',false)+'</div>'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('Ouvrir '+y,'m2BilanPuisOuvrir()',true)+bouton('Plus tard','m2PlusTardAnnee()',false)+'</div>'+
         '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">L\'année '+cur+' reste consultable avec le bouton 📅 Exercice.</div>';
       el.style.display='block';return;
     }
@@ -3147,7 +3174,7 @@ function closeTip(){
     try{aDesDonnees=Object.keys(loadYearData(prec)||{}).length>0;}catch(e){}
     if(cur===y&&!choisie&&now.getMonth()===0&&aDesDonnees&&localStorage.getItem('M2_NOUVELLE_ANNEE_VU')!==String(y)){
       el.innerHTML='🎉 <b>Nouvelle année : ton suivi est passé en '+y+'.</b> Le contingent annuel repart à zéro. Tes heures de '+prec+' restent consultables avec le bouton 📅 Exercice.'+
-        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('C\'est noté','m2VuNouvelleAnnee()',true)+'</div>';
+        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('C\'est noté','m2VuNouvelleAnnee()',true)+(m2BilanLignes(prec)?bouton('📊 Mon bilan '+prec,'m2VoirBilan(\''+prec+'\')',false):'')+'</div>';
       el.style.display='block';
       if(window.hsBackupNudge) hsBackupNudge('year');
       return;

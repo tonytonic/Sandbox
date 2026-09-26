@@ -74,7 +74,7 @@
   document.addEventListener('click', function(){ tryLockPortrait(); }, { once: true, passive: true });
 })();
 </script>
-<script src="js/core/contrats.js?v=r9"></script>
+<script src="js/core/contrats.js?v=r10"></script>
 <!-- Sans flash (01/10/2026) : quand un contrat existe, le message « Configure
      ton contrat » et l'écran de configuration ne s'affichent plus une fraction
      de seconde avant les vraies données. Masqués jusqu'au premier affichage
@@ -233,6 +233,11 @@ if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente'
           style="font-size:24px;font-weight:700;text-align:center;"
           oninput="wizUpdateHoursPreview()">
         <div id="wiz-hours-preview" style="font-size:12px;color:var(--miz-text3);margin-top:4px;text-align:center;"></div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="wiz-retraite-prog" onchange="wizUpdateHoursPreview()" style="width:18px;height:18px;flex-shrink:0;">
+          <span>🧓 Je suis en <b>retraite progressive</b></span>
+        </label>
+        <div id="wiz-rp-info" style="display:none;font-size:12px;color:var(--miz-text3);margin-top:6px;line-height:1.5;"></div>
       </div>
       <div class="m5-input-group">
         <label class="m5-label">Combien de jours par semaine travailles-tu ?</label>
@@ -855,6 +860,11 @@ if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente'
       <label class="m5-label" id="contract-hours-label">Durée contractuelle (h/semaine) *</label>
       <input type="number" inputmode="decimal" class="m5-input" id="contract-hours" min="1" step="0.01" placeholder="ex: 25" oninput="updateContractHoursPreview()">
       <div id="contract-hours-preview" style="font-size:12px;color:var(--miz-text3);margin-top:4px;"></div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" id="contract-retraite-prog" onchange="updateContractHoursPreview()" style="width:18px;height:18px;flex-shrink:0;">
+          <span>🧓 Je suis en <b>retraite progressive</b></span>
+        </label>
+        <div id="contract-rp-info" style="display:none;font-size:12px;color:var(--miz-text3);margin-top:6px;line-height:1.5;"></div>
     </div>
     <div class="m5-input-group">
       <label class="m5-label">Taux horaire brut (€/h)</label>
@@ -1034,8 +1044,9 @@ function confirmResetM5() {
 <script src="js/features/glossaire.js?v=r6"></script>
 <script src="js/features/wellbeing.js?v=r7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="js/app.js?v=r10"></script>
+<script src="js/app.js?v=r11"></script>
 <script src="../js/rappel-sauvegarde.js"></script>
+<script src="../js/bilan-annee.js"></script>
 <script>try{var _c=JSON.parse(localStorage.getItem(M5_key("M5_CONTRACT"))||"{}");hsBackupCheckDates(Object.keys((_c&&_c.cloturesDates)||{}).map(function(k){return _c.cloturesDates[k];}));}catch(e){}</script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>
 <!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->

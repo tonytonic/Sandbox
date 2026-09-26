@@ -95,6 +95,50 @@ function sumRange(data,a,b){var t=0;
   return Math.round(t*100)/100;}
 function fmtH(h){var hh=Math.floor(h),mm=Math.round((h-hh)*60);if(mm===60){hh++;mm=0;}return hh+' h'+(mm?' '+pad(mm):'');}
 function base(n){try{var c=JSON.parse(get(keyFor(n,'M5_CONTRACT'))||'null');return c&&c.hoursBase>0?c.hoursBase:0;}catch(e){return 0;}}
+/* 10 h par jour tous employeurs confondus (26/09/2026).
+   Seules les journées saisies au jour près comptent. On ne liste que les journées
+   où c'est l'addition des contrats qui dépasse 10 h : un dépassement dans un seul
+   contrat est déjà signalé par Mizuki dans ce contrat. */
+function jours10h(ex){
+  var t=new Date();t.setHours(12,0,0,0);var a=new Date(t);a.setDate(t.getDate()-27);
+  var da=dk(a),db=dk(t),parJour={};
+  ex.forEach(function(n){var d=allData(n);for(var j in d){if(j<da||j>db)continue;var e=d[j];
+    if(e&&e.type==='day'&&e.worked>0){(parJour[j]=parJour[j]||[]).push({n:n,h:e.worked});}}});
+  var liste=[];
+  Object.keys(parJour).sort().forEach(function(j){var l=parJour[j];if(l.length<2)return;
+    var tot=0,max=0;l.forEach(function(x){tot+=x.h;if(x.h>max)max=x.h;});tot=Math.round(tot*100)/100;
+    if(tot>10&&max<=10)liste.push({j:j,tot:tot,l:l});});
+  var art=function(a){return global.LegiRef&&LegiRef.html?LegiRef.html(a):a;};
+  var h='<div style="margin-top:8px;padding:9px 11px;border-radius:10px;font-size:12px;line-height:1.45;'
+    +(liste.length?'background:#fff3e0;color:#b34700;border:1px solid #ffb74d':'background:rgba(108,63,197,0.06);color:#4a3f66')+'">';
+  if(liste.length){
+    h+='Journées de plus de 10 h tous employeurs confondus (4 dernières semaines) :<br>';
+    h+=liste.slice(-6).map(function(x){var p=x.j.split('-');
+      return '<b>'+p[2]+'/'+p[1]+'</b> : '+fmtH(x.tot)+' ('+x.l.map(function(y){return esc(nom(y.n))+' '+fmtH(y.h);}).join(' + ')+')';}).join('<br>');
+    if(liste.length>6)h+='<br>… et '+(liste.length-6)+' autre(s).';
+    h+='<br>';
+  }
+  h+='La durée maximale est de 10 h par jour, tous employeurs confondus (art. '+art('L3121-18')+'). '
+    +'Pense aussi à tes 11 h de repos entre la fin d’un travail et la reprise du suivant (art. '+art('L3131-1')+') : '
+    +'l’appli ne connaît pas tes horaires, elle ne peut pas le vérifier pour toi.</div>';
+  return h;
+}
+/* Retraite progressive (26/09/2026) : part d'un temps plein, dans l'unité du contrat.
+   Référence : 35 h/sem, 151,67 h/mois, 1 607 h/an. Fourchette légale 40 % à 80 %
+   (art. L351-15 du Code de la sécurité sociale). Repère indicatif uniquement. */
+function rpPct(c){
+  if(!c)return 0;var dc=c.dureeContrat;
+  if(dc&&dc.valeur>0&&(dc.unite==='M'||dc.unite==='A'))return Math.round(dc.valeur/(dc.unite==='M'?151.67:1607)*1000)/10;
+  return c.hoursBase>0?Math.round(c.hoursBase/35*1000)/10:0;
+}
+function rpTexte(pct,total){
+  if(!(pct>0))return '';
+  var hors=pct<40||pct>80;
+  return (total?'Au total, tes contrats représentent ':'Ta durée représente ')+'<b>'+String(pct).replace('.',',')+' %</b> d’un temps plein. '
+    +'La retraite progressive demande une durée entre 40 % et 80 % d’un temps plein (art. L351-15 du Code de la sécurité sociale)'
+    +(hors?' : '+(total?'ce total':'ta durée')+' est en dehors de cette fourchette.':'.');
+}
+function contrat(n){try{return JSON.parse(get(keyFor(n,'M5_CONTRACT'))||'null');}catch(e){return null;}}
 function renderOverview(){
   var ex=existing();if(ex.length<2)return;
   var strip=document.getElementById('m5-contrats');if(!strip)return;
@@ -122,6 +166,10 @@ function renderOverview(){
     +'Tous employeurs confondus, la durée maximale de travail est de 48 h par semaine '
     +'(art. '+(global.LegiRef&&LegiRef.html?LegiRef.html('L3121-20'):'L3121-20')+' et L8261-1 du Code du travail). '
     +'Total saisi cette semaine : <b>'+fmtH(tw)+'</b>.'+(over?' Ce total dépasse 48 h.':'')+'</div>'
+    +jours10h(ex)
+    +(function(){var rp=ex.some(function(n){var c=contrat(n);return c&&c.retraiteProgressive;});if(!rp)return '';
+      var tot=0;ex.forEach(function(n){tot+=rpPct(contrat(n));});tot=Math.round(tot*10)/10;
+      return '<div style="margin-top:8px;padding:9px 11px;border-radius:10px;font-size:12px;line-height:1.45;background:rgba(108,63,197,0.06);color:#4a3f66">🧓 '+rpTexte(tot,true)+'</div>';})()
     +'<div style="margin-top:6px;font-size:11px;opacity:.6">Semaine du lundi au dimanche. Les heures complémentaires se calculent contrat par contrat, dans chaque contrat. Données indicatives.</div>';
   strip.parentNode.insertBefore(c,strip.nextSibling);
 }
@@ -129,5 +177,6 @@ function boot(){try{renderStrip();renderModal();}catch(e){}try{renderOverview();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 
 global.M5_key=key;
+global.M5_rpPct=rpPct;global.M5_rpTexte=rpTexte;
 global.M5_Contrats={active:ACTIVE,key:key,keyFor:keyFor,exists:exists,nom:nom,list:list,existing:existing,switchTo:switchTo,add:add};
 })(window);
