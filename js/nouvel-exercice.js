@@ -50,12 +50,12 @@
       +'<span style="font-size:12.5px;color:#55606e;line-height:1.45">'+txt+'</span></span></button>';};
     d.innerHTML='<div style="width:100%;max-width:460px;margin:auto 0 0;border-radius:20px;overflow:hidden;background:#fff;box-shadow:0 18px 50px rgba(0,0,0,.45)">'
       +'<div style="background:linear-gradient(160deg,'+coul+',#0f1c2b);color:#fff;padding:18px">'
-      +'<div style="font-size:13px;opacity:.85;font-weight:600">Nouvel exercice</div>'
+      +'<div style="font-size:13px;opacity:.85;font-weight:600">'+esc(o.surtitre||'Nouvel exercice')+'</div>'
       +'<div style="font-size:22px;font-weight:800;line-height:1.2">'+esc(o.titre||'')+'</div></div>'
       +'<div style="padding:16px 18px 6px;font-size:13.5px;color:#10202f;font-weight:700">'+esc(o.question||'Tes dates de clôture :')+'</div>'
       +'<div style="display:flex;flex-direction:column;gap:10px;padding:0 18px">'
-      +carte('auto','📅',esc(o.titreAuto||'Automatiques'),o.texteAuto?esc(o.texteAuto):'Le dernier <b>'+jour+'</b> de chaque mois (ta semaine va du '+debSem+' au '+jour+'). Aucune semaine coupée en deux.',true)
-      +carte('manuel','✏️',esc(o.titreManuel||'Je saisis mes dates'),esc(o.texteManuel||'Les dates automatiques sont préremplies, tu corriges celles de ton employeur.'),false)
+      +carte('auto',o.icoAuto||'📅',esc(o.titreAuto||'Automatiques'),o.texteAuto?esc(o.texteAuto):'Le dernier <b>'+jour+'</b> de chaque mois (ta semaine va du '+debSem+' au '+jour+'). Aucune semaine coupée en deux.',true)
+      +carte('manuel',o.icoManuel||'✏️',esc(o.titreManuel||'Je saisis mes dates'),esc(o.texteManuel||'Les dates automatiques sont préremplies, tu corriges celles de ton employeur.'),false)
       +'</div><div style="padding:12px 18px 18px;text-align:center"><button type="button" data-a="x" style="border:none;background:none;color:#7a8594;font-size:13px;font-weight:600;padding:8px;margin:0">Annuler</button></div></div>';
     d.addEventListener('click',function(e){
       var b=e.target&&e.target.closest?e.target.closest('[data-a]'):null;

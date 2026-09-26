@@ -3217,8 +3217,27 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(c.modeCalcul==='ANNUEL'){var obj=r(base*52),so=r(tot-obj);l.push(['Objectif annuel du contrat',f(obj)],['Écart avec l\'objectif',(so>0?'+':so<0?'−':'')+f(Math.abs(so))]);}
     else{l.push(['Heures au-delà du contrat',f(r(hc))],['Dont à +'+Math.round((c.rate1||0.10)*100)+' %',f(r(h1))],['Dont à +'+Math.round((c.rate2||0.25)*100)+' %',f(r(h2))]);}
     if(n35>0)l.push(['Semaines à 35 h ou plus',String(n35)]);
+    /* 26/09/2026 : reste à payer en fin d'exercice. Heures complémentaires de l'exercice
+       moins les paiements saisis sur l'exercice (cases « payé » par semaine ou période). */
+    window.__m5Alerte=null;
+    if(c.modeCalcul==='ANNUEL'){
+      var so2=r(tot-base*52);
+      if(so2>0.01)window.__m5Alerte={titre:'⚠️ '+f(so2)+' au-delà de l\'objectif annuel du contrat',
+        texte:'En fin de période annuelle, ces heures sont des heures complémentaires à payer (majorées). Si elles ne figurent pas sur ta paie, '+DELAI_MIN()};
+    }else{
+      var pm={};try{pm=JSON.parse(localStorage.getItem(M5_key('M5_HC_PAID'))||'{}')||{};}catch(e){}
+      var p1=0,p2=0;Object.keys(pm).forEach(function(k){var d=k.replace(/^(week|per):/,'');if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d>=deb&&d<=fin){p1+=+((pm[k]||{}).h10)||0;p2+=+((pm[k]||{}).h25)||0;}});
+      var n1=r(Math.max(0,h1-p1)),n2=r(Math.max(0,h2-p2)),nT=r(n1+n2);
+      if(p1+p2>0)l.push(['Heures complémentaires payées',f(r(p1+p2))]);
+      if(nT>0.01){l.push(['Reste à payer en fin d\'exercice',f(nT)]);
+        var det=[];if(n1>0.01)det.push(f(n1)+' à +'+Math.round((c.rate1||0.10)*100)+' %');if(n2>0.01)det.push(f(n2)+' à +'+Math.round((c.rate2||0.25)*100)+' %');
+        window.__m5Alerte={titre:'⚠️ Exercice non soldé : '+f(nT)+' d\'heures complémentaires non payées',
+          texte:(det.length>1?'Soit '+det.join(' + ')+'. ':'')+'D\'après les paiements cochés dans Mizuki. '+((window.hsBilanAnnee&&hsBilanAnnee.delai)||'')};
+      }
+    }
     return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
   }
+  function DELAI_MIN(){return ((window.hsBilanAnnee&&hsBilanAnnee.delai)||'').replace(/^Elles restent/,'elles restent');}
   /* Question à l'ouverture (26/09/2026) : clôtures automatiques (dernier jour de fin
      de semaine du contrat, chaque mois) ou saisie manuelle dans ⚙️ Mon contrat */
   window.M5_choisirPuisSuivant=function(){
@@ -3235,7 +3254,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var c=M5_Contract.get(),last=derniere(c),l=null;try{l=bilanLignes(c,last);}catch(e){}
     var nomC='';try{if(window.M5_Contrats&&M5_Contrats.existing().length>1)nomC=' · '+M5_Contrats.nom(M5_Contrats.active);}catch(e){}
     var an=last?(c.exerciceStart.slice(0,4)===last.slice(0,4)?last.slice(0,4):c.exerciceStart.slice(0,4)+'-'+last.slice(2,4)):'';
-    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:an,module:'Mizuki · temps partiel'+nomC,couleur:'#6C3FC5',image:'../images/Mizuki.PNG',lignes:l,
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:an,module:'Mizuki · temps partiel'+nomC,couleur:'#6C3FC5',image:'../images/Mizuki.PNG',lignes:l,alerte:window.__m5Alerte,
       continuer:{libelle:'Ouvrir l\'exercice suivant',action:window.M5_choisirPuisSuivant}});
     else window.M5_choisirPuisSuivant();
   };

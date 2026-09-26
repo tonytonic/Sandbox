@@ -10,6 +10,7 @@
      image:'../images/xxx.png',            // facultatif
      lignes:[['Heures sup', '187h'], ...],
      note:'…',                             // facultatif
+     alerte:{titre:'…', texte:'…'},        // facultatif : encadré orange « reste dû »
      continuer:{libelle:'Ouvrir 2027', action:function(){…}}  // facultatif
    });
 */
@@ -26,9 +27,17 @@
   function dessiner(o){
     return chargerImage(o.image).then(function(img){
       var F='system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
-      var W=1080,lignes=(o.lignes||[]).slice(0,9),by=330,pas=96,bh=lignes.length*pas+70,H=Math.max(1080,by+bh+200);
-      var cv=document.createElement('canvas');cv.width=W;cv.height=H;
+      var W=1080,lignes=(o.lignes||[]).slice(0,9),by=330,pas=96,bh=lignes.length*pas+70;
+      var cv=document.createElement('canvas');cv.width=W;
       var x=cv.getContext('2d'),coul=o.couleur||'#2196a6';
+      /* Encadré « reste dû » (26/09/2026) : mesuré avant de fixer la hauteur */
+      var al=null;
+      if(o.alerte&&(o.alerte.titre||o.alerte.texte)){
+        x.font='800 38px '+F;var lt=o.alerte.titre?coupe(x,o.alerte.titre,W-220):[];
+        x.font='500 32px '+F;var lx=o.alerte.texte?coupe(x,o.alerte.texte,W-220):[];
+        al={lt:lt,lx:lx,h:60+lt.length*50+lx.length*44};
+      }
+      var H=Math.max(1080,by+bh+(al?al.h+40:0)+200);cv.height=H;
       var g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,coul);g.addColorStop(1,'#0f1c2b');
       x.fillStyle=g;x.fillRect(0,0,W,H);
       var iw=0;
@@ -48,6 +57,16 @@
         y+=pas;
         if(i<lignes.length-1){x.fillStyle='rgba(16,32,47,0.08)';x.fillRect(bx+50,y-28,bw-100,2);}
       });
+      if(al){
+        var ay=by+bh+40,ax=60,aw=W-120,ar=32;
+        x.fillStyle='#fff4e0';
+        x.beginPath();x.moveTo(ax+ar,ay);x.arcTo(ax+aw,ay,ax+aw,ay+al.h,ar);x.arcTo(ax+aw,ay+al.h,ax,ay+al.h,ar);x.arcTo(ax,ay+al.h,ax,ay,ar);x.arcTo(ax,ay,ax+aw,ay,ar);x.closePath();x.fill();
+        x.fillStyle='#e67e22';x.fillRect(ax,ay+20,10,al.h-40);
+        var yy=ay+30;x.fillStyle='#7a3e00';x.font='800 38px '+F;
+        al.lt.forEach(function(t){x.fillText(t,ax+50,yy);yy+=50;});
+        x.fillStyle='#5a3a10';x.font='500 32px '+F;
+        al.lx.forEach(function(t){x.fillText(t,ax+50,yy);yy+=44;});
+      }
       x.fillStyle='rgba(255,255,255,0.9)';x.font='700 36px '+F;x.fillText('simulateurheuressupfrance.fr',70,H-120);
       x.font='400 28px '+F;x.fillStyle='rgba(255,255,255,0.65)';x.fillText('Chiffres indicatifs, calculés à partir de mes saisies',70,H-72);
       return cv;
@@ -82,7 +101,10 @@
       +'<div style="padding:6px 18px 4px">';
     o.lignes.forEach(function(l,i){h+='<div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding:10px 0;'+(i?'border-top:1px solid #eef1f4;':'')+'">'
       +'<span style="font-size:13.5px;color:#55606e">'+esc(l[0])+'</span><b style="font-size:16px;color:#10202f;white-space:nowrap">'+esc(l[1])+'</b></div>';});
-    h+='</div><div style="padding:0 18px;font-size:11.5px;color:#7a8594;line-height:1.45">'+esc(o.note||'Chiffres indicatifs, calculés à partir de tes saisies.')+'</div>'
+    h+='</div>';
+    if(o.alerte&&(o.alerte.titre||o.alerte.texte))h+='<div role="alert" style="margin:4px 18px 10px;padding:11px 13px;border-radius:12px;background:#fff4e0;border-left:4px solid #e67e22;color:#5a3a10;font-size:12.5px;line-height:1.45">'
+      +(o.alerte.titre?'<b style="display:block;color:#7a3e00;font-size:13.5px;margin-bottom:3px">'+esc(o.alerte.titre)+'</b>':'')+esc(o.alerte.texte||'')+'</div>';
+    h+='<div style="padding:0 18px;font-size:11.5px;color:#7a8594;line-height:1.45">'+esc(o.note||'Chiffres indicatifs, calculés à partir de tes saisies.')+'</div>'
       +'<div style="display:flex;flex-direction:column;gap:8px;padding:14px 18px 18px">'
       +'<button type="button" data-a="img" style="padding:12px;border-radius:12px;border:1.5px solid '+coul+';background:#fff;color:'+coul+';font-weight:800;font-size:14.5px;margin:0">📷 Enregistrer en image</button>'
       +(o.continuer?'<button type="button" data-a="go" style="padding:12px;border-radius:12px;border:none;background:'+coul+';color:#fff;font-weight:800;font-size:14.5px;margin:0">'+esc(o.continuer.libelle)+' →</button>':'')
@@ -98,5 +120,9 @@
     document.body.appendChild(d);
     try{document.body.style.overflow='hidden';}catch(e){}
   }
-  window.hsBilanAnnee={ouvrir:ouvrir,fermer:fermer,image:dessiner};
+  /* Délai pour réclamer un salaire, dont les heures sup ou complémentaires impayées :
+     3 ans (art. L3245-1 du Code du travail) à compter du jour où le salarié a connu ou
+     aurait dû connaître les faits, en pratique la paie où elles auraient dû figurer. */
+  var DELAI='Elles restent dues : tu as 3 ans pour les réclamer à ton employeur (art. L3245-1 du Code du travail), à compter de la paie où elles auraient dû figurer.';
+  window.hsBilanAnnee={ouvrir:ouvrir,fermer:fermer,image:dessiner,delai:DELAI};
 })();

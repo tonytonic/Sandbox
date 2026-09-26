@@ -1162,7 +1162,32 @@ function openTutorial(){document.getElementById("tutorialModal").classList.add("
 function closeTutorial(){document.getElementById("tutorialModal").classList.remove("open");unlockBodyScroll()}
 
 /* CALCUL */
-function getPreviousCarry(mk){const am=[];const yd=ALL_DATA[currentYear]||{};Object.keys(yd).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k))am.push({key:k,month:yd[k]})});am.sort((a,b)=>a.key.localeCompare(b.key));let pc=0;for(const item of am){if(item.key===mk)break;if(item.month.carry!=null)pc=item.month.carry}return pc}
+/* 26/09/2026 : reste à payer en fin d'exercice.
+   m2ReliquatAnnee(an) : heures non payées à la dernière période de l'année an, recalculées
+   à partir des saisies (la valeur enregistrée peut dater d'avant une modification).
+   m2ReportExercice(an) : ce reste de l'année précédente, si l'utilisateur a choisi de le
+   reporter (M2_RELIQUAT_CHOIX_<année> = 'report'). Il sert de point de départ au report de
+   la première période : les heures restent dues et se cochent payées comme les autres. Le
+   contingent n'est pas concerné (il se calcule sur les jours travaillés de l'année). */
+const _m2RelEnCours={};
+function m2ReliquatAnnee(an){
+  an=String(an);if(_m2RelEnCours[an])return null;
+  try{
+    let yd=ALL_DATA[an];
+    if(!yd){yd=loadYearData(an);if(!yd||!Object.keys(yd).some(k=>/^\d{4}-\d{2}$/.test(k)))return null;}
+    const sv=currentYear,svYd=ALL_DATA[an];_m2RelEnCours[an]=true;
+    const copie=JSON.parse(JSON.stringify(yd));ALL_DATA[an]=copie;currentYear=an;
+    try{recalcCascade();}finally{currentYear=sv;if(svYd)ALL_DATA[an]=svYd;else delete ALL_DATA[an];delete _m2RelEnCours[an];}
+    const ks=Object.keys(copie).filter(k=>/^\d{4}-\d{2}$/.test(k)).sort();if(!ks.length)return null;
+    const m=copie[ks[ks.length-1]],h=Number(m.carry)||0;if(h<0.01)return null;
+    const bd=m.dueBreakdown||{due1:h,dueInter:0,due2:0};
+    return {from:an,h:h,due1:Number(bd.due1)||0,dueInter:Number(bd.dueInter)||0,due2:Number(bd.due2)||0};
+  }catch(e){return null;}
+}
+function m2ReportExercice(y){
+  try{const p=String(parseInt(y,10)-1);if(localStorage.getItem('M2_RELIQUAT_CHOIX_'+p)!=='report')return null;return m2ReliquatAnnee(p);}catch(e){return null;}
+}
+function getPreviousCarry(mk){const am=[];const yd=ALL_DATA[currentYear]||{};Object.keys(yd).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k))am.push({key:k,month:yd[k]})});am.sort((a,b)=>a.key.localeCompare(b.key));const _rep=m2ReportExercice(currentYear);let pc=_rep?_rep.h:0;for(const item of am){if(item.key===mk)break;if(item.month.carry!=null)pc=item.month.carry}return pc}
 function recalc(){
   recalcCascade(); // 1. Recalculer la chaîne carry + breakdown figé par taux EN PREMIER
   checkActivatePerTaux(); // 2. Détecter la migration avec des carry à jour
@@ -1265,6 +1290,12 @@ function recalc(){
         if(parts.length >= 1 && Math.abs(sumParts - prevCarryVal) <= 0.01){
           html += `<br><span style="font-size:11px;font-weight:400;opacity:.8">${parts.join(' + ')}</span>`;
         }
+      }
+      // Première période : le report vient de l'exercice précédent
+      const _ydL = ALL_DATA[currentYear] || {};
+      if(!Object.keys(_ydL).some(k => /^\d{4}-\d{2}$/.test(k) && k < currentKey)){
+        const _r = m2ReportExercice(currentYear);
+        if(_r) html += `<br><span style="font-size:11px;font-weight:600;color:#e67e22">↪ reporté de l'exercice ${_r.from}</span>`;
       }
       prevCarryEl.innerHTML = html;
     }
@@ -1839,7 +1870,10 @@ function computePrevBreakdown(){
   const prevKeys = Object.keys(yd)
     .filter(k => /^\d{4}-\d{2}$/.test(k) && k < currentKey)
     .sort();
-  if(prevKeys.length === 0) return null;
+  if(prevKeys.length === 0){
+    const r = m2ReportExercice(currentYear);
+    return r ? { unpaid1:r.due1, unpaidInter:r.dueInter, unpaid2:r.due2, totalCarry:r.h, reliable:true, rules:getCCNRules() } : null;
+  }
   return computeCarryBreakdown(prevKeys[prevKeys.length - 1]);
 }
 
@@ -2005,6 +2039,9 @@ function recalcCascade(){
   let rc=0;
   // Snapshot figé du restant dû par taux, propagé de mois en mois
   let due1=0, dueInter=0, due2=0;
+  // Reste de l'exercice précédent, si l'utilisateur a choisi de le reporter (26/09/2026)
+  const _rep=m2ReportExercice(currentYear);
+  if(_rep){rc=_rep.h;due1=_rep.due1;dueInter=_rep.dueInter;due2=_rep.due2;}
   am.forEach(({key})=>{
     const{start,end}=getPeriodBounds(key);
     // 26/09/2026 : jours de la période lus dans toutes les années (fin décembre → période de janvier),
@@ -3177,13 +3214,45 @@ function closeTip(){
       var l=[['Heures supplémentaires',fmtH(tot)],['Dont majorées à '+r.taux1+' %',fmtH(h1)]];
       if(r.taux_inter!==null&&r.taux_inter!==undefined)l.push(['Dont majorées à '+r.taux_inter+' %',fmtH(hI)]);
       l.push(['Dont majorées à '+r.taux2+' %',fmtH(h2)]);if(paid>0)l.push(['Heures payées',fmtH(paid)]);
-      if(carry>0)l.push(['Reliquat en fin d\'année',fmtH(carry)]);
+      var rel=m2ReliquatAnnee(yearStr);if(rel)carry=rel.h; // recalculé : la valeur enregistrée peut être ancienne
+      if(carry>0)l.push(['Reste à payer en fin d\'exercice',fmtH(carry)]);
       l.push(['Contingent annuel utilisé',fmtH(tot)+' / '+r.contingent+'h'],['Mois avec des heures sup',mois+' mois']);
       return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
     }catch(e){return null;}
   }
   window.m2BilanLignes=m2BilanLignes;
-  window.m2VoirBilan=function(yearStr){var l=m2BilanLignes(yearStr);if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:yearStr,module:'Heures mensualisées',couleur:'#2196a6',lignes:l});};
+  /* Reste à payer en fin d'exercice (26/09/2026) : encadré du bilan, visible aussi sur l'image */
+  function m2Alerte(yearStr){
+    var r=m2ReliquatAnnee(yearStr);if(!r)return null;
+    var R=getCCNRules(),p=[];
+    if(r.due1>0.01)p.push(fmtH(r.due1)+' à '+R.taux1+' %');
+    if(r.dueInter>0.01&&R.taux_inter)p.push(fmtH(r.dueInter)+' à '+R.taux_inter+' %');
+    if(r.due2>0.01)p.push(fmtH(r.due2)+' à '+R.taux2+' %');
+    var ch=localStorage.getItem('M2_RELIQUAT_CHOIX_'+yearStr),suite=ch==='report'?' Reportées dans l\'exercice '+(parseInt(yearStr,10)+1)+'.':'';
+    return {titre:'⚠️ Exercice '+yearStr+' non soldé : '+fmtH(r.h)+' non payées',
+      texte:(p.length>1?'Soit '+p.join(' + ')+'. ':'')+(window.hsBilanAnnee&&hsBilanAnnee.delai||'')+suite};
+  }
+  window.m2AlerteBilan=m2Alerte;
+  window.m2VoirBilan=function(yearStr){var l=m2BilanLignes(yearStr);if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:yearStr,module:'Heures mensualisées',couleur:'#2196a6',lignes:l,alerte:m2Alerte(yearStr)});};
+  /* Reporter ou non le reste d'une année dans la suivante. Choix gardé par année :
+     le report se recalcule tout seul si l'année précédente est modifiée ensuite. */
+  window.m2ReliquatChoix=function(an,choix,apres){
+    try{localStorage.setItem('M2_RELIQUAT_CHOIX_'+an,choix);}catch(e){}
+    try{recalc();save();}catch(e){}
+    if(choix==='report')toast('↪ Reste de '+an+' reporté dans '+(parseInt(an,10)+1),'success');
+    if(typeof window.m2VerifierAnnee==='function')window.m2VerifierAnnee();
+    if(typeof apres==='function')apres();
+  };
+  window.m2DemanderReliquat=function(an,apres){
+    var r=m2ReliquatAnnee(an),y=String(parseInt(an,10)+1);
+    if(!r||localStorage.getItem('M2_RELIQUAT_CHOIX_'+an)||!window.hsNouvelExercice){if(apres)apres();return;}
+    hsNouvelExercice.demander({surtitre:'Reste à payer',titre:fmtH(r.h)+' non payées en '+an,couleur:'#e67e22',
+      question:'Que faire de ces heures ?',icoAuto:'↪',icoManuel:'📷',
+      titreAuto:'Les reporter dans '+y,texteAuto:'Elles s\'ajoutent au report de ta première période '+y+', avec leurs taux. Tu les coches payées quand ton employeur les règle. Le contingent '+y+' ne change pas.',
+      titreManuel:'Ne pas les reporter',texteManuel:'Elles restent dans le bilan '+an+'. Garde l\'image du bilan : elle montre ce qui t\'est dû.',
+      auto:function(){window.m2ReliquatChoix(an,'report',apres);},
+      manuel:function(){window.m2ReliquatChoix(an,'garder',apres);}});
+  };
   window.m2ChoisirPuisOuvrir=function(){
     var y=String(parseInt(currentYear,10)+1);
     var dejaLa=false;try{dejaLa=Object.keys(loadYearData(y)||{}).length>0;}catch(e){}
@@ -3195,8 +3264,9 @@ function closeTip(){
   };
   window.m2BilanPuisOuvrir=function(){
     var cur=String(currentYear),y=String(parseInt(cur,10)+1),l=m2BilanLignes(cur);
-    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:cur,module:'Heures mensualisées',couleur:'#2196a6',lignes:l,continuer:{libelle:'Ouvrir '+y,action:window.m2ChoisirPuisOuvrir}});
-    else window.m2ChoisirPuisOuvrir();
+    var suite=function(){window.m2DemanderReliquat(cur,window.m2ChoisirPuisOuvrir);};
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:cur,module:'Heures mensualisées',couleur:'#2196a6',lignes:l,alerte:window.m2AlerteBilan(cur),continuer:{libelle:'Ouvrir '+y,action:suite}});
+    else suite();
   };
   window.m2PlusTardAnnee=function(){try{localStorage.setItem('M2_ANNEE_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
   window.m2VuNouvelleAnnee=function(){try{localStorage.setItem('M2_NOUVELLE_ANNEE_VU',String(new Date().getFullYear()));}catch(e){}verifier();};
@@ -3210,6 +3280,14 @@ function closeTip(){
       el.innerHTML='📅 <b>Ton exercice '+cur+' est terminé</b> (dernière clôture le '+frD(finD)+').<br>Les heures à partir du lendemain vont dans l\'exercice '+nx+'. Tu choisiras tes dates de clôture à l\'ouverture.'+
         '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('Ouvrir '+nx,'m2BilanPuisOuvrir()',true)+bouton('Plus tard','m2PlusTardAnnee()',false)+'</div>'+
         '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">L\'exercice '+cur+' reste consultable avec le bouton 📅 Exercice.</div>';
+      el.style.display='block';return;
+    }
+    /* Reste non payé de l'exercice précédent, pas encore traité (26/09/2026) */
+    var pr=String(cur-1),rel=localStorage.getItem('M2_RELIQUAT_CHOIX_'+pr)?null:m2ReliquatAnnee(pr);
+    if(rel){
+      el.innerHTML='⚠️ <b>'+fmtH(rel.h)+' non payées sur ton exercice '+pr+'.</b> Elles restent dues : 3 ans pour les réclamer (art. L3245-1). Tu peux les reporter dans '+cur+' pour suivre leur paiement.'+
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+bouton('Reporter dans '+cur,'m2ReliquatChoix(\''+pr+'\',\'report\')',true)+bouton('Ne pas reporter','m2ReliquatChoix(\''+pr+'\',\'garder\')',false)+'</div>'+
+        '<div style="font-size:11.5px;margin-top:6px;color:#7a6520"><a href="#" onclick="m2VoirBilan(\''+pr+'\');return false" style="color:#7a4a00;font-weight:700">📊 Voir le bilan '+pr+'</a> et garder l\'image comme preuve.</div>';
       el.style.display='block';return;
     }
     var prec=String(y-1),aDesDonnees=false;

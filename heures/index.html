@@ -2595,6 +2595,10 @@ function closeTip(){
       l.push(['Valeur estimée (brut)',(Math.round(annualNet*annualRate)).toLocaleString('fr-FR')+' €']);
     var ct=document.getElementById('contingentText');
     if(ct&&ct.textContent)l.push(['Contingent annuel utilisé',ct.textContent.trim()]);
+    /* 26/09/2026 : solde non nul en fin d'exercice. Ce compteur ne suit pas les paiements :
+       l'encadré le dit, avec le délai pour réclamer. */
+    window.__hsBilanAlerte=annualNet>0.01?{titre:'⚠️ Solde à payer en fin d\'exercice : '+fmtH(annualNet)+' (majorations comprises)',
+      texte:'Ce compteur ne suit pas les paiements : si ces heures n\'ont été ni payées ni récupérées, '+((window.hsBilanAnnee&&hsBilanAnnee.delai)||'').replace(/^Elles restent/,'elles restent')}:null;
     window.__hsBilanNote=ecart>0.01?(fmtH(ecart)+' saisies tombent dans des semaines avec un férié ou une absence : elles complètent d\'abord la semaine jusqu\'à '+(r.seuil||35)+' h et ne sont pas des heures sup. Solde à payer = heures comptées × majoration − heures récupérées.'):'Solde à payer = heures comptées × majoration − heures récupérées.';
     return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
   }
@@ -2612,7 +2616,7 @@ function closeTip(){
   };
   window.hsBilanPuisOuvrir=function(){
     var nx=suivant(),l=null;try{l=bilanLignes();}catch(e){}
-    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:String(currentSuffix),module:'Compteur annuel · heures sup',couleur:'#2196a6',lignes:l,note:window.__hsBilanNote,
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:String(currentSuffix),module:'Compteur annuel · heures sup',couleur:'#2196a6',lignes:l,note:window.__hsBilanNote,alerte:window.__hsBilanAlerte,
       continuer:{libelle:'Ouvrir '+nx,action:window.hsChoisirPuisOuvrir}});
     else window.hsChoisirPuisOuvrir();
   };
