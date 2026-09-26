@@ -2566,15 +2566,21 @@ function closeTip(){
       annualNet+=p.t25*c1+(p.tInter||0)*cI+p.t50*c2-p.tR;h1+=p.t25;h2+=p.t50;hI+=(p.tInter||0);rec+=p.tR;ext+=p.tExtra;nb++;
     });
     if(!nb||ext<=0&&rec<=0)return null;
-    var l=[['Heures supplémentaires',fmtH(ext)],['Dont majorées à '+r.taux1+' %',fmtH(h1)]];
+    /* 26/09/2026 : intitulés explicites — saisies, comptées (après fériés et absences),
+       récupérées, solde à payer majorations comprises, valeur */
+    var cpt=h1+hI+h2,ecart=Math.round((ext-cpt)*100)/100;
+    var l=[['Heures sup saisies',fmtH(ext)]];
+    if(ecart>0.01)l.push(['Heures sup comptées',fmtH(cpt)]);
+    l.push(['Dont majorées à '+r.taux1+' %',fmtH(h1)]);
     if(r.taux_inter)l.push(['Dont majorées à '+r.taux_inter+' %',fmtH(hI)]);
     l.push(['Dont majorées à '+r.taux2+' %',fmtH(h2)]);
     if(rec>0)l.push(['Heures récupérées',fmtH(rec)]);
-    var ct=document.getElementById('contingentText');
-    if(ct&&ct.textContent)l.push(['Contingent annuel utilisé',ct.textContent.trim()]);
-    l.push(['Périodes de paie',String(nb)]);
+    if(annualNet>0)l.push(['Solde à payer (majoré)',fmtH(annualNet)]);
     if(localStorage.getItem('ANNUAL_RATE_'+currentSuffix)!==null&&annualRate>0&&annualNet>0)
       l.push(['Valeur estimée (brut)',(Math.round(annualNet*annualRate)).toLocaleString('fr-FR')+' €']);
+    var ct=document.getElementById('contingentText');
+    if(ct&&ct.textContent)l.push(['Contingent annuel utilisé',ct.textContent.trim()]);
+    window.__hsBilanNote=ecart>0.01?(fmtH(ecart)+' saisies tombent dans des semaines avec un férié ou une absence : elles complètent d\'abord la semaine jusqu\'à '+(r.seuil||35)+' h et ne sont pas des heures sup. Solde à payer = heures comptées × majoration − heures récupérées.'):'Solde à payer = heures comptées × majoration − heures récupérées.';
     return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
   }
   /* Question à l'ouverture (26/09/2026) : clôtures automatiques (dernier jour de fin
@@ -2591,7 +2597,7 @@ function closeTip(){
   };
   window.hsBilanPuisOuvrir=function(){
     var nx=suivant(),l=null;try{l=bilanLignes();}catch(e){}
-    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:String(currentSuffix),module:'Compteur annuel · heures sup',couleur:'#2196a6',lignes:l,
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:String(currentSuffix),module:'Compteur annuel · heures sup',couleur:'#2196a6',lignes:l,note:window.__hsBilanNote,
       continuer:{libelle:'Ouvrir '+nx,action:window.hsChoisirPuisOuvrir}});
     else window.hsChoisirPuisOuvrir();
   };
