@@ -2481,7 +2481,13 @@ function closeTip(){
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
   function go(){try{
     var w=document.getElementById('wizardModal');if(w&&w.style.display&&w.style.display!=='none')return;
-    if(typeof openPopup==='function')openPopup(dateKeyLocal(new Date()));}catch(e){}}
+    /* 26/09/2026 : saisie rapide = toujours l'exercice et la période d'aujourd'hui,
+       même si on consultait une autre année juste avant */
+    var auj=dateKeyLocal(new Date());
+    try{getExistingYears().forEach(function(y){var d=localStorage.getItem('EXERCISE_START_'+y),f=localStorage.getItem('ANNUAL_DATE_'+y);
+      if(d&&f&&auj>=d.slice(0,10)&&auj<=f.slice(0,10)&&String(y)!==String(currentSuffix))loadExercise(y);});}catch(e){}
+    if(typeof buildPeriods==='function')buildPeriods();
+    if(typeof openPopup==='function')openPopup(auj);}catch(e){}}
   if(document.readyState==='complete')setTimeout(go,400);else window.addEventListener('load',function(){setTimeout(go,400);});
 })();
 </script>

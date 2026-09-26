@@ -1058,6 +1058,10 @@ function confirmResetM5() {
   function go(){try{
     if(!(window.M5_Contract&&M5_Contract.get()&&M5_Contract.get().hoursBase))return;
     var d=new Date(),dk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    /* 26/09/2026 : saisie rapide = toujours l'année et la semaine d'aujourd'hui
+       (sinon la saisie partait dans l'année consultée juste avant) */
+    try{if(String(M5_DataStore.getYear())!==String(d.getFullYear())&&typeof window.switchYear==='function')window.switchYear(String(d.getFullYear()));
+      else if(typeof window.calToday==='function')window.calToday();}catch(e){}
     openDaySaisie(dk,M5_JOURS_COURTS[(d.getDay()+6)%7]);}catch(e){}}
   if(document.readyState==='complete')setTimeout(go,400);else window.addEventListener('load',function(){setTimeout(go,400);});
 })();

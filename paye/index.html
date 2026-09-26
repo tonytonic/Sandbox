@@ -3105,6 +3105,8 @@ function closeTip(){
   function go(){try{
     var w=document.getElementById('wizardModal');if(w&&w.classList.contains('open'))return;
     var d=new Date(),k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    /* 26/09/2026 : saisie rapide = toujours l'année et le mois d'aujourd'hui */
+    try{var y=String(d.getFullYear());if(String(currentYear)!==y&&getExistingYears().map(String).indexOf(y)>=0)switchYear(y);}catch(e){}
     if(monthPicker.value!==k){monthPicker.value=k;loadMonth();}
     if(isDateLocked(d)){toast('🔒 Période verrouillée','warn');return;}
     openHours(d.getDate());}catch(e){}}

@@ -253,6 +253,17 @@ if ('serviceWorker' in navigator) {
 <script>
 (function(){
   if(location.hash!=='#saisie-aujourdhui')return;
+  /* 26/09/2026 : saisie rapide = toujours l'exercice d'aujourd'hui. Ce script passe avant
+     l'affichage de la vue : il suffit de changer l'année active ici. */
+  try{
+    var reg=localStorage.getItem('M6_REGIME');
+    if(reg&&window.M6_Storage&&window.M6_Periode){
+      var t=new Date(),auj=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+      var c=M6_Storage.getContract(reg)||{},bon=t.getFullYear();
+      [t.getFullYear()-1,t.getFullYear()].forEach(function(y){var b=M6_Periode.bornes(c,y);if(auj>=b.deb&&auj<=b.fin)bon=y;});
+      if(M6_Storage.getActiveYear(reg)!==bon)M6_Storage.setActiveYear(reg,bon);
+    }
+  }catch(e){}
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
   function go(){try{
     /* M6 : les vues se construisent après coup ; on attend le bouton de saisie du régime */
