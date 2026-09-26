@@ -52,6 +52,12 @@ const M6_Periode = {
     let c = contract;
     if (!c) { try { c = global.M6_Storage && M6_Storage.getContract(localStorage.getItem('M6_REGIME')); } catch (_) {} }
     c = c || {};
+    // Exercices déjà clos : leurs vraies dates, gardées à l'ouverture du suivant (26/09/2026)
+    try {
+      const h = JSON.parse(localStorage.getItem('M6_EXERCICES_' + (localStorage.getItem('M6_REGIME') || '')) || '{}') || {};
+      const e = h[String(year)];
+      if (e && e.deb && e.fin && e.fin >= e.deb) return { year, deb: e.deb, fin: e.fin, calendaire: e.deb === year + '-01-01' && e.fin === year + '-12-31' };
+    } catch (_) {}
     const deb = c.dateDebutExercice, fin = c.dateFinExercice, re = /^\d{4}-\d{2}-\d{2}$/;
     if (deb && re.test(deb) && !(deb.slice(5) === '01-01' && (!fin || fin.slice(5) === '12-31'))) {
       const d = year + '-' + deb.slice(5);

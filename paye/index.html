@@ -892,7 +892,7 @@ async function wizFinish(){
       const mk=`${y}-${String(m+1).padStart(2,"0")}`;
       if(!ALL_DATA[year][mk])ALL_DATA[year][mk]={days:{},paid:0,carry:0,closing:getLastClosingDay(y,m),locked:false};
       const inp=document.getElementById("wizCls_"+m);
-      if(inp&&inp.value){const sel=new Date(inp.value);if(sel.getDay()===0)ALL_DATA[year][mk].closing=sel.getDate();}
+      if(inp&&inp.value){const sel=new Date(inp.value+"T12:00:00");if(sel.getDay()===getClosingDow())ALL_DATA[year][mk].closing=sel.getDate();}
     });
     saveYearData(year,ALL_DATA[year]);
   }
@@ -2967,7 +2967,7 @@ function openClosuresModal(){
     inp.min=`${y}-${String(m+1).padStart(2,"0")}-01`;
     const lastDay=new Date(y,m+1,0).getDate();
     inp.max=`${y}-${String(m+1).padStart(2,"0")}-${lastDay}`;
-    inp.onchange=()=>{if(!inp.value) return;const sel=new Date(inp.value);if(sel.getDay()!==getClosingDow()){ toast("⛔ Doit être un "+getClosingDayLabel(),"error"); inp.value=""; return; }};
+    inp.onchange=()=>{if(!inp.value) return;const sel=new Date(inp.value+"T12:00:00");if(sel.getDay()!==getClosingDow()){ toast("⛔ Doit être un "+getClosingDayLabel(),"error"); inp.value=""; return; }};
     row.appendChild(lbl); row.appendChild(inp); grid.appendChild(row);
   }
   document.getElementById("closuresModal").classList.add("open");
@@ -2984,7 +2984,7 @@ function saveAllClosures(){
     if(!inp) continue;
     if(!ALL_DATA[year]) ALL_DATA[year]={};
     if(!ALL_DATA[year][mk]) ALL_DATA[year][mk]={days:{},paid:0,carry:0,closing:getLastClosingDay(y,m),locked:false};
-    if(inp.value){const sel=new Date(inp.value);if(sel.getDay()===0){ALL_DATA[year][mk].closing=sel.getDate();changed++;}}
+    if(inp.value){const sel=new Date(inp.value+"T12:00:00");if(sel.getDay()===getClosingDow()){ALL_DATA[year][mk].closing=sel.getDate();changed++;}}
     else{ALL_DATA[year][mk].closing=getLastClosingDay(y,m);changed++;}
   }
   save();
@@ -3093,6 +3093,7 @@ function closeTip(){
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>
 <script src="../js/rappel-sauvegarde.js"></script>
 <script src="../js/bilan-annee.js"></script>
+<script src="../js/nouvel-exercice.js"></script>
 <!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
 <script>
 (function(){
@@ -3120,10 +3121,21 @@ function closeTip(){
 (function(){
   function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   function bouton(txt,fn,principal){return '<button onclick="'+fn+'" style="'+(principal?'flex:1;background:#2196a6;color:#fff;border:none;':'width:auto;background:#fff;color:#5a4300;border:1px solid #d8c48a;')+'margin:0;padding:10px 12px;border-radius:10px;font-weight:800">'+txt+'</button>';}
+  /* 26/09/2026 : l'exercice suivant s'ouvre dès le lendemain de la clôture de
+     décembre (plus au 1er janvier). Les jours saisis fin décembre restent rangés
+     en décembre : la période de janvier les lit déjà (toutes années). */
+  function finDecembre(an){
+    an=parseInt(an,10);var mk=an+'-12',m=(ALL_DATA[String(an)]||{})[mk];
+    var cl=(m&&typeof m.closing==='number'&&new Date(an,11,m.closing).getDay()===getClosingDow())?m.closing:getLastClosingDay(an,11);
+    return iso(new Date(an,11,cl));
+  }
+  function frD(s){return new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});}
   window.m2OuvrirNouvelleAnnee=function(){
-    var y=String(new Date().getFullYear());
+    var y=String(parseInt(currentYear,10)+1);
     try{ registerYear(y); if(Object.keys(loadYearData(y)||{}).length===0) saveYearData(y,{}); }catch(e){}
     switchYear(y);
+    // En décembre, on se place sur la période de janvier (celle qui a commencé)
+    try{ if(new Date().getFullYear()<parseInt(y,10)){ monthPicker.value=y+'-01'; loadMonth(); } }catch(e){}
     try{ localStorage.setItem('M2_NOUVELLE_ANNEE_VU',y); }catch(e){}
     if(window.hsBackupNudge) hsBackupNudge('year');
     verifier();
@@ -3149,10 +3161,19 @@ function closeTip(){
   }
   window.m2BilanLignes=m2BilanLignes;
   window.m2VoirBilan=function(yearStr){var l=m2BilanLignes(yearStr);if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:yearStr,module:'Heures mensualisées',couleur:'#2196a6',lignes:l});};
+  window.m2ChoisirPuisOuvrir=function(){
+    var y=String(parseInt(currentYear,10)+1);
+    var dejaLa=false;try{dejaLa=Object.keys(loadYearData(y)||{}).length>0;}catch(e){}
+    if(dejaLa||!window.hsNouvelExercice){window.m2OuvrirNouvelleAnnee();return;}
+    hsNouvelExercice.demander({titre:'Exercice '+y,couleur:'#2196a6',finSemaine:getClosingDow(),
+      texteManuel:'Les 12 clôtures sont préremplies ; l\'écran Clôtures s\'ouvre pour les corriger.',
+      auto:function(){window.m2OuvrirNouvelleAnnee();},
+      manuel:function(){window.m2OuvrirNouvelleAnnee();setTimeout(function(){if(typeof openClosuresModal==='function')openClosuresModal();},500);}});
+  };
   window.m2BilanPuisOuvrir=function(){
-    var cur=String(currentYear),y=String(new Date().getFullYear()),l=m2BilanLignes(cur);
-    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:cur,module:'Heures mensualisées',couleur:'#2196a6',lignes:l,continuer:{libelle:'Ouvrir '+y,action:window.m2OuvrirNouvelleAnnee}});
-    else window.m2OuvrirNouvelleAnnee();
+    var cur=String(currentYear),y=String(parseInt(cur,10)+1),l=m2BilanLignes(cur);
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:cur,module:'Heures mensualisées',couleur:'#2196a6',lignes:l,continuer:{libelle:'Ouvrir '+y,action:window.m2ChoisirPuisOuvrir}});
+    else window.m2ChoisirPuisOuvrir();
   };
   window.m2PlusTardAnnee=function(){try{localStorage.setItem('M2_ANNEE_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
   window.m2VuNouvelleAnnee=function(){try{localStorage.setItem('M2_NOUVELLE_ANNEE_VU',String(new Date().getFullYear()));}catch(e){}verifier();};
@@ -3160,11 +3181,12 @@ function closeTip(){
     var el=document.getElementById('m2NouvelleAnnee');if(!el)return;
     var now=new Date(),y=now.getFullYear(),cur=parseInt(currentYear,10);
     var choisie=!!localStorage.getItem(ACTIVE_YEAR_KEY);
-    if(cur<y){
+    var finD=finDecembre(cur),nx=cur+1;
+    if(iso(now)>finD){
       if(localStorage.getItem('M2_ANNEE_PLUS_TARD')===iso(now)){el.style.display='none';return;}
-      el.innerHTML='📅 <b>L\'année '+cur+' est terminée.</b> Tu consultes encore '+cur+' : les heures de '+y+' doivent aller dans l\'exercice '+y+', avec un contingent remis à zéro.'+
-        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('Ouvrir '+y,'m2BilanPuisOuvrir()',true)+bouton('Plus tard','m2PlusTardAnnee()',false)+'</div>'+
-        '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">L\'année '+cur+' reste consultable avec le bouton 📅 Exercice.</div>';
+      el.innerHTML='📅 <b>Ton exercice '+cur+' est terminé</b> (dernière clôture le '+frD(finD)+').<br>Les heures à partir du lendemain vont dans l\'exercice '+nx+'. Tu choisiras tes dates de clôture à l\'ouverture.'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('Ouvrir '+nx,'m2BilanPuisOuvrir()',true)+bouton('Plus tard','m2PlusTardAnnee()',false)+'</div>'+
+        '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">L\'exercice '+cur+' reste consultable avec le bouton 📅 Exercice.</div>';
       el.style.display='block';return;
     }
     var prec=String(y-1),aDesDonnees=false;

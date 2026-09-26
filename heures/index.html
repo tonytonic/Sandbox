@@ -2481,6 +2481,7 @@ function closeTip(){
 </script>
 <script src="../js/rappel-sauvegarde.js"></script>
 <script src="../js/bilan-annee.js"></script>
+<script src="../js/nouvel-exercice.js"></script>
 <script>try{hsBackupCheckDates(JSON.parse(localStorage.getItem("CLOSURES_REPORT_"+(localStorage.getItem("ACTIVE_YEAR_SUFFIX")||new Date().getFullYear()))||"[]"));}catch(e){}</script>
 <!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
 <script>
@@ -2521,15 +2522,21 @@ function closeTip(){
     // l'autre (2028, 2029…), contrairement à un simple « +52 semaines ».
     return memeJour?function(x){var d=jour(x),wd=d.getDay(),m=d.getMonth(),y=d.getFullYear()+1,nb=new Date(y,m+1,0).getDate(),dernier=d.getDate()+7>new Date(d.getFullYear(),m+1,0).getDate(),r;if(dernier){r=new Date(y,m,nb);while(r.getDay()!==wd)r.setDate(r.getDate()-1);}else{var n=Math.ceil(d.getDate()/7);r=new Date(y,m,1);while(r.getDay()!==wd)r.setDate(r.getDate()+1);r.setDate(r.getDate()+7*(n-1));}return iso(r);}:plusUnAn;
   }
-  window.hsOuvrirExerciceSuivant=function(){
+  window.hsOuvrirExerciceSuivant=function(forcees){
     var nx=suivant();if(!nx||!annualDate)return;
     var fin=annualDate, deb=plus(fin,1);
     if(!localStorage.getItem('EXERCISE_START_'+nx)){
-      var clos=(closures||[]).slice().sort();
-      var dec=decaleur(clos.length?clos:[fin]);
-      var nClos=clos.map(dec), nFin=dec(fin);
-      if(nClos.indexOf(nFin)<0)nClos.push(nFin);
-      nClos.sort();
+      var nClos,nFin;
+      if(Array.isArray(forcees)&&forcees.length){
+        // Clôtures choisies à l'ouverture (26/09/2026) : la dernière est la clôture annuelle
+        nClos=forcees.slice().sort();nFin=nClos[nClos.length-1];
+      }else{
+        var clos=(closures||[]).slice().sort();
+        var dec=decaleur(clos.length?clos:[fin]);
+        nClos=clos.map(dec);nFin=dec(fin);
+        if(nClos.indexOf(nFin)<0)nClos.push(nFin);
+        nClos.sort();
+      }
       // Les jours déjà saisis après la clôture partent dans le nouvel exercice.
       var ancien=lire('DATA_REPORT_'+currentSuffix,{}), neuf=lire('DATA_REPORT_'+nx,{}), n=0;
       Object.keys(ancien).forEach(function(k){ if(/^\d{4}-\d{2}-\d{2}$/.test(k)&&k>fin){ if(!(k in neuf))neuf[k]=ancien[k]; delete ancien[k]; n++; } });
@@ -2573,11 +2580,23 @@ function closeTip(){
       l.push(['Valeur estimée (brut)',(Math.round(annualNet*annualRate)).toLocaleString('fr-FR')+' €']);
     return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
   }
+  /* Question à l'ouverture (26/09/2026) : clôtures automatiques (dernier jour de fin
+     de semaine de chaque mois) ou saisie manuelle dans l'écran Clôtures existant */
+  function finSemaineJS(){var ds=(getCCNRules().debutSemaine||1),dsJS=ds===7?0:ds;return (dsJS+6)%7;}
+  window.hsChoisirPuisOuvrir=function(){
+    var nx=suivant();if(!nx||!annualDate)return;
+    if(localStorage.getItem('EXERCISE_START_'+nx)||!window.hsNouvelExercice){window.hsOuvrirExerciceSuivant();return;}
+    var ms=hsNouvelExercice.moisSuivant(annualDate),fs=finSemaineJS(),auto=hsNouvelExercice.clotures(ms.mois,ms.annee,fs);
+    hsNouvelExercice.demander({titre:'Exercice '+nx,couleur:'#2196a6',finSemaine:fs,
+      texteManuel:'Tes 12 clôtures et ta clôture annuelle sont préremplies ; l\'écran Clôtures s\'ouvre pour les corriger.',
+      auto:function(){window.hsOuvrirExerciceSuivant(auto);},
+      manuel:function(){window.hsOuvrirExerciceSuivant(auto);setTimeout(function(){if(typeof openClosures==='function')openClosures();},500);}});
+  };
   window.hsBilanPuisOuvrir=function(){
     var nx=suivant(),l=null;try{l=bilanLignes();}catch(e){}
     if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:String(currentSuffix),module:'Compteur annuel · heures sup',couleur:'#2196a6',lignes:l,
-      continuer:{libelle:'Ouvrir '+nx,action:window.hsOuvrirExerciceSuivant}});
-    else window.hsOuvrirExerciceSuivant();
+      continuer:{libelle:'Ouvrir '+nx,action:window.hsChoisirPuisOuvrir}});
+    else window.hsChoisirPuisOuvrir();
   };
   window.hsPlusTardExercice=function(){try{localStorage.setItem('HS_EXO_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
   function verifier(){
@@ -2586,7 +2605,7 @@ function closeTip(){
     if(!nx||!annualDate||auj<=annualDate||localStorage.getItem('HS_EXO_PLUS_TARD')===auj){el.style.display='none';return;}
     var pret=!!localStorage.getItem('EXERCISE_START_'+nx);
     el.innerHTML='📅 <b>Ton exercice '+currentSuffix+' est terminé</b> (clôture le '+fr(annualDate)+').<br>'+
-      (pret?'L\'exercice '+nx+' est déjà prêt.':'L\'exercice '+nx+' commencera le '+fr(plus(annualDate,1))+', avec les mêmes réglages et le même rythme de clôtures (modifiables ensuite).')+
+      (pret?'L\'exercice '+nx+' est déjà prêt.':'L\'exercice '+nx+' commencera le '+fr(plus(annualDate,1))+', avec les mêmes réglages. Tu choisiras tes dates de clôture à l\'ouverture.')+
       '<div style="display:flex;gap:8px;margin-top:10px"><button onclick="hsBilanPuisOuvrir()" style="flex:1;margin:0;padding:10px;border-radius:10px;border:none;background:#2196a6;color:#fff;font-weight:800">Ouvrir '+nx+'</button>'+
       '<button onclick="hsPlusTardExercice()" style="width:auto;margin:0;padding:10px 12px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:700">Plus tard</button></div>'+
       '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">Ton exercice '+currentSuffix+' reste consultable avec le bouton '+currentSuffix+' ⇄.</div>';

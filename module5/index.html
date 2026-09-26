@@ -1044,9 +1044,10 @@ function confirmResetM5() {
 <script src="js/features/glossaire.js?v=r6"></script>
 <script src="js/features/wellbeing.js?v=r7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="js/app.js?v=r12"></script>
+<script src="js/app.js?v=r13"></script>
 <script src="../js/rappel-sauvegarde.js"></script>
 <script src="../js/bilan-annee.js"></script>
+<script src="../js/nouvel-exercice.js"></script>
 <script>try{var _c=JSON.parse(localStorage.getItem(M5_key("M5_CONTRACT"))||"{}");hsBackupCheckDates(Object.keys((_c&&_c.cloturesDates)||{}).map(function(k){return _c.cloturesDates[k];}));}catch(e){}</script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>
 <!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->

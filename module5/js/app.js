@@ -3126,11 +3126,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(e){return c;}
   };
   function derniere(c){var v=Object.values(c.cloturesDates||{}).filter(Boolean).sort();return v.length?v[v.length-1]:null;}
-  window.M5_exerciceSuivant=function(){
+  window.M5_exerciceSuivant=function(forcees){
     var c=M5_Contract.get(),last=derniere(c);if(!last)return;
     var h=histo();h[c.exerciceStart||last]={exerciceStart:c.exerciceStart,cloturesDates:c.cloturesDates};
-    var dates=Object.values(c.cloturesDates),dec=decaleur(dates),nc={};
-    Object.keys(c.cloturesDates).forEach(function(m){nc[m]=dec(c.cloturesDates[m]);});
+    var nc={};
+    if(Array.isArray(forcees)&&forcees.length){
+      // Clôtures choisies à l'ouverture (26/09/2026), rangées par numéro de mois
+      forcees.forEach(function(d){nc[String(parseInt(d.slice(5,7),10))]=d;});
+    }else{
+      var dates=Object.values(c.cloturesDates),dec=decaleur(dates);
+      Object.keys(c.cloturesDates).forEach(function(m){nc[m]=dec(c.cloturesDates[m]);});
+    }
     var deb=plus(last,1);
     if(window.snapExerciceStart)deb=snapExerciceStart(deb,c.weekStartDay||0);
     c.exerciceStart=deb;c.cloturesDates=nc;
@@ -3158,13 +3164,25 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(n35>0)l.push(['Semaines à 35 h ou plus',String(n35)]);
     return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
   }
+  /* Question à l'ouverture (26/09/2026) : clôtures automatiques (dernier jour de fin
+     de semaine du contrat, chaque mois) ou saisie manuelle dans ⚙️ Mon contrat */
+  window.M5_choisirPuisSuivant=function(){
+    var c=M5_Contract.get(),last=derniere(c);if(!last)return;
+    if(!window.hsNouvelExercice){window.M5_exerciceSuivant();return;}
+    var fs=((c.weekStartDay||0)%7),ms=hsNouvelExercice.moisSuivant(last),auto=hsNouvelExercice.clotures(ms.mois,ms.annee,fs);
+    var nomC='';try{if(window.M5_Contrats&&M5_Contrats.existing().length>1)nomC=' · '+M5_Contrats.nom(M5_Contrats.active);}catch(e){}
+    hsNouvelExercice.demander({titre:'Exercice suivant'+nomC,couleur:'#6C3FC5',finSemaine:fs,
+      texteManuel:'Tes 12 clôtures sont préremplies ; ⚙️ Mon contrat s\'ouvre pour les corriger.',
+      auto:function(){window.M5_exerciceSuivant(auto);},
+      manuel:function(){window.M5_exerciceSuivant(auto);setTimeout(function(){if(typeof window.openContractModal==='function')window.openContractModal();},500);}});
+  };
   window.M5_bilanPuisSuivant=function(){
     var c=M5_Contract.get(),last=derniere(c),l=null;try{l=bilanLignes(c,last);}catch(e){}
     var nomC='';try{if(window.M5_Contrats&&M5_Contrats.existing().length>1)nomC=' · '+M5_Contrats.nom(M5_Contrats.active);}catch(e){}
     var an=last?(c.exerciceStart.slice(0,4)===last.slice(0,4)?last.slice(0,4):c.exerciceStart.slice(0,4)+'-'+last.slice(2,4)):'';
     if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:an,module:'Mizuki · temps partiel'+nomC,couleur:'#6C3FC5',image:'../images/Mizuki.PNG',lignes:l,
-      continuer:{libelle:'Ouvrir l\'exercice suivant',action:window.M5_exerciceSuivant}});
-    else window.M5_exerciceSuivant();
+      continuer:{libelle:'Ouvrir l\'exercice suivant',action:window.M5_choisirPuisSuivant}});
+    else window.M5_choisirPuisSuivant();
   };
   window.M5_exercicePlusTard=function(){try{localStorage.setItem('M5_EXO_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
   function verifier(){
@@ -3176,7 +3194,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var c=M5_Contract.get(),last=derniere(c),auj=iso(new Date());
     if(!c.hoursBase||!last||auj<=last||localStorage.getItem('M5_EXO_PLUS_TARD')===auj){el.style.display='none';return;}
     var deb=plus(last,1);if(window.snapExerciceStart)deb=snapExerciceStart(deb,c.weekStartDay||0);
-    el.innerHTML='📅 <b>Ton exercice s\'est terminé le '+fr(last)+'.</b><br>Le suivant commencera le '+fr(deb)+', avec le même rythme de clôtures (modifiable dans ⚙️ Mon contrat).'+
+    el.innerHTML='📅 <b>Ton exercice s\'est terminé le '+fr(last)+'.</b><br>Le suivant commencera le '+fr(deb)+'. Tu choisiras tes dates de clôture à l\'ouverture.'+
       '<div style="display:flex;gap:8px;margin-top:10px"><button onclick="M5_bilanPuisSuivant()" style="flex:1;padding:10px;border-radius:10px;border:none;background:#c2185b;color:#fff;font-weight:800">Ouvrir l\'exercice suivant</button>'+
       '<button onclick="M5_exercicePlusTard()" style="padding:10px 12px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:700">Plus tard</button></div>'+
       '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">Tes semaines déjà saisies ne bougent pas, et l\'exercice terminé reste consultable.</div>';
