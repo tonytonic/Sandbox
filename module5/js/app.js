@@ -69,7 +69,8 @@ function runAnalysis() {
   // Mode ANNUEL
   let annuelResult=null;
   if(contract.modeCalcul==='ANNUEL') {
-    annuelResult=CalcEngine.calcAnnuel(contract.hoursBase,contract.exerciceStart||'01/01',allWeeks);
+    // Exercice à cheval sur deux années civiles : semaines des deux côtés (26/09/2026)
+    annuelResult=CalcEngine.calcAnnuel(contract.hoursBase,contract.exerciceStart||'01/01',M5_DataStore.getWeeksAround(year));
   }
   // Mode MENSUEL
   let mensuelResult=null;
@@ -98,7 +99,8 @@ function runAnalysis() {
       };
     }
     // Inclure toute semaine qui chevauche la période (lundi<=fin ET fin_semaine>=debut)
-    const weeksMois=allWeeks.filter(w=>{
+    // Période à cheval sur deux années (ex. 29/12 → 25/01) : semaines des deux côtés (26/09/2026)
+    const weeksMois=M5_DataStore.getWeeksAround(year).filter(w=>{
       const wEnd=new Date(w.monday+'T12:00:00'); wEnd.setDate(wEnd.getDate()+6);
       const wEndStr=wEnd.getFullYear()+'-'+String(wEnd.getMonth()+1).padStart(2,'0')+'-'+String(wEnd.getDate()).padStart(2,'0');
       return w.monday<=pCourante.finStr && wEndStr>=pCourante.debutStr;
@@ -833,7 +835,7 @@ function renderQuickStats(analysis) {
     </div>`;
     // Plafond HC annuel Art. L3123-28 = contractH × cap × 52
     const hcCapAnnuel=Math.round(contract.hoursBase*contract.cap*52*10)/10;
-    const allWeeksForCap=M5_DataStore.getWeeksSorted(M5_DataStore.getYear())||[];
+    const allWeeksForCap=M5_DataStore.getWeeksAround(M5_DataStore.getYear())||[];
     const weeksEx=allWeeksForCap.filter(w=>w.monday>=annuelResult.debutEx&&w.monday<=annuelResult.finEx);
     const totalHcAnnuel=Math.round(weeksEx.reduce((s,w)=>s+Math.max(0,(w.worked||0)-contract.hoursBase),0)*10)/10;
     const hcPct=hcCapAnnuel>0?Math.round(totalHcAnnuel/hcCapAnnuel*100):0;

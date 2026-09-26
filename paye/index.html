@@ -1163,7 +1163,9 @@ function recalc(){
   // à la navigation entre périodes. Voir maybeShowReliquatPopup().
   const{start,end}=getPeriodBounds(currentKey);const weeks={};
   const rules=getCCNRules();
-  Object.entries(DATA).forEach(([mk,month])=>{Object.entries(month.days||{}).forEach(([d,h])=>{const date=new Date(mk.split("-")[0],mk.split("-")[1]-1,d);if(date<start||date>end)return;const wk=getWeekKeyM2(date);weeks[wk]=(weeks[wk]||0)+h})});
+  // 26/09/2026 : la période de janvier commence souvent fin décembre (clôture un jour fixe de la semaine) :
+  // on lit les jours de la période dans toutes les années, comme les PDF (buildDayList).
+  buildDayList(start,end).forEach(({date,h})=>{if(!h)return;const wk=getWeekKeyM2(date);weeks[wk]=(weeks[wk]||0)+h;});
   let t25=0,tInter=0,t50=0,ph=0;
   Object.values(weeks).forEach(wh=>{
     ph+=wh;
@@ -1996,15 +1998,10 @@ function recalcCascade(){
   let due1=0, dueInter=0, due2=0;
   am.forEach(({key})=>{
     const{start,end}=getPeriodBounds(key);
-    let ph=0;
-    const myd=ALL_DATA[currentYear]||{};
-    Object.entries(myd).forEach(([mk,m])=>{
-      Object.entries(m.days||{}).forEach(([d,h])=>{
-        const[y,mo]=mk.split("-").map(Number);
-        const date=new Date(y,mo-1,d);
-        if(date>=start&&date<=end)ph+=h;
-      });
-    });
+    // 26/09/2026 : jours de la période lus dans toutes les années (fin décembre → période de janvier),
+    // comme le détail par taux juste en dessous (buildDayList). Les périodes ne se chevauchent pas :
+    // aucune heure ne peut être comptée deux fois.
+    let ph=buildDayList(start,end).reduce((s,x)=>s+(x.h||0),0);
     const m=yd[key];
     if(!m)return;
 

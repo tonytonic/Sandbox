@@ -180,7 +180,19 @@ const DataStore = {
     }).filter(w=>w.worked!==null);
   },
 
-  getLast12Weeks(year) { return this.getWeeksSorted(year).slice(-12); },
+  // Semaines de l'année et des années voisines (26/09/2026). Les saisies sont rangées
+  // par année civile : un exercice à cheval (juin → mai) ou la fenêtre des
+  // 12 semaines en janvier ont besoin des semaines de l'année d'à côté.
+  getWeeksAround(year, avant=1, apres=1) {
+    const y=parseInt(year,10), vu={}, out=[];
+    for(let a=y-avant;a<=y+apres;a++){
+      this.getWeeksSorted(String(a)).forEach(w=>{ if(!vu[w.monday]){ vu[w.monday]=1; out.push(w); } });
+    }
+    return out.sort((p,q)=>p.monday.localeCompare(q.monday));
+  },
+  // Règle des 12 semaines (L3123-13) : fenêtre glissante, elle ne repart pas à zéro
+  // au 1er janvier — les semaines de décembre comptent encore en janvier.
+  getLast12Weeks(year) { return this.getWeeksAround(year,1,0).slice(-12); },
 
   // ── MULTI-ANNÉE pour les calculs biologiques ─────────────────────
   // Le corps ne repart pas de zéro en janvier : la fatigue et le niveau
