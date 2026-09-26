@@ -6385,12 +6385,14 @@ function refreshModulesPopup() {
       ${(() => {
         const ccn = _kitsuneGetCCN();
         const contingent = ccn.contingent || 220;
-        const totalHS = cum?.totalNetOvertime || 0;
+        // 26/09/2026 : le contingent est annuel — année en cours seulement, pas le cumul de toutes les années
+        const _yc = String(moduleReader.year || new Date().getFullYear());
+        const totalHS = (cum?.perYear?.[_yc]?.net) || 0;
         const pct = Math.round((totalHS / contingent) * 100);
         const color = pct >= 100 ? '#E53935' : pct >= 75 ? '#FF8C42' : '#4CAF50';
         return `
         <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;margin-top:8px;text-align:center;">
-          <div style="color:#555;font-size:0.7rem;margin-bottom:4px;">Contingent annuel</div>
+          <div style="color:#555;font-size:0.7rem;margin-bottom:4px;">Contingent annuel ${_yc}</div>
           <div style="font-weight:900;font-size:1.2rem;color:${color};">${_fmtH(totalHS)} / ${contingent}h</div>
           <div style="font-size:0.7rem;color:${color};margin-top:2px;">${pct}% consomm\u00E9</div>
         </div>`;
@@ -15350,7 +15352,7 @@ function renderRapport() {
     <div class="rapport-section">
       <div class="rapport-title">⚖️ Situation légale — ${year}</div>
       <div class="rapport-row"><span class="rr-label">Heures sup cumulées</span><span class="rr-val ${annualCol === '#4CAF50' ? 'rr-ok' : annualCol === '#E53935' ? 'rr-danger' : 'rr-warn'}">${_fmtH(dN.totalHS)}</span></div>
-      <div class="rapport-row"><span class="rr-label">% du contingent ({contingent}h)</span><span class="rr-val ${annualCol === '#4CAF50' ? 'rr-ok' : annualCol === '#E53935' ? 'rr-danger' : 'rr-warn'}">${pct}%</span></div>
+      <div class="rapport-row"><span class="rr-label">% du contingent (${(s.annual&&s.annual.contingentMax)||(_kitsuneGetCCN().contingent||220)}h)</span><span class="rr-val ${annualCol === '#4CAF50' ? 'rr-ok' : annualCol === '#E53935' ? 'rr-danger' : 'rr-warn'}">${pct}%</span></div>
       <div class="rapport-row"><span class="rr-label">Journée max détectée</span><span class="rr-val ${s.daily?.hasDailyCrit ? 'rr-danger' : s.daily?.hasDailyRisk ? 'rr-warn' : 'rr-ok'}">${_fmtH(s.daily?.maxDayTotal || 0)}</span></div>
       <div class="rapport-row"><span class="rr-label">Semaine max détectée</span><span class="rr-val ${s.weekly?.hasWeekViol ? 'rr-danger' : s.weekly?.hasWeekAlert ? 'rr-warn' : 'rr-ok'}">${_fmtH(s.weekly?.maxWeekTotal || 35)}</span></div>
       <div class="rapport-row"><span class="rr-label">Niveau global</span><span class="rr-val" style="color:${levelColor(s.globalLevel || 'ok')};text-transform:uppercase;">${s.globalLevel || 'ok'}</span></div>
@@ -15368,7 +15370,7 @@ function renderRapport() {
       <div class="rapport-title">📆 Comparaison annuelle</div>
       <div class="rapport-row"><span class="rr-label">${year}</span><span class="rr-val">${dN.totalHS}h</span></div>
       <div class="rapport-row"><span class="rr-label">${year-1}</span><span class="rr-val" style="color:#666;">${dP.totalHS}h</span></div>
-      <div class="rapport-row"><span class="rr-label">Évolution</span><span class="rr-val ${dN.totalHS > dP.totalHS ? 'rr-danger' : 'rr-ok'}">${dN.totalHS > dP.totalHS ? '+' : ''}${_fmtH(Math.abs(dN.totalHS - dP.totalHS))}</span></div>
+      <div class="rapport-row"><span class="rr-label">Évolution</span><span class="rr-val ${dN.totalHS > dP.totalHS ? 'rr-danger' : 'rr-ok'}">${dN.totalHS > dP.totalHS ? '+' : dN.totalHS < dP.totalHS ? '−' : ''}${_fmtH(Math.abs(dN.totalHS - dP.totalHS))}</span></div>
     </div>` : ''}
 
     <!-- Patterns -->

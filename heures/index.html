@@ -772,6 +772,21 @@ window.addEventListener("unhandledrejection",e=>{
 });
 function goMenu(){try{unlockBodyScroll();}catch(_){}localStorage.removeItem("lastApp");window.location.href="../menu.html";}
 function autoSwitchPeriodAtMidnight(){const now=new Date();const next=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,0,0);if(midnightTimer)clearTimeout(midnightTimer);midnightTimer=setTimeout(()=>{if(typeof buildPeriods==="function")buildPeriods();if(typeof update==="function")update();showToast();autoSwitchPeriodAtMidnight();},next-now);}
+/* 26/09/2026 : l'année mémorisée (lue aussi par Fox et le jumeau numérique) revient
+   toujours sur l'exercice en cours — le plus récent déjà commencé — à l'ouverture de M1
+   et quand on le quitte. Consulter une année passée reste possible, le temps de la visite. */
+function hsExerciceEnCours(){
+  const t=new Date(),auj=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  let best=null,bestDeb='';
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);const m=/^EXERCISE_START_(\d{4})$/.exec(k||'');if(!m)continue;
+    const d=String(localStorage.getItem(k)||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<=auj&&d>bestDeb){bestDeb=d;best=m[1];}}
+  return best;
+}
+(function(){try{const y=hsExerciceEnCours();if(y)localStorage.setItem("ACTIVE_YEAR_SUFFIX",y);
+  const remettre=function(){try{const y2=hsExerciceEnCours();if(y2)localStorage.setItem("ACTIVE_YEAR_SUFFIX",y2);}catch(e){}};
+  window.addEventListener('pagehide',remettre);
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')remettre();});
+}catch(e){}})();
 let currentSuffix=localStorage.getItem("ACTIVE_YEAR_SUFFIX")||new Date().getFullYear();
 document.getElementById("activeYearLabel").textContent=currentSuffix;
 function resetCurrentExercise(){
