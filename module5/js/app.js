@@ -130,8 +130,32 @@ function runAnalysis() {
           const todayStr=M5_localDK(new Date());
           return allWeeks.filter(w=>w.monday<=todayStr).slice(-12);
         })();
-    if(weeksWellbeing.length>=2) {
-      wellbeing=M5_Wellbeing.compute(weeksWellbeing, contract.hoursBase, contract);
+    /* 26/09/2026 : plusieurs contrats → santé calculée sur le cumul de toutes les heures
+       de la semaine, tous employeurs confondus (heures prévues et plafonds additionnés,
+       repos = congé sur tous les contrats). Même résultat quel que soit le contrat affiché. */
+    let wbWeeks=weeksWellbeing, wbContract=contract, cumul=null;
+    try{
+      if(window.M5_Contrats&&M5_Contrats.existing().length>1){
+        const cc=M5_Contrats.contratCumul(), y0=parseInt(year,10), ans=[String(y0-2),String(y0-1),String(y0),String(y0+1)];
+        const sd=contract.weekStartDay||0, todayStr=M5_localDK(new Date());
+        let all=M5_Contrats.semainesCumul(ans,sd).filter(w=>w.monday<=todayStr);
+        // Fenêtre où tous les contrats sont suivis (sinon un contrat pas encore saisi fausse la charge)
+        const ex=M5_Contrats.existing(), premiers=ex.map(n=>{const w=all.find(x=>x.parContrat[n]>0);return w?w.monday:null;});
+        if(cc&&premiers.every(Boolean)){
+          const depuis=premiers.sort().pop(), fen=all.filter(w=>w.monday>=depuis);
+          if(fen.length>=2) all=fen;
+          const conges=M5_Contrats.congesCommuns(ans,sd);
+          wbWeeks=all.slice(-16); wbContract=Object.assign({},cc,{_vacLundis:conges});
+          // Repères légaux, tous employeurs : 48 h sur une semaine (L3121-20),
+          // 44 h en moyenne sur 12 semaines consécutives (L3121-22)
+          const d12=all.slice(-12), moy12=d12.length?d12.reduce((a,w)=>a+w.worked,0)/d12.length:0;
+          cumul={n:ex.length, base:cc.hoursBase, sem48:all.slice(-12).filter(w=>w.worked>48), moy12:Math.round(moy12*100)/100, nb12:d12.length};
+        }
+      }
+    }catch(e){}
+    if(wbWeeks.length>=2) {
+      wellbeing=M5_Wellbeing.compute(wbWeeks, wbContract.hoursBase, wbContract);
+      if(wellbeing&&cumul) wellbeing.cumul=cumul;
     }
   }
 
@@ -303,6 +327,7 @@ function renderCalendar() {
         <button class="m5-btn m5-btn-outline m5-btn-sm" style="flex:1" onclick="openWeeklySaisie()">📊 Total semaine</button>
         <button class="m5-btn m5-btn-sm ${isVacH?'m5-btn-primary':'m5-btn-outline'}" onclick="toggleVacSemaine()">🌴 ${isVacH?'Congés ✓':'Congés'}</button>
       </div>
+      ${_congesTousBtn()}
       <div style="text-align:center;margin-top:8px;">
         <button onclick="switchToDayMode('${calendarMonday}')" style="background:none;border:none;font-size:11px;color:rgba(196,168,255,0.60);cursor:pointer;text-decoration:underline;">
           Passer en saisie journalière →
@@ -410,6 +435,7 @@ function renderCalendar() {
       🌴 ${isVacNow?'Congés ✓':'Congés'}
     </button>
   </div>`;
+  html+=_congesTousBtn();
 
   el.innerHTML=html;
   } catch(renderErr) {
@@ -931,6 +957,22 @@ function renderWellbeing(analysis) {
 
   // Bannière données limitées — affichée seulement si pas de badge multi-année
   let html='';
+  // Plusieurs contrats (26/09/2026) : cumul et repères légaux tous employeurs
+  if(wb.cumul){
+    const cu=wb.cumul, f=window._m5fmtH;
+    html+=`<div style="background:rgba(108,63,197,0.08);border:1px solid rgba(108,63,197,0.25);border-radius:8px;padding:8px 12px;font-size:11.5px;color:#6c3fc5;margin-bottom:10px;">
+      <strong>Cumul de tes ${cu.n} contrats · ${f(cu.base)} prévues par semaine</strong><br>
+      Ta santé dépend de toutes tes heures, tous employeurs confondus. Les heures complémentaires restent calculées contrat par contrat.</div>`;
+    if(cu.sem48.length){
+      html+=`<div style="background:#fdecea;border:1.5px solid #e57373;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#b71c1c;margin-bottom:10px;">
+        <strong>⚠️ Plus de 48 h sur ${cu.sem48.length>1?cu.sem48.length+' semaines':'une semaine'}</strong> (${cu.sem48.map(w=>f(w.worked)).join(', ')}), tous contrats réunis.
+        La durée maximale est de 48 h par semaine, tous employeurs confondus (art. L3121-20) : préviens tes employeurs.</div>`;
+    }
+    if(cu.nb12>=12&&cu.moy12>44){
+      html+=`<div style="background:#fdecea;border:1.5px solid #e57373;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#b71c1c;margin-bottom:10px;">
+        <strong>⚠️ ${f(cu.moy12)} par semaine en moyenne sur 12 semaines</strong>, tous contrats réunis. La moyenne ne doit pas dépasser 44 h sur 12 semaines consécutives (art. L3121-22).</div>`;
+    }
+  }
   if(wb.donneesLimitees && wb.noteMin && !wb.isMultiYear) {
     html+=`<div style="background:#fff3e0;border:2px solid #ff9800;border-radius:10px;padding:10px 12px;font-size:12px;color:#e65100;margin-bottom:12px;display:flex;gap:8px;align-items:flex-start;">
       <span style="font-size:16px;">📊</span>
@@ -943,7 +985,7 @@ function renderWellbeing(analysis) {
   // → l'utilisateur comprend pourquoi le score ne reflète pas encore cette semaine
   if(wb.currentWeekExcluded && wb.currentWeekH > 0) {
     const contract = analysis && analysis.contract;
-    const contractH = contract ? contract.hoursBase : 0;
+    const contractH = wb.cumul ? wb.cumul.base : (contract ? contract.hoursBase : 0);
     const hasHC = contractH > 0 && wb.currentWeekH > contractH;
     const diffH = contractH > 0 ? (wb.currentWeekH - contractH).toFixed(1) : 0;
     // Calculer combien de jours jusqu'à dimanche
@@ -953,9 +995,9 @@ function renderWellbeing(analysis) {
     html+=`<div style="background:rgba(245,158,11,0.08);border:1.5px solid rgba(245,158,11,0.40);border-radius:8px;padding:8px 12px;font-size:11px;color:#92400e;margin-bottom:10px;display:flex;gap:8px;align-items:flex-start;">
       <span style="font-size:14px;">⏳</span>
       <div>
-        <strong>Semaine en cours : ${window._m5fmtH(wb.currentWeekH)}${hasHC ? ` (+${window._m5fmtH(diffH)} HC)` : ''}</strong><br>
+        <strong>Semaine en cours : ${window._m5fmtH(wb.currentWeekH)}${hasHC ? ` (+${window._m5fmtH(diffH)} ${wb.cumul?'au-delà de tes contrats':'HC'})` : ''}</strong><br>
         ${hasHC
-          ? `Ces ${window._m5fmtH(diffH)} d'heures complémentaires seront intégrées au score bio <strong>${joursRestants}</strong> quand la semaine sera complète.`
+          ? `Ces ${window._m5fmtH(diffH)} ${wb.cumul?'au-delà de tes contrats':'d\'heures complémentaires'} seront intégrées au score bio <strong>${joursRestants}</strong> quand la semaine sera complète.`
           : `La semaine en cours est exclue des calculs jusqu'à dimanche — seules les semaines complètes alimentent l'analyse.`
         }
       </div>
@@ -1803,6 +1845,24 @@ function saveWeeklySaisieOrClose() {
     closeModal('modal-week-saisie');  // ferme si rien de valide
   }
 }
+
+// ── Congés sur tous les contrats en 1 clic (26/09/2026) ──────────────
+function _congesTousBtn(){
+  try{
+    if(!window.M5_Contrats||M5_Contrats.existing().length<2) return '';
+    const on=M5_Contrats.congesTousActif(calendarMonday,M5_DataStore.getYear()), n=M5_Contrats.existing().length;
+    return `<button class="m5-btn m5-btn-sm ${on?'m5-btn-primary':'m5-btn-outline'}" style="width:100%;margin-top:8px" onclick="toggleCongesTous()">🌴 ${on?`En congés sur mes ${n} contrats ✓ — retirer`:`Je suis en congés sur mes ${n} contrats`}</button>`;
+  }catch(e){ return ''; }
+}
+function toggleCongesTous(){
+  if(window.M5_isDayLocked&&window.M5_isDayLocked(calendarMonday)){ toast('Période verrouillée 🔒 — déverrouille-la pour modifier','info'); return; }
+  const year=M5_DataStore.getYear(), n=M5_Contrats.existing().length;
+  const on=M5_Contrats.congesTousActif(calendarMonday,year);
+  M5_Contrats.congesTous(calendarMonday,year,on);
+  toast(on?`Congés retirés sur tes ${n} contrats`:`Semaine en congés sur tes ${n} contrats 🌴`,on?'info':'success');
+  Mizuki.clearCache(); refreshUI();
+}
+window.toggleCongesTous=toggleCongesTous;
 
 // ── Gestion vacances M5 ──────────────────────────────────────────────
 function toggleVacSemaine() {

@@ -99,9 +99,10 @@ const M5_Wellbeing = {
     let vacSemaines = 0;
     try {
       const year = new Date().getFullYear();
-      const vacData = JSON.parse(localStorage.getItem(M5_key('M5_VACANCES_')+year)||'{}');
+      // Plusieurs contrats (26/09/2026) : semaines en congé sur TOUS les contrats, fournies par l'appelant
+      const vacData = Array.isArray(contract && contract._vacLundis) ? {} : JSON.parse(localStorage.getItem(M5_key('M5_VACANCES_')+year)||'{}');
       // Compter les semaines lundi distincts dans les vacances
-      const vacLundis = new Set();
+      const vacLundis = new Set(Array.isArray(contract && contract._vacLundis) ? contract._vacLundis : []);
       Object.keys(vacData).forEach(dk => {
         const d = new Date(dk+'T12:00:00');
         const dow = d.getDay() === 0 ? 6 : d.getDay()-1;

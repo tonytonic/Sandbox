@@ -176,7 +176,73 @@ function renderOverview(){
 function boot(){try{renderStrip();renderModal();}catch(e){}try{renderOverview();}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 
+/* ── Cumul de tous les contrats (26/09/2026) ───────────────────────────────
+   La santé (fatigue, récupération) dépend de toutes les heures de la semaine, tous
+   employeurs confondus. Les heures complémentaires restent calculées contrat par contrat. */
+function isoD(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function debutSem(dk,sd){var d=new Date(dk+'T12:00:00'),diff=((d.getDay()+6)%7)-(sd||0);if(diff<0)diff+=7;d.setDate(d.getDate()-diff);return isoD(d);}
+function jlist(k){try{return JSON.parse(get(k)||'{}')||{};}catch(e){return {};}}
+/* Semaines cumulées : [{monday, worked, parContrat:{n:h}}], semaines calées sur le début
+   de semaine du contrat affiché. Par contrat et par semaine : total hebdo s'il existe,
+   sinon somme des jours (comme la saisie). */
+function semainesCumul(annees,sd){
+  var ex=existing(),b={};
+  ex.forEach(function(n){
+    var parSem={};
+    annees.forEach(function(y){
+      var data=jlist(keyFor(n,'M5_DATA_')+y);
+      Object.keys(data).forEach(function(dk){
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(dk))return;var e=data[dk];if(!e||!(e.worked>0))return;
+        var m=debutSem(dk,sd),o=parSem[m]||(parSem[m]={w:null,d:0});
+        if(e.type==='week')o.w=(o.w||0)+e.worked;else if(e.type==='day')o.d+=e.worked;
+      });
+    });
+    Object.keys(parSem).forEach(function(m){var o=parSem[m],h=o.w!==null?o.w:o.d,x=b[m]||(b[m]={monday:m,worked:0,parContrat:{}});x.worked+=h;x.parContrat[n]=(x.parContrat[n]||0)+h;});
+  });
+  return Object.keys(b).sort().map(function(m){var x=b[m];x.worked=Math.round(x.worked*100)/100;return x;});
+}
+/* Débuts de semaine où l'on est en congé sur TOUS les contrats (repos réel) */
+function congesCommuns(annees,sd){
+  var ex=existing(),cpt={};
+  ex.forEach(function(n){var vu={};
+    annees.forEach(function(y){var v=jlist(keyFor(n,'M5_VACANCES_')+y);Object.keys(v).forEach(function(dk){if(v[dk]&&/^\d{4}-\d{2}-\d{2}$/.test(dk))vu[debutSem(dk,sd)]=1;});});
+    Object.keys(vu).forEach(function(m){cpt[m]=(cpt[m]||0)+1;});});
+  return Object.keys(cpt).filter(function(m){return cpt[m]===ex.length;}).sort();
+}
+/* Plafond d'heures complémentaires de chaque contrat (CCN prioritaire, comme Mizuki) */
+function capDe(c){var cap=c.cap||0.10;try{if(c.idcc>0&&global.CCN_PARTIEL_API)cap=CCN_PARTIEL_API.getRules(c.idcc).cap||cap;}catch(e){}return cap;}
+/* Contrat « cumulé » pour le calcul santé : heures = somme, plafond = somme des plafonds */
+function contratCumul(){
+  var ex=existing(),base=0,capH=0,noms={},c1=contrat(ACTIVE)||{};
+  ex.forEach(function(n){var c=contrat(n)||{},h=+c.hoursBase||0;base+=h;capH+=h*capDe(c);noms[c.ccnNom||'']=1;});
+  if(!(base>0))return null;
+  var r={};for(var k in c1)r[k]=c1[k];
+  r.hoursBase=Math.round(base*100)/100;r.cap=capH/base;r.idcc=0;r.ccnNom=Object.keys(noms).length===1?Object.keys(noms)[0]:'';
+  r._nbContrats=ex.length;
+  return r;
+}
+/* « Je suis en congés » sur tous les contrats pour les 7 jours à partir de debut.
+   Comme le bouton Congés de chaque contrat : les heures saisies ces jours-là sont retirées.
+   Un total hebdo n'est retiré que s'il commence dans ces 7 jours et que le contrat a le
+   même début de semaine (sinon il couvre aussi d'autres jours). */
+function congesTous(debut,annee,retirer){
+  var jours=[];for(var i=0;i<7;i++){var d=new Date(debut+'T12:00:00');d.setDate(d.getDate()+i);jours.push(isoD(d));}
+  var sdA=((contrat(ACTIVE)||{}).weekStartDay)||0;
+  existing().forEach(function(n){
+    var kv=keyFor(n,'M5_VACANCES_')+annee,v=jlist(kv);
+    if(retirer){jours.forEach(function(j){delete v[j];});set(kv,JSON.stringify(v));return;}
+    var kd=keyFor(n,'M5_DATA_')+annee,data=jlist(kd),ch=false,sdN=((contrat(n)||{}).weekStartDay)||0;
+    jours.forEach(function(j){v[j]=true;if(data[j]&&(data[j].type!=='week'||sdN===sdA)){delete data[j];ch=true;}});
+    if(ch)set(kd,JSON.stringify(data));set(kv,JSON.stringify(v));
+  });
+}
+function congesTousActif(debut,annee){
+  var ex=existing();if(ex.length<2)return false;
+  return ex.every(function(n){var v=jlist(keyFor(n,'M5_VACANCES_')+annee);for(var i=0;i<7;i++){var d=new Date(debut+'T12:00:00');d.setDate(d.getDate()+i);if(v[isoD(d)])return true;}return false;});
+}
+
 global.M5_key=key;
 global.M5_rpPct=rpPct;global.M5_rpTexte=rpTexte;
-global.M5_Contrats={active:ACTIVE,key:key,keyFor:keyFor,exists:exists,nom:nom,list:list,existing:existing,switchTo:switchTo,add:add};
+global.M5_Contrats={active:ACTIVE,key:key,keyFor:keyFor,exists:exists,nom:nom,list:list,existing:existing,switchTo:switchTo,add:add,
+  semainesCumul:semainesCumul,congesCommuns:congesCommuns,contratCumul:contratCumul,congesTous:congesTous,congesTousActif:congesTousActif};
 })(window);
