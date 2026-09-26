@@ -917,6 +917,7 @@ body {
 <script src="js/articles-loi.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/config.js"></script>
+<script src="../js/hs-officiel.js"></script>
 <script src="js/module-reader.js"></script>
 <script src="js/xp-system.js"></script>
 <script src="js/leagues.js"></script>
@@ -2661,7 +2662,9 @@ function _analyzeLegalSituation() {
     Object.values(rawM2).forEach(mv => {
       if (mv && mv.days) Object.values(mv.days).forEach(v => { m2annual += parseFloat(v) || 0; });
     });
-    const bestAnnual = Math.max(annualOT, m2annual);
+    // 26/09/2026 : chiffre officiel du module (contingent) quand il existe
+    const _off = (typeof window.hsOfficiel === 'function') ? window.hsOfficiel(year) : null;
+    const bestAnnual = _off ? _off.total : Math.max(annualOT, m2annual);
     const pct = Math.round(bestAnnual / contingentMax * 100);
     const annual = {
       annualOT: Math.round(bestAnnual * 10) / 10,
@@ -14912,8 +14915,10 @@ function _getYearData(year) {
   const monthVals = Object.values(months);
   const peakMonth = monthVals.length ? Math.max(...monthVals) : 0;
   const peakMonthKey = Object.keys(months).find(k => months[k] === peakMonth) || null;
+  // 26/09/2026 : total officiel du module (contingent) quand il existe
+  try { const _off = (typeof window.hsOfficiel === 'function') ? window.hsOfficiel(y) : null; if (_off) totalHS = _off.total; } catch (_) {}
   const avgPerMonth  = monthVals.length ? totalHS / monthVals.length : 0;
-  const pctContingent = Math.round(totalHS / 220 * 100);
+  const pctContingent = Math.round(totalHS / ((_kitsuneGetCCN().contingent) || 220) * 100);
 
   return { year, totalHS: Math.round(totalHS * 100) / 100, pctContingent, peakMonth, peakMonthKey, avgPerMonth: Math.round(avgPerMonth * 100) / 100, violationsDay, hasData: totalHS > 0 };
 }

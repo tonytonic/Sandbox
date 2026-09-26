@@ -2842,6 +2842,21 @@ function showSaveFeedback(dayNum){
 }
 
 /* CONTINGENT 220H */
+/* 26/09/2026 : total officiel du contingent d'une année (ses 12 périodes de paie),
+   enregistré dans SH_HS_OFFICIEL_M2_<année> pour Fox et le jumeau numérique */
+function m2ContingentAnnee(y){
+  let total=0;
+  for(let mi=1;mi<=12;mi++){
+    const b=getPeriodBounds(y+"-"+String(mi).padStart(2,"0"));
+    buildDayList(b.start,b.end).forEach(r=>{total+=r.h||0;});
+  }
+  return Math.round(total*100)/100;
+}
+function m2EnregistrerOfficiel(y,total){try{localStorage.setItem('SH_HS_OFFICIEL_M2_'+y,JSON.stringify({total:total,maj:new Date().toISOString()}));}catch(e){}}
+function m2EnregistrerTousOfficiels(){try{getExistingYears().forEach(y=>{
+  const yd=loadYearData(y)||{};if(!Object.keys(yd).some(k=>/^\d{4}-\d{2}$/.test(k)&&Object.keys((yd[k]||{}).days||{}).length))return;
+  if(!ALL_DATA[y])ALL_DATA[y]=yd;m2EnregistrerOfficiel(y,m2ContingentAnnee(y));});}catch(e){}}
+window.addEventListener('load',function(){setTimeout(m2EnregistrerTousOfficiels,400);});
 function updateContingent(){
   const rules=getCCNRules();
   const LIMIT=rules.contingent;
@@ -2851,11 +2866,10 @@ function updateContingent(){
   // 26/09/2026 : contingent de l'exercice = ses 12 périodes de paie (de la période de
   // janvier, qui commence après la clôture de décembre précédente, à celle de décembre).
   // Les heures saisies après la clôture de décembre comptent donc pour l'année suivante.
-  let total=0;
-  for(let mi=1;mi<=12;mi++){
-    const b=getPeriodBounds(currentYear+"-"+String(mi).padStart(2,"0"));
-    buildDayList(b.start,b.end).forEach(r=>{total+=r.h||0;});
-  }
+  const total=m2ContingentAnnee(currentYear);
+  {const yd=ALL_DATA[currentYear]||{};
+   if(Object.keys(yd).some(k=>/^\d{4}-\d{2}$/.test(k)&&Object.keys((yd[k]||{}).days||{}).length))m2EnregistrerOfficiel(currentYear,total);
+   else{try{localStorage.removeItem('SH_HS_OFFICIEL_M2_'+currentYear);}catch(e){}}}
   
   const pct=Math.min(100,total/LIMIT*100);
   const fill=document.getElementById("contingentFill");

@@ -1383,47 +1383,47 @@ function hsSwipePeriode(dir){
    Droit français Art. L3121-30 : le contingent est constitué par les HS effectivement
    réalisées, indépendamment de leur mode de compensation (paiement ou récupération).
    La récupération ne réduit PAS le contingent. */
+/* 26/09/2026 : total officiel du contingent d'un exercice (calcul pur, réutilisable).
+   Enregistré dans SH_HS_OFFICIEL_M1_<année> pour que Fox et le jumeau numérique
+   affichent exactement le même chiffre que le compteur. */
+function hsContingentExercice(d,sd,auto,deb,fin){
+  const _dansExo=x=>(!deb||x>=String(deb).slice(0,10))&&(!fin||x<=String(fin).slice(0,10));
+  const rules=getCCNRules(),seuil=rules.seuil;
+  const weeks={},absences={};
+  if(auto){
+    Object.entries(sd||{}).forEach(([date,type])=>{
+      if(type!=="ferie"||!_dansExo(date))return;
+      const dt=new Date(date);if(_isCCNRestDay(dt.getDay()))return;
+      if(!(d[date]&&(d[date].absent||0)>0)){const wk=getWeekKey(dt);absences[wk]=(absences[wk]||0)+DAILY_WORK_HOURS;}
+    });
+  }
+  Object.entries(d||{}).forEach(([date,v])=>{
+    if(!v||typeof v!=="object"||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!_dansExo(date))return;
+    const[y,m,dd]=date.split("-").map(Number);const dt=new Date(y,m-1,dd);const wk=getWeekKey(dt);
+    weeks[wk]=(weeks[wk]||0)+(v.extra||0);
+    if(!_isCCNRestDay(dt.getDay()))absences[wk]=(absences[wk]||0)+(v.absent||0);
+  });
+  let total=0;
+  Object.entries(weeks).forEach(([wk,extra])=>{const tw=Math.max(0,seuil-(absences[wk]||0))+extra;if(tw>seuil)total+=tw-seuil;});
+  return Math.round(total*100)/100;
+}
+function hsEnregistrerOfficiel(suffix,total){try{localStorage.setItem('SH_HS_OFFICIEL_M1_'+suffix,JSON.stringify({total:total,maj:new Date().toISOString()}));}catch(e){}}
+/* Tous les exercices, au chargement : Fox a le bon chiffre même pour une année non consultée */
+function hsEnregistrerTousOfficiels(){
+  try{getExistingYears().forEach(y=>{
+    const lire=(k,def)=>{try{const v=localStorage.getItem(k);return v===null?def:JSON.parse(v);}catch(e){return def;}};
+    const d=lire('DATA_REPORT_'+y,{});if(!Object.keys(d).length)return;
+    hsEnregistrerOfficiel(y,hsContingentExercice(d,lire('SPECIAL_DAYS_'+y,{}),localStorage.getItem('AUTO_FERIE_'+y)==='true',localStorage.getItem('EXERCISE_START_'+y)||'',localStorage.getItem('ANNUAL_DATE_'+y)||''));
+  });}catch(e){}
+}
 function updateContingent(){
-  // 26/09/2026 : seuls les jours de l'exercice comptent (du début à la clôture annuelle) ;
-  // les jours saisis après la clôture iront dans l'exercice suivant à son ouverture.
-  const _dansExo=d=>(!exerciseStart||d>=String(exerciseStart).slice(0,10))&&(!annualDate||d<=String(annualDate).slice(0,10));
   const rules=getCCNRules();
   BASE_HEBDO = rules.seuil;
   const LIMIT=rules.contingent;
-  // Reconstruire via la même logique semaine que calculate()
-  // sur l'ensemble de l'exercice (toutes les périodes)
-  const weeks={},absences={};
-  if(AUTO_FERIE){
-    const _fr2=typeof window.CCN_API!=='undefined'?window.CCN_API.getCCNFeriesRules(parseInt(localStorage.getItem('CCN_IDCC')||'0')):{feriesChomes:11,seul1erMaiChome:false};
-    Object.entries(specialDays).forEach(([date,type])=>{
-      if(type!=="ferie")return;
-      if(!_dansExo(date))return;
-      // CCN restreintes : seul 1er mai chômé — override par AUTO_FERIE actif
-      const d=new Date(date);const dow=d.getDay();
-      if(_isCCNRestDay(dow))return;
-      const _hmA4 = data[date] && (data[date].absent||0) > 0;
-      if(!_hmA4){ const wk=getWeekKey(d);
-        absences[wk]=(absences[wk]||0)+DAILY_WORK_HOURS;
-      }
-    });
-  }
-  Object.entries(data).forEach(([date,v])=>{
-    if(!v||typeof v!=="object")return;
-    if(!_dansExo(date))return;
-    const[y,m,d]=date.split("-").map(Number);
-    const dd=new Date(y,m-1,d);const dow=dd.getDay();
-    const wk=getWeekKey(dd);
-    weeks[wk]=(weeks[wk]||0)+(v.extra||0);
-    if(!_isCCNRestDay(dow))absences[wk]=(absences[wk]||0)+(v.absent||0);
-  });
-  let total=0;
-  Object.entries(weeks).forEach(([wk,extra])=>{
-    const absent=absences[wk]||0;
-    const base=Math.max(0,BASE_HEBDO-absent);
-    const totalW=base+extra;
-    // BASE_HEBDO suit le seuil CCN — semaine civile indivisible (pas de récup au contingent, cf. L3121-30)
-    if(totalW>BASE_HEBDO)total+=totalW-BASE_HEBDO;
-  });
+  const total=hsContingentExercice(data,specialDays,AUTO_FERIE,exerciseStart,annualDate);
+  // Enregistré seulement si l'exercice a des saisies (un M1 ouvert mais vide ne doit pas masquer M2)
+  if(Object.keys(data||{}).some(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)))hsEnregistrerOfficiel(currentSuffix,total);
+  else{try{localStorage.removeItem('SH_HS_OFFICIEL_M1_'+currentSuffix);}catch(e){}}
   const pct=Math.min(100,total/LIMIT*100);
   const fill=document.getElementById("contingentFill");
   const txt=document.getElementById("contingentText");
@@ -2144,7 +2144,7 @@ localStorage.removeItem("APP_CRASH_STATE");
 let _scrollY=0;
 function lockBodyScroll(){_scrollY=window.scrollY;document.body.style.overflow="hidden";document.body.style.position="fixed";document.body.style.top="-"+_scrollY+"px";document.body.style.width="100%";}
 function unlockBodyScroll(){document.body.style.overflow="";document.body.style.position="";document.body.style.top="";document.body.style.width="";window.scrollTo(0,_scrollY);}
-document.addEventListener("DOMContentLoaded",()=>{protectFunctions();syncBaseHebdoWithCCN();initSelectors();applyConfigLock();buildPeriods();autoSwitchPeriodAtMidnight();if(!exerciseStart)setTimeout(openWizardModal,300);});
+document.addEventListener("DOMContentLoaded",()=>{setTimeout(hsEnregistrerTousOfficiels,300);protectFunctions();syncBaseHebdoWithCCN();initSelectors();applyConfigLock();buildPeriods();autoSwitchPeriodAtMidnight();if(!exerciseStart)setTimeout(openWizardModal,300);});
 function openLegalPopup(){document.getElementById("popupLegal").style.display="flex";}
 function closeLegalPopup(){document.getElementById("popupLegal").style.display="none";}
 function protectFunctions(){
