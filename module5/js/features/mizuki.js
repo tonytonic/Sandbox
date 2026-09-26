@@ -7,7 +7,7 @@
 
 const K = {
   MSG_IDX:     'M5_MIZUKI_MSG_IDX',
-  POPUP_CACHE: 'M5_POPUP_DAILY',
+  POPUP_CACHE: M5_key('M5_POPUP_DAILY'),
   USER_NAME:   'M5_USER_NAME',
 };
 function _get(k,def=''){try{return localStorage.getItem(k)??def;}catch(_){return def;}}

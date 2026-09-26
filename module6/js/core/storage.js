@@ -16,13 +16,35 @@ const M6_Storage = {
   getActiveYear(regime)    {
     // Clé par régime pour que les 3 forfaits soient complètement indépendants
     const key = regime ? `${NS}_${regime}_ACTIVE_YEAR` : `${NS}_ACTIVE_YEAR`;
-    return parseInt(localStorage.getItem(key) || new Date().getFullYear());
+    const now = new Date(), annee = now.getFullYear();
+    const raw = localStorage.getItem(key);
+    // Changement d'année (24/09/2026). Avant : une année choisie une fois dans
+    // le sélecteur restait active pour toujours — en janvier, on saisissait
+    // dans l'année précédente et ses jours comptaient dans l'ancien forfait.
+    // Désormais la valeur garde la date du choix (« 2026|2026-09-24 », lue
+    // telle quelle par parseInt ailleurs) : un choix fait AVANT le 1er janvier
+    // cède la place à la nouvelle année, un choix fait après (consulter une
+    // année passée) est respecté.
+    let exo = null;
+    try { exo = regime ? this.getContract(regime) : null; } catch (_) {}
+    const auj = now.toISOString().slice(0, 10);
+    const enCours = exo && exo.dateDebutExercice && exo.dateFinExercice &&
+      auj >= exo.dateDebutExercice && auj <= exo.dateFinExercice;
+    if (!raw) {
+      // Exercice à cheval sur deux années (ex. juin → mai) : il reste rangé
+      // sous l'année de son début jusqu'à sa fin.
+      return enCours ? parseInt(exo.dateDebutExercice.slice(0, 4)) : annee;
+    }
+    const y = parseInt(raw);
+    const choisiLe = String(raw).split('|')[1] || '';
+    if (y < annee && !enCours && choisiLe.slice(0, 4) !== String(annee)) return annee;
+    return y;
   },
   setActiveYear(regime, year) {
     // Accepte setActiveYear(year) sans régime pour rétrocompatibilité
     if (typeof regime === 'number') { year = regime; regime = null; }
     const key = regime ? `${NS}_${regime}_ACTIVE_YEAR` : `${NS}_ACTIVE_YEAR`;
-    localStorage.setItem(key, year);
+    localStorage.setItem(key, parseInt(year) + '|' + new Date().toISOString().slice(0, 10));
   },
   getAllYears(regime) {
     const years = new Set();
@@ -40,6 +62,7 @@ const M6_Storage = {
     if (!localStorage.getItem(dk)) {
       localStorage.setItem(dk, JSON.stringify({}));
       this._log(regime, year, 'SYSTEM', `Exercice ${year} créé`);
+      if (window.hsBackupNudge) window.hsBackupNudge('year');
     }
   },
 

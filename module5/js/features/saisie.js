@@ -6,13 +6,14 @@
 'use strict';
 
 const K = {
-  DATA:        y => 'M5_DATA_' + y,
-  VACANCES:    y => 'M5_VACANCES_' + y,
-  AVENANT:     y => 'M5_AVENANT_' + y,
-  CONTRACT:    'M5_CONTRACT',
+  /* C6 : clés du contrat actif (contrat 1 = clés historiques) */
+  DATA:        y => M5_key('M5_DATA_') + y,
+  VACANCES:    y => M5_key('M5_VACANCES_') + y,
+  AVENANT:     y => M5_key('M5_AVENANT_') + y,
+  CONTRACT:    M5_key('M5_CONTRACT'),
   USER_NAME:   'M5_USER_NAME',
   WELCOMED:    'M5_WELCOMED',
-  ACTIVE_YEAR: 'M5_ACTIVE_YEAR',
+  ACTIVE_YEAR: M5_key('M5_ACTIVE_YEAR'),
 };
 
 function _get(k, def='') { try{return localStorage.getItem(k)??def;}catch(_){return def;} }
@@ -367,7 +368,7 @@ function formatMonday(mondayStr) {
 }
 function getExistingYears() {
   const years=new Set();
-  try{ for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('M5_DATA_')){const y=k.replace('M5_DATA_','');if(/^\d{4}$/.test(y))years.add(y);}} }catch(_){}
+  try{ for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);const _p=M5_key('M5_DATA_');if(k&&k.startsWith(_p)){const y=k.slice(_p.length);if(/^\d{4}$/.test(y))years.add(y);}} }catch(_){}
   if(!years.size) years.add(String(new Date().getFullYear()));
   return [...years].sort();
 }

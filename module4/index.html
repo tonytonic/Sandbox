@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script>/* iPhone : pas de zoom automatique quand on touche un champ (01/10/2026). Le zoom avec deux doigts reste possible (iOS l'autorise toujours). Android n'est pas concerné. */(function(){try{var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),v=document.querySelector('meta[name="viewport"]');if(ios&&v&&!/maximum-scale/.test(v.content))v.content+=', maximum-scale=1';}catch(e){}})();</script>
   <title>Ma prédiction santé</title>
   <meta name="theme-color" content="#00060f">
   <link rel="apple-touch-icon" href="/hs/apple-touch-icon.png">

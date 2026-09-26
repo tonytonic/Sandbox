@@ -12,6 +12,7 @@
 <meta charset="UTF-8">
 <title>Simulateur d'heures mensualisé</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<script>/* iPhone : pas de zoom automatique quand on touche un champ (01/10/2026). Le zoom avec deux doigts reste possible (iOS l'autorise toujours). Android n'est pas concerné. */(function(){try{var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),v=document.querySelector('meta[name="viewport"]');if(ios&&v&&!/maximum-scale/.test(v.content))v.content+=', maximum-scale=1';}catch(e){}})();</script>
 <style>
 *,*::before,*::after{box-sizing:border-box}
 .kitsune-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 20px;border-radius:99px;border:none;background:linear-gradient(135deg,#4FB3C2,#2196a6);color:#fff;font-size:14px;font-weight:700;cursor:pointer;width:auto;margin:0;box-shadow:0 3px 12px rgba(79,179,194,0.45);transition:transform .15s,box-shadow .15s;line-height:1}
@@ -527,6 +528,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <div style="max-width:900px;margin:8px auto;padding:0 12px;text-align:center">
   <button onclick="openYearsPopup()" style="background:#2a2f3a;border-radius:20px;padding:9px 20px;font-size:14px;font-weight:600;letter-spacing:.3px;width:auto">&#x1F4C5; Exercice <span id="activeYearLabel">...</span></button>
 </div>
+<div id="m2NouvelleAnnee" style="display:none;max-width:900px;margin:8px auto;padding:12px 14px;border-radius:14px;background:#fff8e6;border:1.5px solid #f0c040;font-size:13.5px;line-height:1.45;color:#5a4300;text-align:left"></div>
 
 <div class="main">
   <h1>&#x23F1;&#xFE0F; Heures supplémentaires</h1>
@@ -734,6 +736,7 @@ function confirmSwitchYear(){
   registerYear(y);
   if(Object.keys(loadYearData(y)||{}).length === 0) saveYearData(y, {});
   switchYear(y);
+  if(window.hsBackupNudge) hsBackupNudge("year");
 }
 
 const STORAGE_PREFIX="CA_HS_TRACKER_V1",APP_VERSION="1.5.0",SNAP_KEY=`${STORAGE_PREFIX}_SNAPSHOTS`,SNAP_LIMIT=5,DATA_VERSION="1.0";
@@ -1048,7 +1051,7 @@ function autoLockPastPeriods(){
     const hasActivity = (Number(m.paid)||0)>0 || (m.days && Object.values(m.days).some(h=>(Number(h)||0)>0));
     if(hasActivity){ m.locked = true; changed = true; }
   });
-  if(changed) saveYearData(currentYear, yd);
+  if(changed){ saveYearData(currentYear, yd); if(window.hsBackupNudge) hsBackupNudge("period"); }
 }
 
 function syncClosingDate(){if(!DATA[currentKey])return;const[y,m]=currentKey.split("-").map(Number),day=DATA[currentKey].closing||31;closingDate.value=`${y}-${String(m).padStart(2,"0")}-${String(day).padStart(2,"0")}`}
@@ -1578,6 +1581,7 @@ function togglePeriodLock(){
     renderCalendar();
     renderPaidInputs(getCCNRules());
     toast("🔒 Période verrouillée", "success");
+    if(window.hsBackupNudge) hsBackupNudge("period");
   } else {
     // Déverrouillage : confirmation légère pour éviter déverrouillage accidentel
     DATA[currentKey].locked = false;
@@ -3090,6 +3094,70 @@ function closeTip(){
 })();
 </script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>
+<script src="../js/rappel-sauvegarde.js"></script>
+<!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
+<script>
+(function(){
+  if(location.hash!=='#saisie-aujourdhui')return;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  function go(){try{
+    var w=document.getElementById('wizardModal');if(w&&w.classList.contains('open'))return;
+    var d=new Date(),k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    if(monthPicker.value!==k){monthPicker.value=k;loadMonth();}
+    if(isDateLocked(d)){toast('🔒 Période verrouillée','warn');return;}
+    openHours(d.getDate());}catch(e){}}
+  if(document.readyState==='complete')setTimeout(go,400);else window.addEventListener('load',function(){setTimeout(go,400);});
+})();
+</script>
+<script>
+/* ═══ Passage à l'année suivante — heures mensualisées (24/09/2026) ═══════
+   Ce module suit l'année civile (12 mois, un contingent par année).
+   Deux cas au changement d'année :
+   - une année avait été choisie à la main (📅 Exercice) : elle restait active
+     pour toujours — en janvier on saisissait dans l'année précédente. Un
+     bandeau propose maintenant d'ouvrir la nouvelle année ;
+   - sinon le module passe seul à la nouvelle année : un bandeau l'annonce
+     une fois en janvier (contingent remis à zéro, ancienne année consultable).
+   Rien ne bascule sans que l'utilisateur le voie. */
+(function(){
+  function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function bouton(txt,fn,principal){return '<button onclick="'+fn+'" style="'+(principal?'flex:1;background:#2196a6;color:#fff;border:none;':'width:auto;background:#fff;color:#5a4300;border:1px solid #d8c48a;')+'margin:0;padding:10px 12px;border-radius:10px;font-weight:800">'+txt+'</button>';}
+  window.m2OuvrirNouvelleAnnee=function(){
+    var y=String(new Date().getFullYear());
+    try{ registerYear(y); if(Object.keys(loadYearData(y)||{}).length===0) saveYearData(y,{}); }catch(e){}
+    switchYear(y);
+    try{ localStorage.setItem('M2_NOUVELLE_ANNEE_VU',y); }catch(e){}
+    if(window.hsBackupNudge) hsBackupNudge('year');
+    verifier();
+  };
+  window.m2PlusTardAnnee=function(){try{localStorage.setItem('M2_ANNEE_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
+  window.m2VuNouvelleAnnee=function(){try{localStorage.setItem('M2_NOUVELLE_ANNEE_VU',String(new Date().getFullYear()));}catch(e){}verifier();};
+  function verifier(){
+    var el=document.getElementById('m2NouvelleAnnee');if(!el)return;
+    var now=new Date(),y=now.getFullYear(),cur=parseInt(currentYear,10);
+    var choisie=!!localStorage.getItem(ACTIVE_YEAR_KEY);
+    if(cur<y){
+      if(localStorage.getItem('M2_ANNEE_PLUS_TARD')===iso(now)){el.style.display='none';return;}
+      el.innerHTML='📅 <b>L\'année '+cur+' est terminée.</b> Tu consultes encore '+cur+' : les heures de '+y+' doivent aller dans l\'exercice '+y+', avec un contingent remis à zéro.'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('Ouvrir '+y,'m2OuvrirNouvelleAnnee()',true)+bouton('Plus tard','m2PlusTardAnnee()',false)+'</div>'+
+        '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">L\'année '+cur+' reste consultable avec le bouton 📅 Exercice.</div>';
+      el.style.display='block';return;
+    }
+    var prec=String(y-1),aDesDonnees=false;
+    try{aDesDonnees=Object.keys(loadYearData(prec)||{}).length>0;}catch(e){}
+    if(cur===y&&!choisie&&now.getMonth()===0&&aDesDonnees&&localStorage.getItem('M2_NOUVELLE_ANNEE_VU')!==String(y)){
+      el.innerHTML='🎉 <b>Nouvelle année : ton suivi est passé en '+y+'.</b> Le contingent annuel repart à zéro. Tes heures de '+prec+' restent consultables avec le bouton 📅 Exercice.'+
+        '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('C\'est noté','m2VuNouvelleAnnee()',true)+'</div>';
+      el.style.display='block';
+      if(window.hsBackupNudge) hsBackupNudge('year');
+      return;
+    }
+    el.style.display='none';
+  }
+  window.m2VerifierAnnee=verifier;
+  if(document.readyState==='complete')setTimeout(verifier,500);else window.addEventListener('load',function(){setTimeout(verifier,500);});
+})();
+</script>
 </body>
 </html>
 

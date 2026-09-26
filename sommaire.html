@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>/* iPhone : pas de zoom automatique quand on touche un champ (01/10/2026). Le zoom avec deux doigts reste possible (iOS l'autorise toujours). Android n'est pas concerné. */(function(){try{var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),v=document.querySelector('meta[name="viewport"]');if(ios&&v&&!/maximum-scale/.test(v.content))v.content+=', maximum-scale=1';}catch(e){}})();</script>
 <title>Tout l'écosystème — SimulHeures</title>
 <style>
   :root{--bg:#0d1220;--card:#18202f;--line:#28344a;--ink:#eef3fa;--mut:#95a4b8;--dim:#68768c;

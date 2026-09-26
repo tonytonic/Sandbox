@@ -12,6 +12,7 @@
 <meta charset="UTF-8">
 <title>Temps Partiel — Mizuki</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>/* iPhone : pas de zoom automatique quand on touche un champ (01/10/2026). Le zoom avec deux doigts reste possible (iOS l'autorise toujours). Android n'est pas concerné. */(function(){try{var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),v=document.querySelector('meta[name="viewport"]');if(ios&&v&&!/maximum-scale/.test(v.content))v.content+=', maximum-scale=1';}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;0,9..40,900;1,9..40,400&display=swap">
@@ -73,6 +74,14 @@
   document.addEventListener('click', function(){ tryLockPortrait(); }, { once: true, passive: true });
 })();
 </script>
+<script src="js/core/contrats.js?v=r9"></script>
+<!-- Sans flash (01/10/2026) : quand un contrat existe, le message « Configure
+     ton contrat » et l'écran de configuration ne s'affichent plus une fraction
+     de seconde avant les vraies données. Masqués jusqu'au premier affichage
+     réel (refreshUI), avec une sécurité à 2,5 s. -->
+<script>(function(){try{var k=window.M5_key?M5_key('M5_CONTRACT'):'M5_CONTRACT',c=JSON.parse(localStorage.getItem(k)||'{}');
+if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente');setTimeout(function(){h.classList.remove('m5-attente');},2500);}}catch(e){}})();</script>
+<style>html.m5-attente #view-no-contract,html.m5-attente #mizuki-bubble-text{visibility:hidden}</style>
 </head>
 <body>
 <script>
@@ -82,7 +91,7 @@
 //             sinon il bloque les transitions wizard → vue principale après "Commencer"
 (function(){
   try {
-    var contractRaw = localStorage.getItem('M5_CONTRACT');
+    var contractRaw = localStorage.getItem(window.M5_key ? M5_key('M5_CONTRACT') : 'M5_CONTRACT');
     var hasContract = false;
     if (contractRaw) {
       var c = JSON.parse(contractRaw);
@@ -931,7 +940,7 @@
     <div style="margin-top:24px;padding:14px 12px;background:rgba(220,38,38,0.05);border:1.5px solid rgba(220,38,38,0.2);border-radius:var(--miz-radius-sm);">
       <div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:6px;">⚠️ Zone danger</div>
       <div style="font-size:12px;color:var(--miz-text3);margin-bottom:10px;line-height:1.5;">
-        Supprime <strong>toutes</strong> tes données M5 : contrat, heures saisies, vacances, prénom, fériés importés. Cette action est <strong>irréversible</strong>.
+        Supprime <strong>toutes</strong> tes données M5 : contrats (tous), heures saisies, vacances, prénom, fériés importés. Cette action est <strong>irréversible</strong>.
       </div>
       <button type="button" onclick="confirmResetM5()" style="
         width:100%;padding:10px;background:rgba(220,38,38,0.10);
@@ -984,14 +993,28 @@ function confirmResetM5() {
 </script>
 <script src="js/data/ccn-partiel.js?v=r6"></script>
 <script src="js/core/calc-engine.js?v=r6"></script>
-<script src="js/features/saisie.js?v=r6"></script>
-<script src="js/features/mizuki.js?v=r6"></script>
+<script src="js/features/saisie.js?v=r7"></script>
+<script src="js/features/mizuki.js?v=r7"></script>
 <script src="js/features/pdf-report.js?v=r6"></script>
 <script src="../legi-ref.js"></script>
 <script src="js/features/glossaire.js?v=r6"></script>
-<script src="js/features/wellbeing.js?v=r6"></script>
+<script src="js/features/wellbeing.js?v=r7"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="js/app.js?v=r6"></script>
+<script src="js/app.js?v=r7"></script>
+<script src="../js/rappel-sauvegarde.js"></script>
+<script>try{var _c=JSON.parse(localStorage.getItem(M5_key("M5_CONTRACT"))||"{}");hsBackupCheckDates(Object.keys((_c&&_c.cloturesDates)||{}).map(function(k){return _c.cloturesDates[k];}));}catch(e){}</script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};</script>
+<!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
+<script>
+(function(){
+  if(location.hash!=='#saisie-aujourdhui')return;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  function go(){try{
+    if(!(window.M5_Contract&&M5_Contract.get()&&M5_Contract.get().hoursBase))return;
+    var d=new Date(),dk=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    openDaySaisie(dk,M5_JOURS_COURTS[(d.getDay()+6)%7]);}catch(e){}}
+  if(document.readyState==='complete')setTimeout(go,400);else window.addEventListener('load',function(){setTimeout(go,400);});
+})();
+</script>
 </body>
 </html>

@@ -1069,6 +1069,9 @@ function renderWellbeing(analysis) {
 // ── Navigation période page principale ───────────────────────────
 // Génère les périodes selon les clôtures configurées
 function buildPeriodes(year, contract) {
+  // Exercices précédents (24/09/2026) : pour une année passée, reprendre les
+  // clôtures de l'exercice de cette année-là, pas celles du contrat actuel.
+  if(window.M5_contratPourAnnee) contract=window.M5_contratPourAnnee(year, contract);
   const periodes=[];
   const clotures=contract.cloturesDates||{};
   const hasClotures=Object.keys(clotures).length>0;
@@ -1872,7 +1875,7 @@ function createNewYear() {
   const yr=parseInt(y);
   if(yr<2020||yr>2050) { toast('Année invalide','error'); return; }
   // Créer un jeu de données vide
-  const key='M5_DATA_'+y;
+  const key=M5_key('M5_DATA_')+y;
   if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify({}));
   switchYear(y);
 }
@@ -2316,7 +2319,7 @@ window.M5_refreshUI=refreshUI;
 window.M5_getCurrentPeriode=function(){ return _currentPeriode; };
 // ── Verrouillage par période : gèle la SAISIE d'une période donnée ──
 // (les autres périodes restent modifiables ; la navigation n'est jamais bloquée)
-function _lockMap(){ try{ return JSON.parse(localStorage.getItem('M5_PERIODE_LOCKS')||'{}'); }catch(e){ return {}; } }
+function _lockMap(){ try{ return JSON.parse(localStorage.getItem(M5_key('M5_PERIODE_LOCKS'))||'{}'); }catch(e){ return {}; } }
 window.M5_isDayLocked=function(dk){ if(!dk) return false; var m=_lockMap(); for(var k in m){ if(dk>=k && dk<=m[k]) return true; } return false; };
 // Période "active" = celle qui contient calendarMonday (= ce qu'affiche la barre)
 function _activePeriode(){
@@ -2338,7 +2341,7 @@ window.M5togglePeriodeLock=function(){
   if(!p){ toast('Aucune période à verrouiller ici','info'); return; }
   var m=_lockMap(), on=!m[p.debutStr];
   if(on) m[p.debutStr]=p.finStr; else delete m[p.debutStr];
-  try{ localStorage.setItem('M5_PERIODE_LOCKS', JSON.stringify(m)); }catch(e){}
+  try{ localStorage.setItem(M5_key('M5_PERIODE_LOCKS'), JSON.stringify(m)); }catch(e){}
   // Retour visuel IMMÉDIAT (le re-render lourd est différé → 1 seul tap suffit)
   var b=document.getElementById('periode-lock-btn');
   if(b){ b.textContent=on?'🔒':'🔓'; b.classList.toggle('locked', on); b.setAttribute('aria-pressed', on?'true':'false'); }
@@ -2382,6 +2385,7 @@ window.toggleGlos=toggleGlos;
 
 document.addEventListener('DOMContentLoaded',()=>{
   initCCNSelect(); showSection('accueil'); updateYearBadge(); refreshUI();
+  document.documentElement.classList.remove('m5-attente'); // premier affichage réel : on montre
   setInterval(()=>{ if(currentSection==='accueil') refreshUI(); },15000);
 });
 
@@ -2413,7 +2417,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(e){}
     return null;
   }
-  function _getPaidMap(){ try{ return JSON.parse(localStorage.getItem('M5_HC_PAID')||'{}'); }catch(e){ return {}; } }
+  function _getPaidMap(){ try{ return JSON.parse(localStorage.getItem(M5_key('M5_HC_PAID'))||'{}'); }catch(e){ return {}; } }
   function _periodKey(){
     try{
       var m=_mode();
@@ -2426,7 +2430,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   function _savePaid(tranche, v){
     var m=_getPaidMap(), k=_periodKey(); if(!m[k]||typeof m[k]!=='object') m[k]={};
     m[k][tranche]=Math.round(_parseHM(v)*100)/100;
-    try{ localStorage.setItem('M5_HC_PAID', JSON.stringify(m)); }catch(e){}
+    try{ localStorage.setItem(M5_key('M5_HC_PAID'), JSON.stringify(m)); }catch(e){}
   }
   function _fmtH(h){ var s=h<0?'-':''; h=Math.abs(h); var hh=Math.floor(h+1e-9), mm=Math.round((h-hh)*60); if(mm===60){hh++;mm=0;} return s+hh+'h'+(mm?String(mm).padStart(2,'0'):''); }
   window._m5fmtH=_fmtH;
@@ -2547,7 +2551,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(part==='h') h=Math.max(0,parseInt(String(v),10)||0);
     else min=Math.max(0,Math.min(59,parseInt(String(v),10)||0));
     m[k][tranche]=Math.round((h+min/60)*100)/100;
-    try{ localStorage.setItem('M5_HC_PAID', JSON.stringify(m)); }catch(e){}
+    try{ localStorage.setItem(M5_key('M5_HC_PAID'), JSON.stringify(m)); }catch(e){}
   }
   window.M5setHCPaid10h=function(v){ _savePaidHM('h10','h',v); window._m5UpdateNet(); };
   window.M5setHCPaid10m=function(v){ _savePaidHM('h10','m',v); window._m5UpdateNet(); };
@@ -2566,7 +2570,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var newDk=Math.max(0, Math.round((newTotal-other)*100)/100);
     var k='week:'+debutStr; if(!pm[k]||typeof pm[k]!=='object') pm[k]={};
     pm[k][tranche]=newDk;
-    try{ localStorage.setItem('M5_HC_PAID', JSON.stringify(pm)); }catch(e){}
+    try{ localStorage.setItem(M5_key('M5_HC_PAID'), JSON.stringify(pm)); }catch(e){}
     if(window.M5_refreshUI) requestAnimationFrame(window.M5_refreshUI);
   };
   window.M5toggleEuro=function(){ var sh=localStorage.getItem('M5_EURO_SHOWN')==='1'; sh=!sh; try{localStorage.setItem('M5_EURO_SHOWN',sh?'1':'0');}catch(e){}
@@ -2948,4 +2952,79 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(dx<0){ if(window.calNext) window.calNext(); } else { if(window.calPrev) window.calPrev(); }
     }, {passive:true});
   });
+})();
+
+
+/* ═══ Passage à l'exercice suivant — Mizuki (24/09/2026) ══════════════════
+   Le contrat ne porte qu'UN exercice (début + 12 clôtures). Une fois la
+   dernière clôture passée, les semaines suivantes ne tombaient dans aucune
+   période. Un bandeau propose maintenant de préparer l'exercice suivant :
+   même rythme de clôtures, un an plus tard. L'exercice terminé est gardé dans
+   M5_EXERCICES pour que ses périodes restent justes quand on le consulte.
+   Rien ne bascule sans l'accord de l'utilisateur. */
+(function(){
+  function jour(s){return new Date(s+'T12:00:00');}
+  function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  function plus(s,n){var d=jour(s);d.setDate(d.getDate()+n);return iso(d);}
+  function plusUnAn(s){var d=jour(s),m=d.getMonth();d.setFullYear(d.getFullYear()+1);if(d.getMonth()!==m)d.setDate(0);return iso(d);}
+  function finDeMois(s){var d=jour(s);return new Date(d.getFullYear(),d.getMonth()+1,0).getDate()===d.getDate();}
+  function fr(s){return jour(s).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});}
+  function cle(){return (window.M5_key?M5_key('M5_EXERCICES'):'M5_EXERCICES');}
+  function histo(){try{return JSON.parse(localStorage.getItem(cle())||'{}')||{};}catch(e){return {};}}
+  // Décalage d'un an qui garde le rythme : même règle de jour de semaine
+  // (« dernier dimanche », « 3e dimanche ») si toutes les clôtures tombent le
+  // même jour ; fin de mois si ce sont des fins de mois ; sinon même date.
+  function decaleur(dates){
+    var j=dates.map(function(x){return jour(x).getDay();});
+    // Même règle l'an prochain : « dernier dimanche du mois » reste le dernier
+    // dimanche, « 3e dimanche » reste le 3e — aucune dérive (2028, 2029…).
+    if(j.length>1&&j.every(function(v){return v===j[0];}))return function(x){var d=jour(x),wd=d.getDay(),m=d.getMonth(),y=d.getFullYear()+1,nb=new Date(y,m+1,0).getDate(),dernier=d.getDate()+7>new Date(d.getFullYear(),m+1,0).getDate(),r;if(dernier){r=new Date(y,m,nb);while(r.getDay()!==wd)r.setDate(r.getDate()-1);}else{var n=Math.ceil(d.getDate()/7);r=new Date(y,m,1);while(r.getDay()!==wd)r.setDate(r.getDate()+1);r.setDate(r.getDate()+7*(n-1));}return iso(r);};
+    if(dates.length&&dates.every(finDeMois))return function(x){var d=jour(x);return iso(new Date(d.getFullYear()+1,d.getMonth()+1,0));};
+    return plusUnAn;
+  }
+  window.M5_contratPourAnnee=function(year,c){
+    try{
+      var h=histo(),cand=[{exerciceStart:c.exerciceStart,cloturesDates:c.cloturesDates||{}}];
+      Object.keys(h).forEach(function(k){cand.push(h[k]);});
+      function score(x){return Object.values(x.cloturesDates||{}).filter(function(v){return String(v).slice(0,4)===String(year);}).length;}
+      var best=cand[0],bs=score(best);
+      cand.forEach(function(x){var sc=score(x);if(sc>bs){best=x;bs=sc;}});
+      return best===cand[0]?c:Object.assign({},c,{exerciceStart:best.exerciceStart,cloturesDates:best.cloturesDates});
+    }catch(e){return c;}
+  };
+  function derniere(c){var v=Object.values(c.cloturesDates||{}).filter(Boolean).sort();return v.length?v[v.length-1]:null;}
+  window.M5_exerciceSuivant=function(){
+    var c=M5_Contract.get(),last=derniere(c);if(!last)return;
+    var h=histo();h[c.exerciceStart||last]={exerciceStart:c.exerciceStart,cloturesDates:c.cloturesDates};
+    var dates=Object.values(c.cloturesDates),dec=decaleur(dates),nc={};
+    Object.keys(c.cloturesDates).forEach(function(m){nc[m]=dec(c.cloturesDates[m]);});
+    var deb=plus(last,1);
+    if(window.snapExerciceStart)deb=snapExerciceStart(deb,c.weekStartDay||0);
+    c.exerciceStart=deb;c.cloturesDates=nc;
+    try{localStorage.setItem(cle(),JSON.stringify(h));M5_Contract.save(c);}
+    catch(e){if(typeof toast==='function')toast('❌ Espace de stockage insuffisant : rien n\'a été modifié.','error');return;}
+    try{if(window.Mizuki&&Mizuki.clearCache)Mizuki.clearCache();}catch(e){}
+    if(typeof refreshUI==='function')refreshUI();
+    if(typeof toast==='function')toast('📅 Nouvel exercice à partir du '+fr(deb),'success');
+    if(window.hsBackupNudge)hsBackupNudge('year');
+    verifier();
+  };
+  window.M5_exercicePlusTard=function(){try{localStorage.setItem('M5_EXO_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
+  function verifier(){
+    var main=document.getElementById('view-main');if(!main)return;
+    var el=document.getElementById('m5ExoSuivant');
+    if(!el){el=document.createElement('div');el.id='m5ExoSuivant';
+      el.style.cssText='display:none;margin:10px 12px;padding:12px 14px;border-radius:14px;background:#fff8e6;border:1.5px solid #f0c040;font-size:13.5px;line-height:1.45;color:#5a4300';
+      main.insertBefore(el,main.firstChild);}
+    var c=M5_Contract.get(),last=derniere(c),auj=iso(new Date());
+    if(!c.hoursBase||!last||auj<=last||localStorage.getItem('M5_EXO_PLUS_TARD')===auj){el.style.display='none';return;}
+    var deb=plus(last,1);if(window.snapExerciceStart)deb=snapExerciceStart(deb,c.weekStartDay||0);
+    el.innerHTML='📅 <b>Ton exercice s\'est terminé le '+fr(last)+'.</b><br>Le suivant commencera le '+fr(deb)+', avec le même rythme de clôtures (modifiable dans ⚙️ Mon contrat).'+
+      '<div style="display:flex;gap:8px;margin-top:10px"><button onclick="M5_exerciceSuivant()" style="flex:1;padding:10px;border-radius:10px;border:none;background:#c2185b;color:#fff;font-weight:800">Ouvrir l\'exercice suivant</button>'+
+      '<button onclick="M5_exercicePlusTard()" style="padding:10px 12px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:700">Plus tard</button></div>'+
+      '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">Tes semaines déjà saisies ne bougent pas, et l\'exercice terminé reste consultable.</div>';
+    el.style.display='block';
+  }
+  window.M5_verifierExercice=verifier;
+  if(document.readyState==='complete')setTimeout(verifier,600);else window.addEventListener('load',function(){setTimeout(verifier,600);});
 })();

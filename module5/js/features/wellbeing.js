@@ -99,7 +99,7 @@ const M5_Wellbeing = {
     let vacSemaines = 0;
     try {
       const year = new Date().getFullYear();
-      const vacData = JSON.parse(localStorage.getItem('M5_VACANCES_'+year)||'{}');
+      const vacData = JSON.parse(localStorage.getItem(M5_key('M5_VACANCES_')+year)||'{}');
       // Compter les semaines lundi distincts dans les vacances
       const vacLundis = new Set();
       Object.keys(vacData).forEach(dk => {

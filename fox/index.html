@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>/* iPhone : pas de zoom automatique quand on touche un champ (01/10/2026). Le zoom avec deux doigts reste possible (iOS l'autorise toujours). Android n'est pas concerné. */(function(){try{var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),v=document.querySelector('meta[name="viewport"]');if(ios&&v&&!/maximum-scale/.test(v.content))v.content+=', maximum-scale=1';}catch(e){}})();</script>
   <meta name="color-scheme" content="only light">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -77,15 +78,18 @@
   <div class="lb-msg">Cette application est optimisée pour le mode portrait. Veuillez remettre votre appareil à la verticale pour continuer.</div>
 </div>
 
-<img id="bg-decor" src="../images/fox-bg.PNG" onerror="this.style.display='none'" style="position:fixed;top:0;left:0;width:100vw;height:100vh;object-fit:cover;object-position:center center;z-index:-999;pointer-events:none;">
+<img id="bg-decor" alt="" decoding="async" fetchpriority="high" onerror="this.style.display='none'" style="position:fixed;top:0;left:0;width:100vw;height:100vh;object-fit:cover;object-position:center center;z-index:-999;pointer-events:none;">
 <script>
 // Appliquer la bonne saison IMMÉDIATEMENT (avant rendu) — évite flash hiver→printemps
+// 01/10/2026 : l'image n'a plus de src dans le HTML. Avant, le navigateur
+// commençait à télécharger le fond d'hiver (PNG de 3 Mo, trop gros pour être
+// gardé hors ligne) même en automne, puis passait à la bonne saison : le fond
+// arrivait tard, d'où un écran noir puis un saut. Hiver = fox-bg.jpg (390 Ko).
 (function(){
-  const _bgs=['../images/fox-bg.PNG','../images/fox-bg-2.jpg','../images/fox-bg-3.jpg','../images/fox-bg-4.jpg'];
+  const _bgs=['../images/fox-bg.jpg','../images/fox-bg-2.jpg','../images/fox-bg-3.jpg','../images/fox-bg-4.jpg'];
   const q=Math.floor(new Date().getMonth()/3);
-  const bg=_bgs[q]||_bgs[0];
   const el=document.getElementById('bg-decor');
-  if(el && bg!==el.src.split('/').pop() && el.src!==new URL(bg,location.href).href) el.src=bg;
+  if(el) el.src=_bgs[q]||_bgs[0];
 })();
 </script>
 
@@ -151,7 +155,7 @@ window._fox_pre = (function() {
     <div class="hud-xp-label">
       <span style="display:flex;align-items:center;gap:5px;">
         <span style="background:linear-gradient(135deg,rgba(255,140,66,0.4),rgba(255,107,53,0.3));border:1px solid rgba(255,140,66,0.7);border-radius:6px;padding:2px 8px;font-weight:900;font-size:0.85rem;text-shadow:0 0 8px rgba(255,140,66,0.6);">NIV <span id="hud-level"><script>document.write(window._fox_pre.lvl)</script></span></span>
-        <span id="hud-league" style="background:rgba(205,127,50,0.2);border:1px solid rgba(205,127,50,0.5);border-radius:6px;padding:2px 8px;font-weight:700;font-size:0.75rem;margin-left:6px;">🥉 Bronze</span>
+        <span id="hud-league" style="background:rgba(205,127,50,0.2);border:1px solid rgba(205,127,50,0.5);border-radius:6px;padding:2px 8px;font-weight:700;font-size:0.75rem;margin-left:6px;">🥉 Bronze</span><script>/* Sans flash (01/10/2026) : la ligue du dernier affichage, tout de suite (avant : « Bronze » puis la vraie ligue) */try{var _L=JSON.parse(localStorage.getItem('FOX_HUD_LEAGUE')||'null'),_e=document.getElementById('hud-league');if(_L&&_e){_e.innerHTML=_L.h;_e.style.color=_L.c;_e.style.background=_L.c+'33';_e.style.borderColor=_L.c+'99';}}catch(e){}</script>
       </span>
       <span style="color:#FF8C42;font-weight:900;font-size:0.82rem;"><span id="hud-xp"><script>document.write(window._fox_pre.xp)</script></span><span style="color:#444;font-size:0.65em;"> / <span id="hud-xp-max"><script>document.write(window._fox_pre.xpMax)</script></span></span> <span style="color:#888;font-size:0.65em;">XP</span></span>
     </div>
@@ -909,6 +913,7 @@ body {
 <!-- Scripts (ordre inchangé) -->
 <script src="../ccn/conventions-collectives.js"></script>
 <script src="../legi-ref.js"></script>
+<script src="../js/rappel-sauvegarde.js"></script>
 <script src="js/articles-loi.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/config.js"></script>
@@ -4930,6 +4935,7 @@ function _checkAndResetXpCapYear() {
     localStorage.removeItem('FOX_NIGHT_WEEKEND_COUNT');
     console.log('🦊 XP cap reset : exercice ' + (prevYear||'?') + ' → ' + activeYear
       + ' (précédent: ' + prevUsed + 'h utilisées, clôture: ' + resetDate + ')');
+    if (prevYear && window.hsBackupNudge) hsBackupNudge('year');
     return newState;
   }
   return capState;
@@ -5989,6 +5995,7 @@ function refreshHUD() {
           if (!lgEl.dataset.leagueId || lgEl.dataset.leagueId !== String(leagueData.id)) {
             lgEl.dataset.leagueId = String(leagueData.id);
             lgEl.innerHTML = _lgNewHtml;
+            try { localStorage.setItem('FOX_HUD_LEAGUE', JSON.stringify({h:_lgNewHtml, c:_lc})); } catch(_) {}
             // Charger l'image une seule fois par ligue
             if (leagueData.img && !lgEl.dataset.imgLoaded) {
               const _tImg = new Image();
@@ -7848,7 +7855,7 @@ function devSetSeason(q) {
   if (bgEl) {
     const idx = q >= 0 ? q : Math.floor(new Date().getMonth() / 3);
     const bgs = typeof _SEASONAL_BG !== 'undefined' ? _SEASONAL_BG :
-      ['../images/fox-bg.PNG','../images/fox-bg-2.jpg','../images/fox-bg-3.jpg','../images/fox-bg-4.jpg'];
+      ['../images/fox-bg.jpg','../images/fox-bg-2.jpg','../images/fox-bg-3.jpg','../images/fox-bg-4.jpg'];
     const target = bgs[idx] || bgs[0];
     bgEl.style.opacity = '0';
     bgEl.style.transition = 'opacity 1.2s ease';
@@ -8081,7 +8088,7 @@ function emuSimDays(nDays, withViolation) {
 
 // \u2500\u2500 D\u00E9cor saisonnier (4 backgrounds par trimestre) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 const _SEASONAL_BG = [
-  '../images/fox-bg.PNG',     // Q1 : hiver (jan-mar)
+  '../images/fox-bg.jpg',     // Q1 : hiver (jan-mar)
   '../images/fox-bg-2.jpg',   // Q2 : printemps (avr-jun)
   '../images/fox-bg-3.jpg',   // Q3 : \u00E9t\u00E9 (jul-sep)
   '../images/fox-bg-4.jpg',   // Q4 : automne (oct-d\u00E9c)
@@ -8094,7 +8101,7 @@ function updateSeasonalBg() {
   // Défaut fallback si _SEASONAL_BG non défini globalement
   const _bgs = (typeof _SEASONAL_BG !== 'undefined' && Array.isArray(_SEASONAL_BG))
     ? _SEASONAL_BG
-    : ['../images/fox-bg.PNG','../images/fox-bg-2.jpg','../images/fox-bg-3.jpg','../images/fox-bg-4.jpg'];
+    : ['../images/fox-bg.jpg','../images/fox-bg-2.jpg','../images/fox-bg-3.jpg','../images/fox-bg-4.jpg'];
   const bg   = _bgs[q] || _bgs[0];
   const bgEl = document.getElementById('bg-decor');
   if (!bgEl) return;

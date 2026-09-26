@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>M6 Cadres — Forfait Jours & Heures</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>/* iPhone : pas de zoom automatique quand on touche un champ (01/10/2026). Le zoom avec deux doigts reste possible (iOS l'autorise toujours). Android n'est pas concerné. */(function(){try{var ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),v=document.querySelector('meta[name="viewport"]');if(ios&&v&&!/maximum-scale/.test(v.content))v.content+=', maximum-scale=1';}catch(e){}})();</script>
   <!-- M6 FORCÉ EN MODE CLAIR — pas de prise en compte des préférences système sombres -->
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#1A1714">
@@ -59,6 +60,7 @@
 <script src="js/core/storage.js"></script>
 <script src="js/data/ccn-adapter.js"></script>
 <script src="../legi-ref.js"></script>
+<script src="../js/rappel-sauvegarde.js"></script>
 <script src="js/data/glossaire-cadres.js"></script>
 <script src="js/features/zenji.js"></script>
 <script src="js/features/zenji-popup.js"></script>
@@ -128,5 +130,21 @@ if ('serviceWorker' in navigator) {
 })();
 </script>
 <script>window._hmToDec=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var h=Number(he&&he.value)||0,m=Number(me&&me.value)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._decToHM=function(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById(hId),me=document.getElementById(mId);var tot=Math.round(dec*60);if(tot<=0){if(he)he.value='';if(me)me.value='';return;}if(he)he.value=Math.floor(tot/60);if(me)me.value=tot%60;};window._hmVal=function(hId,mId){var he=document.getElementById(hId),me=document.getElementById(mId);var hv=he?he.value:'',mv=me?me.value:'';if((hv===''||hv==null)&&(mv===''||mv==null))return NaN;var h=Number(hv)||0,m=Number(mv)||0;if(h<0)h=0;if(m<0)m=0;return h+m/60;};window._m6fmtH=function(h){h=Number(h);if(!h||isNaN(h))return '0h';var s=h<0?'-':'';h=Math.abs(h);var e=Math.floor(h),m=Math.round((h-e)*60);if(m===60){e++;m=0;}return s+e+'h'+(m>0?String(m).padStart(2,'0'):'');};</script>
+<!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
+<script>
+(function(){
+  if(location.hash!=='#saisie-aujourdhui')return;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  function go(){try{
+    /* M6 : les vues se construisent après coup ; on attend le bouton de saisie du régime */
+    var n=0,t=setInterval(function(){
+      var b=document.querySelector('#vfj-saisir,#fh-saisir,#fh-add,#cd-saisir');
+      if(b){clearInterval(t);b.click();
+        if(b.id==='cd-saisir')setTimeout(function(){try{var d=new Date();M6_Calendar._openPopup(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));}catch(e){}},400);}
+      else if(++n>30)clearInterval(t);
+    },200);}catch(e){}}
+  if(document.readyState==='complete')setTimeout(go,400);else window.addEventListener('load',function(){setTimeout(go,400);});
+})();
+</script>
 </body>
 </html>

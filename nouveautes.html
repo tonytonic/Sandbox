@@ -62,9 +62,63 @@ body{font-family:-apple-system,'Manrope',sans-serif;background:var(--ink);color:
 <!-- ═══ VERSION LA PLUS RÉCENTE — TOUJOURS EN PREMIER ═══ -->
 <div class="version">
   <div class="v-head">
+    <span class="v-date">1er octobre 2026</span>
+    <span class="v-num">v10.10</span>
+    <span class="v-new-badge">NOUVEAU</span>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Copie de sauvegarde, en toute sérénité</b> : le bouton 💾 du menu affiche la date de ta dernière copie, et un petit rappel te la propose au bon moment (fin de période, nouvel exercice). Avant de restaurer, le fichier est entièrement vérifié : si quelque chose cloche, rien n'est effacé. Sur iPhone, le fichier se retrouve facilement dans l'onglet <b>Récents</b>, et la fenêtre résume ce que contient ta copie, module par module. <span class="v-tag tag-new">Nouveau</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Rappels dans ton calendrier</b> : 📅 depuis le menu, choisis tes rappels (saisie des heures, fin de période, bilan annuel) : ils s'ajoutent à <b>ton propre calendrier</b>. Pas de notification de plus — c'est toi qui gères, et tu les modifies ou les supprimes quand tu veux. <span class="v-tag tag-new">Nouveau</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Mes outils du quotidien</b> : une nouvelle carte dans le menu : <b>saisir aujourd'hui</b> en un geste dans le module de ton choix, ta to-do list, personnaliser le menu, régler tes paramètres. <span class="v-tag tag-new">Nouveau</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Temps partiel — plusieurs employeurs</b> : Mizuki gère jusqu'à <b>3 contrats</b>, avec une vue d'ensemble de tes heures par semaine et par mois, et un repère sur la durée maximale de 48&nbsp;h par semaine. <span class="v-tag tag-new">Nouveau</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Grilles de salaires — le SMIC s'applique tout seul</b> : quand le minimum de ta convention est passé sous le SMIC, l'appli affiche le SMIC et te montre le montant conventionnel en dessous. À la prochaine hausse du SMIC, toutes les grilles suivent automatiquement. <span class="v-tag tag-new">Nouveau</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Grilles de salaires — mises à jour avec les textes officiels</b> : tourisme social et familial, ports et manutention (avec ses 3 grilles : autres salariés, établissements portuaires, ouvriers dockers), bijouterie-joaillerie-horlogerie, horlogerie-bijouterie de détail, cabinets d'avocats et avocats salariés (Paris / hors Paris). Quatre conventions ajoutées : céramique, désinfection-désinsectisation, inspection d'assurance, transformation de volailles. Les conventions qui ont fusionné te renvoient vers la bonne grille. <span class="v-tag tag-new">Nouveau</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Passage à la nouvelle année</b> : à la fin de ton exercice, le compteur annuel, les heures mensualisées et le temps partiel te proposent d'<b>ouvrir l'exercice suivant</b>, avec tes réglages et le même rythme de clôtures. Rien ne bascule sans toi, et l'année terminée reste consultable. Côté forfait, l'année suit le calendrier sans rester bloquée sur l'ancienne. <span class="v-tag tag-new">Nouveau</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Plus fluide sur iPhone et Android</b> : les écrans s'ouvrent sans afficher une fraction de seconde un contenu provisoire (grilles, temps partiel, Fox, compteur annuel), le fond de Fox arrive tout de suite, et sur iPhone la page ne zoome plus toute seule quand tu touches un champ. <span class="v-tag tag-fix">Correction</span></div>
+  </div>
+
+  <div class="item">
+    <div class="dot"></div>
+    <div class="txt"><b>Petites corrections</b> : les fenêtres Sauvegarde et Rappels tiennent entre l'encoche et le bas de l'écran sur iPhone ; le conseiller des forfaits ne parle plus de « période estivale » en janvier ; la politique de confidentialité précise l'usage des polices d'écriture Google et de la bibliothèque PDF. <span class="v-tag tag-fix">Correction</span></div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<div class="version">
+  <div class="v-head">
     <span class="v-date">Septembre 2026</span>
     <span class="v-num">v10.9</span>
-    <span class="v-new-badge">NOUVEAU</span>
   </div>
 
   <div class="item">
@@ -648,7 +702,8 @@ body{font-family:-apple-system,'Manrope',sans-serif;background:var(--ink);color:
 
 <script>
 // Marquer comme vu quand l'utilisateur ouvre la page
-try{ localStorage.setItem('NV_SEEN','1'); }catch(e){}
+/* La version lue (et plus seulement « déjà vu ») : le badge du menu revient à chaque nouvelle version. */
+try{ localStorage.setItem('NV_SEEN','v10.10'); }catch(e){}
 </script>
 </body>
 </html>
