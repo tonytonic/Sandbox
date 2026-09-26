@@ -224,7 +224,19 @@ const DataStore = {
   },
 
   getAnnualStats(year, contractH, ccnRules) {
-    const weeks=this.getWeeksSorted(year);
+    let weeks=this.getWeeksSorted(year);
+    // 26/09/2026 : statistiques de l'EXERCICE de cette année (début → dernière clôture),
+    // pas de l'année civile. Sinon la semaine du 29/12, qui ouvre l'exercice suivant,
+    // tombait dans l'année précédente.
+    try{
+      if(ccnRules&&ccnRules.exerciceStart&&typeof window.M5_contratPourAnnee==='function'){
+        const c=window.M5_contratPourAnnee(String(year),ccnRules);
+        const cl=Object.values(c.cloturesDates||{}).filter(Boolean).sort();
+        const deb=c.exerciceStart,fin=cl[cl.length-1];
+        if(deb&&fin&&fin.slice(0,4)===String(year)&&deb<=fin)
+          weeks=this.getWeeksAround(year).filter(w=>w.monday>=deb&&w.monday<=fin);
+      }
+    }catch(e){}
     if(!weeks.length) return null;
     let totalWorked=0,totalComp=0,totalComp1=0,totalComp2=0,weeksWithComp=0,maxWorked=0;
     weeks.forEach(w=>{

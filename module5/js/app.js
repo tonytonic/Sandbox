@@ -1913,8 +1913,16 @@ function openYearsPopup() {
 
 function switchYear(y) {
   M5_DataStore.setYear(y);
-  // Recalibrer le calendrier sur la semaine courante de la nouvelle année
-  calendarMonday=M5_getCurrentMonday();
+  // 26/09/2026 : le calendrier se place dans l'année choisie (avant : semaine d'aujourd'hui,
+  // hors de l'année — une saisie y aurait été rangée dans la mauvaise année)
+  if(String(y)===String(new Date().getFullYear())) calendarMonday=M5_getCurrentMonday();
+  else {
+    let ws=M5_DataStore.getWeeksSorted(String(y));
+    // Dernière semaine de l'exercice de cette année (la semaine du 29/12 ouvre souvent le suivant)
+    try{const c=window.M5_contratPourAnnee?M5_contratPourAnnee(String(y),M5_Contract.get()):null,cl=c?Object.values(c.cloturesDates||{}).filter(Boolean).sort():[],fin=cl[cl.length-1];
+      if(fin&&fin.slice(0,4)===String(y)){const w2=ws.filter(w=>w.monday<=fin);if(w2.length)ws=w2;}}catch(e){}
+    calendarMonday=ws.length?ws[ws.length-1].monday:M5_weekStartOf(y+'-01-01',M5_Contract.get().weekStartDay||0);
+  }
   Mizuki.clearCache();
   closeModal('modal-years');
   toast('Exercice '+y+' activé','success');
@@ -1923,6 +1931,12 @@ function switchYear(y) {
 }
 
 function createNewYear() {
+  // 26/09/2026 : exercice en cours terminé → même chemin que le bandeau (choix des clôtures)
+  try{
+    const c=M5_Contract.get(),cl=Object.values(c.cloturesDates||{}).filter(Boolean).sort(),last=cl[cl.length-1];
+    const auj=M5_localDK(new Date());
+    if(last&&auj>last&&typeof window.M5_choisirPuisSuivant==='function'){closeModal('modal-years');window.M5_choisirPuisSuivant();return;}
+  }catch(e){}
   const y=prompt('Saisir l\'année (ex: 2027)');
   if(!y||!/^\d{4}$/.test(y)) return;
   const yr=parseInt(y);

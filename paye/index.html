@@ -722,7 +722,8 @@ function switchYear(y){
   // Recharger les données sans reload de page
   if(!ALL_DATA[currentYear]) ALL_DATA[currentYear] = loadYearData(currentYear);
   DATA = ALL_DATA[currentYear];
-  const m = String(new Date().getMonth()+1).padStart(2,"0");
+  // 26/09/2026 : une année passée s'ouvre sur décembre (sa dernière période)
+  const m = Number(currentYear)<new Date().getFullYear() ? "12" : String(new Date().getMonth()+1).padStart(2,"0");
   monthPicker.value = currentYear + "-" + m;
   closeYearsPopup();
   loadMonth();
@@ -733,6 +734,10 @@ function confirmSwitchYear(){
   const val = document.getElementById("newYearInput").value;
   if(!val || val < 2000 || val > 2099){ toast("⛔ Année invalide","error"); return; }
   const y = String(val);
+  /* 26/09/2026 : année suivante d'un exercice existant → même chemin que le bandeau
+     (choix des clôtures automatiques ou manuelles) */
+  {const prev=String(Number(y)-1),vide=Object.keys(loadYearData(y)||{}).length===0,prevOk=Object.keys(loadYearData(prev)||{}).length>0;
+   if(vide&&prevOk&&typeof window.m2ChoisirPuisOuvrir==="function"){closeYearsPopup();if(String(currentYear)!==prev)switchYear(prev);window.m2ChoisirPuisOuvrir();return;}}
   registerYear(y);
   if(Object.keys(loadYearData(y)||{}).length === 0) saveYearData(y, {});
   switchYear(y);
@@ -2839,16 +2844,14 @@ function updateContingent(){
   
   // Dans M2, les heures saisies sont DÉJÀ des heures supplémentaires
   // On doit juste additionner toutes les HS de l'année
+  // 26/09/2026 : contingent de l'exercice = ses 12 périodes de paie (de la période de
+  // janvier, qui commence après la clôture de décembre précédente, à celle de décembre).
+  // Les heures saisies après la clôture de décembre comptent donc pour l'année suivante.
   let total=0;
-  const yd=ALL_DATA[currentYear]||{};
-  
-  // Parcourir tous les mois de l'année
-  Object.entries(yd).forEach(([mk,m])=>{
-    if(!/^\d{4}-\d{2}$/.test(mk)) return; // Ignorer les clés non-mois
-    Object.entries(m.days||{}).forEach(([d,h])=>{
-      total+=h; // Les heures sont déjà des HS, on additionne directement
-    });
-  });
+  for(let mi=1;mi<=12;mi++){
+    const b=getPeriodBounds(currentYear+"-"+String(mi).padStart(2,"0"));
+    buildDayList(b.start,b.end).forEach(r=>{total+=r.h||0;});
+  }
   
   const pct=Math.min(100,total/LIMIT*100);
   const fill=document.getElementById("contingentFill");
