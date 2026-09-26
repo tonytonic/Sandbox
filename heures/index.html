@@ -1747,10 +1747,11 @@ function calcPeriodWeeks(pStart,pEnd){
     const dd=new Date(y,m-1,d);if(dd<pS||dd>pE)return;
     const dow=dd.getDay();
     const wk=getWeekKey(dd);
-    if(getWeekStart(dd)<pS||getWeekStart(dd)>pE)return;
+    // 26/09/2026 : même règle que l'écran (calculate) — tout jour de la période compte,
+    // même si sa semaine a commencé dans la période précédente (clôtures en milieu de semaine).
     wks[wk]=(wks[wk]||0)+(v.extra||0);
     rec[wk]=(rec[wk]||0)+(v.recup||0);
-    if(dow!==0&&dow!==6)abs[wk]=(abs[wk]||0)+(v.absent||0);
+    if(!_isCCNRestDay(dow))abs[wk]=(abs[wk]||0)+(v.absent||0);
   });
   let t1=0,tInter=0,t2=0,tR=0,tExtra=0,tAbs=0;
   const rules=getCCNRules();

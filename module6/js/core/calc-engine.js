@@ -39,13 +39,61 @@ const M6_Feries = {
 };
 
 // ══════════════════════════════════════════════════════════════════
+//  BORNES DE L'EXERCICE (26/09/2026)
+//  Un exercice à cheval (ex. juin → mai) est rangé sous l'année de son début :
+//  ses jours de janvier à mai portent l'année suivante. Avant, tout filtrait sur
+//  « la date commence par l'année » et ces jours étaient ignorés.
+//  Exercice du 1er janvier au 31 décembre : filtre strictement identique à avant.
+// ══════════════════════════════════════════════════════════════════
+const M6_Periode = {
+  _iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); },
+  bornes(contract, year) {
+    year = parseInt(year, 10);
+    let c = contract;
+    if (!c) { try { c = global.M6_Storage && M6_Storage.getContract(localStorage.getItem('M6_REGIME')); } catch (_) {} }
+    c = c || {};
+    const deb = c.dateDebutExercice, fin = c.dateFinExercice, re = /^\d{4}-\d{2}-\d{2}$/;
+    if (deb && re.test(deb) && !(deb.slice(5) === '01-01' && (!fin || fin.slice(5) === '12-31'))) {
+      const d = year + '-' + deb.slice(5);
+      let f;
+      if (fin && re.test(fin)) f = (year + parseInt(fin.slice(0, 4), 10) - parseInt(deb.slice(0, 4), 10)) + '-' + fin.slice(5);
+      else { const x = new Date(d + 'T12:00:00'); x.setFullYear(x.getFullYear() + 1); x.setDate(x.getDate() - 1); f = this._iso(x); }
+      if (f >= d) return { year, deb: d, fin: f, calendaire: false };
+    }
+    return { year, deb: year + '-01-01', fin: year + '-12-31', calendaire: true };
+  },
+  inclut(k, b) {
+    k = String(k);
+    if (b.calendaire) return k.startsWith(String(b.year));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(k)) return k >= b.deb && k <= b.fin;
+    const w = /^(\d{4})-W(\d{2})$/.exec(k);
+    if (w) { const j4 = new Date(+w[1], 0, 4, 12), lun = new Date(j4); lun.setDate(j4.getDate() - ((j4.getDay() + 6) % 7) + (+w[2] - 1) * 7); const m = this._iso(lun); return m >= b.deb && m <= b.fin; }
+    return false;
+  },
+  feries(b) {
+    const s = new Set();
+    for (let y = +b.deb.slice(0, 4); y <= +b.fin.slice(0, 4); y++) M6_Feries.getSet(y).forEach(x => s.add(x));
+    return s;
+  },
+  // Jour compris dans l'exercice et au plus tard à la fin du mois m (0-11) de cet exercice
+  jusquAuMois(dk, b, m) {
+    if (!this.inclut(dk, b)) return false;
+    if (b.calendaire) return parseInt(dk.slice(5, 7), 10) - 1 <= m;
+    const dm = parseInt(b.deb.slice(5, 7), 10) - 1, y = parseInt(b.deb.slice(0, 4), 10) + (m < dm ? 1 : 0);
+    return dk <= this._iso(new Date(y, m + 1, 0));
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════
 //  MOTEUR FORFAIT JOURS
 // ══════════════════════════════════════════════════════════════════
 const M6_ForfaitJours = {
 
   calcRTT(year, plafond=218, cpContrat=25, dateArrivee=null, dateDepart=null, exDebut=null, exFin=null) {
     const isLeap = y => (y%4===0&&y%100!==0)||y%400===0;
-    const feries = M6_Feries.getSet(year);
+    // Fériés de toutes les années couvertes (exercice à cheval, 26/09/2026)
+    const feries = (function(){ const s=new Set(),a=dateArrivee?parseInt(dateArrivee,10):year,z=dateDepart?parseInt(dateDepart,10):year;
+      for(let y=Math.min(a,z);y<=Math.max(a,z);y++) M6_Feries.getSet(y).forEach(x=>s.add(x)); return s; })();
     const debut  = dateArrivee ? new Date(dateArrivee+'T12:00:00') : new Date(year,0,1);
     const fin    = dateDepart  ? new Date(dateDepart+'T12:00:00')  : new Date(year,11,31);
     const joursCalendaires = isLeap(year)?366:365;
@@ -109,10 +157,11 @@ const M6_ForfaitJours = {
         recap.rttManuel = true;
       }
     }
-    const feries=M6_Feries.getSet(year);
+    const _b=M6_Periode.bornes(contract,year);
+    const feries=M6_Periode.feries(_b);
     let travailles=0,rachetes=0,rttPris=0,cpPris=0,reposPris=0,demis=0,deplacements=0,demis_matin=0,demis_am=0;
     const alertes=[],entrees=[];
-    const entries=Object.entries(data).filter(([k])=>k.startsWith(String(year))).sort(([a],[b])=>a.localeCompare(b));
+    const entries=Object.entries(data).filter(([k])=>M6_Periode.inclut(k,_b)).sort(([a],[b])=>a.localeCompare(b));
     for(const [dk,v] of entries){
       const t=v.type||'travail';
       const dow=new Date(dk+'T12:00:00').getDay();
@@ -174,7 +223,7 @@ const M6_ForfaitJours = {
     if(!_entretienOk) alertes.push({niveau:'info',icon:'🗓️',
       titre:'Entretien annuel non enregistré',
       texte:'Obligatoire — risque de nullité du forfait (L3121-65).',loi:'L3121-65'});
-    const fractionnement=this._calcFractionnement(data,year);
+    const fractionnement=this._calcFractionnement(data,year,contract);
     const simulRachat=this._simuleRachat(contract,travailles,recap.joursTravailMax);
     const prediction=this._predictFinAnnee(travailles,recap.joursTravailMax,year);
     return {
@@ -195,10 +244,11 @@ const M6_ForfaitJours = {
     };
   },
 
-  _calcFractionnement(data,year) {
+  _calcFractionnement(data,year,contract) {
+    const _b=M6_Periode.bornes(contract,year);
     let cpHorsPeriode=0,totalCP=0;
     for(const [dk,v] of Object.entries(data)){
-      if(!dk.startsWith(String(year))||v.type!=='cp') continue;
+      if(!M6_Periode.inclut(dk,_b)||v.type!=='cp') continue;
       totalCP++;
       const mois=parseInt(dk.slice(5,7));
       if(mois<5||mois>10) cpHorsPeriode++;
@@ -286,7 +336,8 @@ const M6_ForfaitHeures = {
     const tauxH=contract.tauxHoraire||0;
     let totalHSTaux1=0,totalHSTaux_inter=0,totalHSTaux2=0,totalHeures=0,semaines=0;
     const detailSemaines=[],alertes=[];
-    const entries=Object.entries(data).filter(([k])=>k.startsWith(String(year))).sort(([a],[b])=>a.localeCompare(b));
+    const _b=M6_Periode.bornes(contract,year);
+    const entries=Object.entries(data).filter(([k])=>M6_Periode.inclut(k,_b)).sort(([a],[b])=>a.localeCompare(b));
 
     for(const [wk,v] of entries){
       const h=parseFloat(v.heures)||0; totalHeures+=h; semaines++;
@@ -358,6 +409,7 @@ const M6_ForfaitHeures = {
 };
 
 global.M6_Feries=M6_Feries;
+global.M6_Periode=M6_Periode;
 global.M6_ForfaitJours=M6_ForfaitJours;
 global.M6_ForfaitHeures=M6_ForfaitHeures;
 

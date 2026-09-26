@@ -67,11 +67,9 @@ const M6_Charts = {
     for (let m = minMois; m <= maxMois; m++) {
       // Données cumulées jusqu'à ce mois (inclut saisies rétroactives)
       const dataCumul = {};
+      const _b = M6_Periode.bornes(contract, year);
       for (const [dk, v] of Object.entries(data)) {
-        if (dk.startsWith(String(year))) {
-          const mois = parseInt(dk.slice(5,7)) - 1;
-          if (mois <= m) dataCumul[dk] = v;
-        }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dk) && M6_Periode.jusquAuMois(dk, _b, m)) dataCumul[dk] = v;
       }
       if (Object.keys(dataCumul).length === 0) continue;
 
@@ -181,8 +179,9 @@ const M6_Charts = {
 
     // Compter les jours par mois
     const parMois = Array(12).fill(0);
+    const _b = M6_Periode.bornes(null, year);
     for (const [dk, v] of Object.entries(data)) {
-      if (!dk.startsWith(String(year))) continue;
+      if (!M6_Periode.inclut(dk, _b)) continue;
       const m = parseInt(dk.slice(5,7)) - 1;
       const t = v.type || 'travail';
       if (t === 'travail') parMois[m]++;
@@ -346,14 +345,15 @@ const M6_Charts = {
     const bioParMois = [];
     const moisAvecData = new Set();
     // Filtrer uniquement les clés de type YYYY-MM-DD (jours, pas semaines)
-    const dayKeys = Object.keys(data).filter(dk => /^\d{4}-\d{2}-\d{2}$/.test(dk) && dk.startsWith(String(year)));
+    const _b = M6_Periode.bornes(contract, year);
+    const dayKeys = Object.keys(data).filter(dk => /^\d{4}-\d{2}-\d{2}$/.test(dk) && M6_Periode.inclut(dk, _b));
     for (const dk of dayKeys) {
       moisAvecData.add(parseInt(dk.slice(5,7)) - 1);
     }
     // Si aucune clé journalière (régime FH en semaines), on construit depuis les semaines
     if (!dayKeys.length) {
       // Fallback FH : agrégation par mois depuis les semaines
-      const wkKeys = Object.keys(data).filter(k => /^\d{4}-W\d{2}$/.test(k) && k.startsWith(String(year)));
+      const wkKeys = Object.keys(data).filter(k => /^\d{4}-W\d{2}$/.test(k) && M6_Periode.inclut(k, _b));
       if (!wkKeys.length) {
         return `<div style="padding:24px;text-align:center;color:var(--pierre)">
           <div style="font-size:2rem;margin-bottom:8px">📊</div>
@@ -426,7 +426,7 @@ const M6_Charts = {
     for (let m = minM; m <= maxM; m++) {
       const dataCumul = {};
       for (const [dk,v] of Object.entries(data)) {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(dk) && dk.startsWith(String(year)) && parseInt(dk.slice(5,7))-1 <= m) dataCumul[dk] = v;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dk) && M6_Periode.jusquAuMois(dk, _b, m)) dataCumul[dk] = v;
       }
       let bio_m = { fatigue:0, stress:0, recovery:50, performance:100 };
       if (window.M6_BioEngine && Object.keys(dataCumul).length) {
