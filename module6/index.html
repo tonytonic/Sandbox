@@ -252,9 +252,9 @@ if ('serviceWorker' in navigator) {
 <!-- C4 saisie rapide : #saisie-aujourdhui ouvre la saisie du jour (lien depuis le menu) -->
 <script>
 (function(){
-  if(location.hash!=='#saisie-aujourdhui')return;
-  /* 26/09/2026 : saisie rapide = toujours l'exercice d'aujourd'hui. Ce script passe avant
-     l'affichage de la vue : il suffit de changer l'année active ici. */
+  /* 26/09/2026 : à chaque ouverture (et pour la saisie rapide), exercice qui contient
+     aujourd'hui. Ce script passe avant l'affichage de la vue : il suffit de changer
+     l'année active ici. Consulter une autre année reste possible pendant la visite. */
   try{
     var reg=localStorage.getItem('M6_REGIME');
     if(reg&&window.M6_Storage&&window.M6_Periode){
@@ -264,6 +264,7 @@ if ('serviceWorker' in navigator) {
       if(M6_Storage.getActiveYear(reg)!==bon)M6_Storage.setActiveYear(reg,bon);
     }
   }catch(e){}
+  if(location.hash!=='#saisie-aujourdhui')return;
   try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
   function go(){try{
     /* M6 : les vues se construisent après coup ; on attend le bouton de saisie du régime */

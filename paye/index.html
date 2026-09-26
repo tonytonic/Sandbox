@@ -779,7 +779,11 @@ function calcHsPaliers(hs, rules) {
   return { h1, hInter, h2 };
 }
 const ACTIVE_YEAR_KEY=STORAGE_PREFIX+"_ACTIVE_YEAR";
-let currentYear=localStorage.getItem(ACTIVE_YEAR_KEY)||String(new Date().getFullYear());
+/* 26/09/2026 : à chaque ouverture, retour sur l'année et le mois en cours (consulter une
+   autre année reste possible le temps de la visite). Après la clôture de décembre, si
+   l'année suivante est déjà ouverte, c'est elle (réglé plus bas, une fois tout chargé). */
+try{localStorage.setItem(ACTIVE_YEAR_KEY,String(new Date().getFullYear()));}catch(e){}
+let currentYear=String(new Date().getFullYear());
 const RECOVERY_ACTIVE=localStorage.getItem("CA_HS_RECOVERY_MODE")==="1";
 function kData(y){return`${STORAGE_PREFIX}_DATA_${y}`}
 function kSettings(){return`${STORAGE_PREFIX}_SETTINGS`}
@@ -3206,7 +3210,15 @@ function closeTip(){
     el.style.display='none';
   }
   window.m2VerifierAnnee=verifier;
-  if(document.readyState==='complete')setTimeout(verifier,500);else window.addEventListener('load',function(){setTimeout(verifier,500);});
+  // Entre la clôture de décembre et le 31/12 : si l'année suivante est déjà ouverte, on y va
+  function anneeEnCours(){try{
+    var t=new Date(),y=t.getFullYear(),nx=String(y+1);
+    if(String(currentYear)===String(y)&&iso(t)>finDecembre(y)&&Object.keys(loadYearData(nx)||{}).length){
+      registerYear(nx);localStorage.setItem(ACTIVE_YEAR_KEY,nx);currentYear=nx;ALL_DATA[nx]=loadYearData(nx);DATA=ALL_DATA[nx];
+      monthPicker.value=nx+'-01';loadMonth();}
+  }catch(e){}}
+  function demarrer(){anneeEnCours();setTimeout(verifier,300);}
+  if(document.readyState==='complete')setTimeout(demarrer,200);else window.addEventListener('load',function(){setTimeout(demarrer,200);});
 })();
 </script>
 </body>

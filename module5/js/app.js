@@ -7,6 +7,10 @@
 
 let currentSection  = 'accueil';
 let currentAnalysis = null;
+// 26/09/2026 : à chaque ouverture, année et semaine d'aujourd'hui (avant : l'année consultée
+// la dernière fois restait active alors que le calendrier montrait la semaine du jour —
+// une saisie partait dans la mauvaise année)
+try{ M5_DataStore.setYear(String(new Date().getFullYear())); }catch(_){}
 let calendarMonday  = M5_getCurrentMonday(); // semaine affichée dans le calendrier
 
 // ── Toast ─────────────────────────────────────────────────────────
