@@ -48,7 +48,7 @@
         y+=pas;
         if(i<lignes.length-1){x.fillStyle='rgba(16,32,47,0.08)';x.fillRect(bx+50,y-28,bw-100,2);}
       });
-      x.fillStyle='rgba(255,255,255,0.9)';x.font='700 36px '+F;x.fillText('SimulHeures',70,H-120);
+      x.fillStyle='rgba(255,255,255,0.9)';x.font='700 36px '+F;x.fillText('simulateurheuressupfrance.fr',70,H-120);
       x.font='400 28px '+F;x.fillStyle='rgba(255,255,255,0.65)';x.fillText('Chiffres indicatifs, calculés à partir de mes saisies',70,H-72);
       return cv;
     });
