@@ -89,6 +89,8 @@ const M6_ImportExport = {
       imported++;
     }
     if (obj.entretiens) localStorage.setItem(`M6_${regime}_ENTRETIENS`, JSON.stringify(obj.entretiens));
+    // Un ancien export peut ranger janvier-mai sous l'année suivante : re-rangement à la prochaine ouverture
+    try { localStorage.removeItem('M6_MIGR_EXO_V1'); } catch (_) {}
 
     M6_toast(`✅ Import réussi — ${imported} exercice(s) chargé(s)`);
     if (onSuccess) onSuccess();

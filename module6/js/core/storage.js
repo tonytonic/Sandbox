@@ -372,4 +372,76 @@ global.M6_PhaseAlert = M6_PhaseAlert;
   } catch(_) { /* silencieux — la migration est best-effort */ }
 })();
 
+/* Migration unique des utilisateurs existants (26/09/2026, M6_MIGR_EXO_V1).
+   1. Exercice daté à cheval sur deux années (ex. juin → mai) : l'ancienne version
+      rangeait chaque jour sous l'année « active » au moment de la saisie, donc
+      janvier-mai pouvait se trouver sous l'année suivante. Les vues filtrent
+      désormais par exercice : chaque jour (ou semaine) est déplacé sous l'année de
+      l'exercice qui le contient. Jamais d'écrasement : en cas de doublon, le jour
+      reste où il est.
+   2. Exercice terminé depuis plus d'un mois : pas de bandeau « nouvel exercice »
+      tardif. Les dates du contrat sont avancées sans bruit jusqu'à l'exercice en
+      cours (les exercices passés gardent leurs vraies dates dans M6_EXERCICES_). */
+(function migrerExercices() {
+  try {
+    if (localStorage.getItem('M6_MIGR_EXO_V1')) return;
+    const re = /^\d{4}-\d{2}-\d{2}$/, wk = /^(\d{4})-W(\d{2})$/;
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const unAn = (s, n) => { const d = new Date(s + 'T12:00:00'), m = d.getMonth(); d.setFullYear(d.getFullYear() + n); if (d.getMonth() !== m) d.setDate(0); return iso(d); };
+    const lundi = k => { const w = wk.exec(k); const j4 = new Date(+w[1], 0, 4, 12), l = new Date(j4); l.setDate(j4.getDate() - ((j4.getDay() + 6) % 7) + (+w[2] - 1) * 7); return iso(l); };
+    const lire = k => { try { const o = JSON.parse(localStorage.getItem(k) || 'null'); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; } catch (_) { return null; } };
+    const auj = iso(new Date());
+    const regimes = new Set();
+    for (let i = 0; i < localStorage.length; i++) { const m = /^M6_(.+)_CONTRACT$/.exec(localStorage.key(i) || ''); if (m) regimes.add(m[1]); }
+    regimes.forEach(regime => {
+      const c = lire(`M6_${regime}_CONTRACT`) || {};
+      const deb = c.dateDebutExercice, fin = c.dateFinExercice;
+      const date = re.test(deb || '') && re.test(fin || '') && fin > deb;
+      const calendaire = !date || (deb.slice(5) === '01-01' && fin.slice(5) === '12-31');
+      // 1. Re-rangement des jours (exercice non calendaire uniquement)
+      if (!calendaire) {
+        const ecart = parseInt(fin, 10) - parseInt(deb, 10);
+        const exo = k => { // année de début de l'exercice qui contient le jour k
+          const j = re.test(k) ? k : lundi(k), y = parseInt(j, 10);
+          for (const a of [y - 1, y]) { const d = a + deb.slice(4), f = (a + ecart) + fin.slice(4); if (j >= d && j <= f) return a; }
+          return null;
+        };
+        ['DATA', 'MOODS', 'DEPLACEMENT'].forEach(suf => {
+          const annees = [];
+          for (let i = 0; i < localStorage.length; i++) { const m = new RegExp(`^M6_${regime}_(\\d{4})_${suf}$`).exec(localStorage.key(i) || ''); if (m) annees.push(+m[1]); }
+          const tables = {}; annees.forEach(y => { tables[y] = lire(`M6_${regime}_${y}_${suf}`); });
+          const modif = new Set();
+          annees.forEach(y => {
+            const t = tables[y]; if (!t) return;
+            Object.keys(t).forEach(k => {
+              if (!re.test(k) && !wk.test(k)) return;
+              const a = exo(k); if (a === null || a === y) return;
+              if (!tables[a]) tables[a] = lire(`M6_${regime}_${a}_${suf}`) || {};
+              if (Object.prototype.hasOwnProperty.call(tables[a], k)) return; // doublon : on ne touche à rien
+              tables[a][k] = t[k]; delete t[k]; modif.add(a); modif.add(y);
+            });
+          });
+          modif.forEach(y => localStorage.setItem(`M6_${regime}_${y}_${suf}`, JSON.stringify(tables[y])));
+        });
+      }
+      // 2. Exercice terminé depuis plus d'un mois : on se cale sur l'exercice en cours
+      const limite = d => { const x = new Date(d + 'T12:00:00'); x.setMonth(x.getMonth() + 1); return iso(x); };
+      if (date) {
+        if (auj > limite(fin)) {
+          const hk = 'M6_EXERCICES_' + regime, h = lire(hk) || {};
+          let d = deb, f = fin, n = 0;
+          while (f < auj && n < 50) { if (!h[String(parseInt(d, 10))]) h[String(parseInt(d, 10))] = { deb: d, fin: f }; n++; d = unAn(deb, n); f = unAn(fin, n); }
+          localStorage.setItem(hk, JSON.stringify(h));
+          localStorage.setItem(`M6_${regime}_CONTRACT`, JSON.stringify(Object.assign({}, c, { dateDebutExercice: d, dateFinExercice: f })));
+          localStorage.setItem('M6_EXO_OUVERT_' + regime, String(parseInt(d, 10) - 1));
+        }
+      } else {
+        const prec = new Date().getFullYear() - 1;
+        if (auj > limite(prec + '-12-31') && !localStorage.getItem('M6_EXO_OUVERT_' + regime)) localStorage.setItem('M6_EXO_OUVERT_' + regime, String(prec));
+      }
+    });
+    localStorage.setItem('M6_MIGR_EXO_V1', auj);
+  } catch (_) { /* best-effort : en cas d'échec, l'appli fonctionne comme avant */ }
+})();
+
 })(window);
