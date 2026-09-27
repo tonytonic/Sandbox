@@ -2020,7 +2020,7 @@ var BK_KEY='SH_LAST_BACKUP';
 /* Clés jamais copiées ni restaurées : état technique propre à l'appareil
    (plantage, mode secours de la paye, réglages de test de fox, bandeau
    d'installation iPhone, cache de déploiement, tests de stockage). */
-var BK_SKIP=/^(APP_CRASH_STATE|SH_LAST_BACKUP|SH_LAST_BACKUP_NAME|CA_HS_RECOVERY_MODE|CA_HS_LAST_CRASH|CA_DEBUG|FOX_EMU_MOCK_DATESTR|FOX_BURNOUT_OVERRIDE|FOX_SEASON_OVERRIDE|FOX_SOURCE_OVERRIDE|SH_DEPLOYED_CACHE|SH_CHECK_V1|ios_banner_dismissed|__test__|test)$/;
+var BK_SKIP=/^(APP_CRASH_STATE|SH_LAST_BACKUP|SH_LAST_BACKUP_NAME|CA_HS_RECOVERY_MODE|CA_HS_LAST_CRASH|CA_DEBUG|FOX_EMU_MOCK_DATESTR|FOX_BURNOUT_OVERRIDE|FOX_SEASON_OVERRIDE|FOX_SOURCE_OVERRIDE|SH_DEPLOYED_CACHE|SH_CHECK_V1|SH_ERR_LOG|ios_banner_dismissed|__test__|test)$/;
 /* Clés conservées depuis cet appareil (consentement donné ici) */
 var BK_KEEP=/^SH_CONSENT/;
 function bkHash(str){ /* empreinte cyrb53, synchrone (iOS exige le partage dans le geste) */
@@ -2886,6 +2886,19 @@ document.addEventListener('keydown', function(e){
         font-size:14px;background:#fff;color:#222;margin-bottom:6px;
         box-sizing:border-box;font-family:inherit;resize:vertical;min-height:100px;"></textarea>
 
+      <!-- 01/10/2026 : rapport technique (facultatif, visible avant l'envoi) -->
+      <div style="margin:4px 0 12px;padding:10px 12px;border:1px solid rgba(33,150,166,0.3);border-radius:10px;background:rgba(33,150,166,0.05);">
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#234;cursor:pointer;">
+          <input type="checkbox" id="contact-diag" style="width:18px;height:18px;margin-top:1px;flex:none;">
+          <span><b>Joindre le rapport technique</b><br><span style="font-size:11.5px;color:rgba(0,0,0,0.55);">Version, appareil, état des exercices et dernières erreurs. Aucune donnée personnelle : ni prénom, ni nom d'employeur, ni taux horaire, ni montant.</span></span>
+        </label>
+        <div style="display:flex;gap:12px;margin-top:6px;padding-left:26px;">
+          <a href="#" onclick="hsVoirDiag();return false" style="font-size:12px;color:#2196a6;font-weight:600;">Voir le rapport</a>
+          <a href="#" onclick="hsCopierDiag();return false" style="font-size:12px;color:#2196a6;font-weight:600;">Copier</a>
+        </div>
+        <pre id="contact-diag-txt" style="display:none;margin:8px 0 0;padding:8px;max-height:180px;overflow:auto;background:#fff;border:1px solid rgba(0,0,0,0.1);border-radius:6px;font-size:10.5px;line-height:1.35;white-space:pre-wrap;color:#333;"></pre>
+      </div>
+
       <div style="font-size:10px;color:rgba(0,0,0,0.5);margin-bottom:14px;line-height:1.4;">
         🔒 Aucune donnée n'est stockée sur nos serveurs. Le bouton « Envoyer » ouvre votre application mail avec un message pré-rempli — vous restez maître de l'envoi.
       </div>
@@ -2941,15 +2954,29 @@ function sendContactMail() {
   if (email) body += 'Email : ' + email + '\n';
   body += 'Envoyé depuis : Simulateur Heures Sup France (PWA)\n';
   body += 'Date : ' + new Date().toLocaleString('fr-FR');
-  // User Agent (info debug)
-  body += '\nNavigateur : ' + (navigator.userAgent || '').substring(0, 80);
-  const href = 'mailto:' + to
-    + '?subject=' + encodeURIComponent(mailSubject)
-    + '&body=' + encodeURIComponent(body);
-  window.location.href = href;
-  // Fermer après un petit délai (laisse le temps au mail client de s'ouvrir)
-  setTimeout(closeContactPopup, 600);
+  const envoyer = (diag) => {
+    if (diag) body += '\n\n— — — Rapport technique — — —\n' + diag;
+    else body += '\nNavigateur : ' + (navigator.userAgent || '').substring(0, 80);
+    const href = 'mailto:' + to
+      + '?subject=' + encodeURIComponent(mailSubject)
+      + '&body=' + encodeURIComponent(body);
+    window.location.href = href;
+    // Fermer après un petit délai (laisse le temps au mail client de s'ouvrir)
+    setTimeout(closeContactPopup, 600);
+  };
+  const cb = document.getElementById('contact-diag');
+  if (cb && cb.checked && window.hsDiagnostic) hsDiagnostic().then(envoyer, () => envoyer(''));
+  else envoyer('');
 }
+/* 01/10/2026 : rapport technique — coché d'office pour un signalement de bug, visible avant l'envoi */
+function hsVoirDiag(){const pre=document.getElementById('contact-diag-txt');if(!pre)return;
+  if(pre.style.display==='block'){pre.style.display='none';return;}
+  pre.textContent='…';pre.style.display='block';if(window.hsDiagnostic)hsDiagnostic().then(t=>{pre.textContent=t;});}
+function hsCopierDiag(){if(!window.hsDiagnostic)return;hsDiagnostic().then(t=>{
+  const ok=()=>{try{alert('Rapport technique copié : colle-le dans ton message.');}catch(e){}};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,()=>{const pre=document.getElementById('contact-diag-txt');if(pre){pre.textContent=t;pre.style.display='block';}});
+  else{const pre=document.getElementById('contact-diag-txt');if(pre){pre.textContent=t;pre.style.display='block';}}});}
+document.addEventListener('change',function(e){if(e.target&&e.target.id==='contact-subject'){const cb=document.getElementById('contact-diag');if(cb)cb.checked=/bug/i.test(e.target.value);}});
 // Fermer au clic sur le fond
 document.addEventListener('DOMContentLoaded', function(){
   const ov = document.getElementById('contact-popup-overlay');
@@ -5112,27 +5139,8 @@ function hasConsent(){
   window.hsSavePdf=function(doc,fn,ac){if(isAnd()){try{var b=doc.output('blob');doc.save(fn);window.hsFileSnack(b,fn,{kind:'pdf',accent:ac});}catch(e){try{doc.save(fn);}catch(_){}}}else{doc.save(fn);}};
 })();
 </script>
-<!-- 27/09/2026 : version réellement chargée par le téléphone (cache du service worker) -->
-<div id="shVersion" style="text-align:center;font-size:11px;color:rgba(255,255,255,0.45);padding:14px 0 calc(18px + env(safe-area-inset-bottom,0px));"></div>
-<script>(function(){try{
-/* 27/09/2026 : version du service worker QUI SERT la page (message SH_VERSION). Avant : le plus
-   « grand » nom de cache, trié comme du texte (v10.10.99 passait après v10.10.112) et lu même
-   pendant l'installation d'une nouvelle version pas encore active. */
-var m=(navigator.standalone||window.matchMedia('(display-mode: standalone)').matches)?'appli':'navigateur',e=document.getElementById('shVersion');
-function num(x){return (x.match(/\d+/g)||[]).map(Number);}
-function cmp(a,b){a=num(a);b=num(b);for(var i=0;i<Math.max(a.length,b.length);i++){var d=(a[i]||0)-(b[i]||0);if(d)return d;}return 0;}
-function afficher(v,att){if(e&&v)e.textContent='Version '+v+' · '+m+(att?' · mise à jour '+att+' prête, rouvre l\'appli':'');}
-function parCaches(att){if(!window.caches)return;caches.keys().then(function(k){var l=k.filter(function(x){return /^heuressup-cache-v/.test(x);}).map(function(x){return x.replace('heuressup-cache-','');}).sort(cmp);afficher(l.pop(),att);});}
-var sw=navigator.serviceWorker;
-if(sw&&sw.controller&&window.MessageChannel){var ch=new MessageChannel(),fait=false;
-  ch.port1.onmessage=function(ev){if(ev.data&&ev.data.type==='SH_VERSION'){fait=true;
-    sw.getRegistration().then(function(r){var w=r&&(r.waiting||r.installing);if(!w){afficher(ev.data.version);return;}
-      caches.keys().then(function(k){var l=k.filter(function(x){return /^heuressup-cache-v/.test(x);}).map(function(x){return x.replace('heuressup-cache-','');}).sort(cmp),nv=l.pop();afficher(ev.data.version,nv&&nv!==ev.data.version?nv:'');});}).catch(function(){afficher(ev.data.version);});}};
-  try{sw.controller.postMessage({type:'SH_VERSION'},[ch.port2]);}catch(x){}
-  setTimeout(function(){if(!fait)parCaches();},1500);}
-else parCaches();
-}catch(e){}
-/* Accès caché au module de vérification : 5 appuis rapides sur cette ligne */
-try{var el=document.getElementById('shVersion'),n=0,t=0;el.addEventListener('click',function(){var now=Date.now();n=(now-t<700)?n+1:1;t=now;if(n>=5){n=0;location.href='check.html';}});}catch(e){}})();</script>
+<!-- 01/10/2026 : rapport technique pour « Nous contacter » + journal des erreurs -->
+<script src="js/journal-erreurs.js"></script>
+<script src="js/diagnostic.js"></script>
 </body>
 </html>

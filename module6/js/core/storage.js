@@ -683,6 +683,22 @@ global.M6_PhaseAlert = M6_PhaseAlert;
         for (let y = C + 1; y < haut; y++) al(y);
         for (let y = C - 1; y > bas; y--) al(y);
         M6_Storage.rangerJours(r);
+        /* Exercices passés restés VIDES après le rangement (ancien nommage de la prod : un exercice
+           « fantôme » avant le premier exercice saisi) : supprimés s'ils ne contiennent vraiment rien. */
+        try {
+          const vide = v => { if (v === null) return true; try { const o = JSON.parse(v); return o === null || (typeof o === 'object' && Object.keys(o).length === 0); } catch (_) { return false; } };
+          const parAn = {};
+          for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i), m = new RegExp('^M6_' + r + '_(\\d{4})_(.+)$').exec(k || ''); if (m) (parAn[m[1]] = parAn[m[1]] || []).push([k, m[2]]); }
+          const pleins = Object.keys(parAn).filter(y => parAn[y].some(([k, t]) => t === 'DATA' && !vide(localStorage.getItem(k)))).map(Number);
+          const premier = pleins.length ? Math.min(...pleins) : null;
+          if (premier !== null) Object.keys(parAn).map(Number).filter(y => y < premier && y !== C).forEach(y => {
+            const ks = parAn[String(y)];
+            if (ks.every(([k, t]) => t === 'CONTRACT' || t === 'AUTO_SAVE' || vide(localStorage.getItem(k)))) {
+              ks.forEach(([k]) => localStorage.removeItem(k));
+              try { const hk = 'M6_EXERCICES_' + r, h = JSON.parse(localStorage.getItem(hk) || '{}') || {}; if (h[String(y)]) { delete h[String(y)]; localStorage.setItem(hk, JSON.stringify(h)); } } catch (_) {}
+            }
+          });
+        } catch (_) {}
       } catch (_) {}
     });
     localStorage.setItem('M6_EXO_ALIGN_V4', new Date().toISOString().slice(0, 10));
