@@ -21,7 +21,11 @@ function nom(n){var m=noms();if(m[n])return m[n];
   return 'Contrat '+n;}
 function list(){var r=[];for(var n=1;n<=MAX;n++)if(exists(n)||n===ACTIVE)r.push(n);return r;}
 function existing(){var r=[];for(var n=1;n<=MAX;n++)if(exists(n))r.push(n);return r;}
-function switchTo(n){set(K_ACTIVE,String(n));location.reload();}
+/* 27/09/2026 : iPhone, plus de flash au changement de contrat. location.reload() efface l'écran
+   avant d'afficher la page suivante ; une navigation « replace » vers la même page profite de la
+   transition entre pages (@view-transition, main.css) : l'ancien écran reste affiché jusqu'au nouveau. */
+function recharger(){try{location.replace(location.pathname+location.search);}catch(e){location.reload();}}
+function switchTo(n){set(K_ACTIVE,String(n));recharger();}
 function add(){
   var free=0;for(var n=2;n<=MAX;n++)if(!exists(n)&&n!==ACTIVE){free=n;break;}
   if(!free){alert('Tu peux suivre jusqu\u2019à '+MAX+' contrats.');return;}
@@ -31,7 +35,7 @@ function add(){
   switchTo(free);
 }
 function rename(n){var t=prompt('Nom du contrat',nom(n));if(t===null)return;
-  var m=noms();m[n]=(t.trim()||('Contrat '+n)).slice(0,30);set(K_NOMS,JSON.stringify(m));location.reload();}
+  var m=noms();m[n]=(t.trim()||('Contrat '+n)).slice(0,30);set(K_NOMS,JSON.stringify(m));recharger();}
 function remove(n){
   if(n===1)return;
   if(!confirm('Supprimer « '+nom(n)+' » et toutes ses saisies ?\n\nPense à faire une copie de sauvegarde avant (menu → 💾).'))return;

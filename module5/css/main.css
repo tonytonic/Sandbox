@@ -5,6 +5,9 @@
    Mood : compagnon de confiance, douceur professionnelle
 ═══════════════════════════════════════════════════════════════ */
 
+/* 27/09/2026 : changement de contrat sans flash (iPhone iOS 18.2+, Chrome/Android) : l'ancien écran reste jusqu'au nouveau */
+@view-transition{navigation:auto}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.12s}
 /* 27/09/2026 : polices embarquées dans l'appli (dossier /fonts, licence SIL OFL), servies par le cache hors ligne :
    plus de téléchargement Google à chaque ouverture, donc plus de « flash » au premier rechargement. */
 @font-face{font-family:'DM Sans';font-style:normal;font-weight:300;font-display:block;src:url('../../fonts/dm-sans-latin-300-normal.woff2') format('woff2')}
