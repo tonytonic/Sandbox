@@ -2932,18 +2932,21 @@ document.addEventListener('DOMContentLoaded',()=>{
      (fériés, jours travaillés, périodes de paie en mode mensuel). Dues par taux, payées
      (cases cochées), reste en fin d'exercice (report semaine après semaine, ou période après
      période). Le bilan de fin d'exercice et le bandeau « reste dû » utilisent ces chiffres. */
+  /* Semaines d'un exercice quelconque (pas seulement autour de l'année affichée) */
+  function _weeksEntre(deb,fin){ var seen={},all=[];
+    for(var y=parseInt(deb,10)-1;y<=parseInt(fin,10)+1;y++){ try{ (M5_DataStore.getWeeksSorted(String(y))||[]).forEach(function(w){ if(!seen[w.monday]){ seen[w.monday]=1; all.push(w); } }); }catch(e){} }
+    all.sort(function(a,b){ return a.monday<b.monday?-1:1; }); return all; }
   window.M5_hcExercice=function(c,deb,fin,paidKey){
     var o={d10:0,d25:0,p10:0,p25:0,r10:0,r25:0,sem:0};
     try{
       var pm={};try{pm=JSON.parse(localStorage.getItem(paidKey||M5_key('M5_HC_PAID'))||'{}')||{};}catch(e){}
       var rp=_repExoPour(deb),b10=0,b25=0;
       if(rp&&rp.choix==='report'){b10=+rp.h10||0;b25=+rp.h25||0;}
-      var all=_allWeeksRaw().filter(function(w){return w.monday>=deb&&w.monday<=fin;}),rate=(c.hourlyRate||c.rate||0);
+      var raw=_weeksEntre(deb,fin),all=raw.filter(function(w){return w.monday>=deb&&w.monday<=fin;}),rate=(c.hourlyRate||c.rate||0);
       if((c.modeCalcul||'HEBDO')==='MENSUEL'&&typeof buildPeriodes==='function'){
         var vu={},pers=[];
         for(var y=parseInt(deb,10);y<=parseInt(fin,10);y++)(buildPeriodes(String(y),c)||[]).forEach(function(p){if(p.debutStr&&p.debutStr>=deb&&p.finStr<=fin&&!vu[p.debutStr]){vu[p.debutStr]=1;pers.push(p);}});
         pers.sort(function(a,b){return a.debutStr<b.debutStr?-1:1;});
-        var raw=_allWeeksRaw();
         pers.forEach(function(per){var wks=_weeksInPeriode(raw,per);if(!wks.length)return;o.sem+=wks.length;
           var nbJ=Math.round((new Date(per.finStr+'T12:00:00')-new Date(per.debutStr+'T12:00:00'))/86400000)+1;
           var r=CalcEngine.calcMonth(c.hoursBase,wks,c,rate,nbJ),pd=pm['per:'+per.debutStr]||pm[per.debutStr]||{};
@@ -3503,22 +3506,83 @@ document.addEventListener('DOMContentLoaded',()=>{
   function kRep(){return window.M5_key?M5_key('M5_REPORT_EXO'):'M5_REPORT_EXO';}
   function kPrepa(){return window.M5_key?M5_key('M5_EXO_PREPA'):'M5_EXO_PREPA';}
   function fH(h){return (window._m5fmtH||function(x){return x+'h';})(Math.round(h*100)/100);}
-  window.M5_demanderReport=function(reste,to,apres){
-    if(!reste||!(reste.h10+reste.h25>0.01)||!window.hsNouvelExercice){if(apres)apres();return;}
-    var c=M5_Contract.get(),tot=reste.h10+reste.h25;
-    var det=[];if(reste.h10>0.01)det.push(fH(reste.h10)+' à +'+Math.round((c.rate1||0.10)*100)+' %');if(reste.h25>0.01)det.push(fH(reste.h25)+' à +'+Math.round((c.rate2||0.25)*100)+' %');
-    function choisir(ch){try{var rec={from:reste.deb,fin:reste.fin,to:to,h10:reste.h10,h25:reste.h25,choix:ch};localStorage.setItem(kRep(),JSON.stringify(rec));
-        var km=window.M5_key?M5_key('M5_REPORT_EXOS'):'M5_REPORT_EXOS',mp={};try{mp=JSON.parse(localStorage.getItem(km)||'{}')||{};}catch(e){}mp[to]=rec;localStorage.setItem(km,JSON.stringify(mp));}catch(e){}
-      if(typeof toast==='function')toast(ch==='report'?'↪ '+fH(tot)+' reportées dans le nouvel exercice':'Reste gardé dans le bilan de l\'exercice terminé','success');
+  /* 27/09/2026 — RESTES DUS SUR 3 ANS (art. L3245-1).
+     Chaque exercice terminé a un reste (heures complémentaires non payées, report entrant compris).
+     • Reporté dans un exercice suivant : il fait partie du reste de celui-ci, on ne le repropose plus.
+     • Gardé (non reporté) : il reste dû dans le bilan de son exercice et il est reproposé à chaque
+       ouverture d'exercice tant que les 3 ans ne sont pas passés.
+     Choix par exercice d'arrivée : M5_REPORT_EXOS { <début>: {to, choix, h10, h25, sources:[{from, fin, h10, h25, depuis, choix}]} }. */
+  function kMap(){return window.M5_key?M5_key('M5_REPORT_EXOS'):'M5_REPORT_EXOS';}
+  function lireMap(){var m={};try{m=JSON.parse(localStorage.getItem(kMap())||'{}')||{};}catch(e){}
+    try{var old=JSON.parse(localStorage.getItem(kRep())||'null');if(old&&old.to&&old.choix&&!m[old.to])m[old.to]={to:old.to,choix:old.choix,h10:old.choix==='report'?(+old.h10||0):0,h25:old.choix==='report'?(+old.h25||0):0,sources:[{from:old.from,fin:old.fin,h10:+old.h10||0,h25:+old.h25||0,depuis:old.from,choix:old.choix}]};}catch(e){}
+    return m;}
+  function sourcesDe(r){return (r&&Array.isArray(r.sources))?r.sources:[];}
+  function exercices(){var c=M5_Contract.get(),h=histo(),vu={},L=[];
+    Object.keys(h).forEach(function(k){var x=h[k],f=derniere(x);if(x&&x.exerciceStart&&f&&!vu[x.exerciceStart]){vu[x.exerciceStart]=1;L.push({deb:x.exerciceStart,fin:f,cd:x.cloturesDates});}});
+    var fc=derniere(c);if(c.exerciceStart&&fc&&!vu[c.exerciceStart])L.push({deb:c.exerciceStart,fin:fc,cd:c.cloturesDates,courant:true});
+    L.sort(function(a,b){return a.deb<b.deb?-1:1;});return L;}
+  function resteDe(x){var c=M5_Contract.get(),cx=Object.assign({},c,{exerciceStart:x.deb,cloturesDates:x.cd||{}});
+    var r=window.M5_hcExercice?M5_hcExercice(cx,x.deb,x.fin):null;return r?{h10:r.r10,h25:r.r25}:{h10:0,h25:0};}
+  function reporteDans(deb,m){m=m||lireMap();var t=null;Object.keys(m).forEach(function(to){sourcesDe(m[to]).forEach(function(s){if(s.from===deb&&s.choix==='report')t=to;});});return t;}
+  function depuisDe(deb,m){m=m||lireMap();var d=deb;sourcesDe(m[deb]).forEach(function(s){if(s.choix==='report'){var x=s.depuis||s.from;if(x&&x<d)d=x;}});return d;}
+  function limite(depuis){return plusUnAn(plusUnAn(plusUnAn(depuis)));}
+  function anLbl(x){var y1=parseInt(x.deb,10),y2=parseInt(x.fin,10),best=y1,bj=-1;  // année où l'exercice a le plus de jours
+    for(var y=y1;y<=y2;y++){var a=Math.max(jour(x.deb).getTime(),jour(y+'-01-01').getTime()),b=Math.min(jour(x.fin).getTime(),jour(y+'-12-31').getTime()),j=Math.round((b-a)/864e5)+1;if(j>bj){bj=j;best=y;}}
+    return String(best);}
+  /* Restes encore dus à la date « a » : exercices terminés avant « to », non reportés, pas prescrits.
+     sansGarde : ignorer les « ne pas reporter » déjà répondus pour « to » (aperçu, passage). */
+  function restesDus(to,a,sansGarde){var m=lireMap(),rec=m[to],out=[];
+    exercices().forEach(function(x){if(!(x.fin<to))return;if(reporteDans(x.deb,m))return;
+      if(!sansGarde&&sourcesDe(rec).some(function(s){return s.from===x.deb;}))return;
+      var dep=depuisDe(x.deb,m),lim=limite(dep);if(lim<=a)return;
+      var r=resteDe(x);if(r.h10+r.h25>0.01)out.push({deb:x.deb,fin:x.fin,h10:r.h10,h25:r.h25,depuis:dep,limite:lim,an:anLbl(x)});});
+    return out.reverse();}
+  window.M5_restesDus=restesDus;
+  function enregistrer(to,items,coches){var m=lireMap(),rec=m[to]||{to:to,sources:[]},src=sourcesDe(rec).slice();
+    items.forEach(function(it,i){src=src.filter(function(s){return s.from!==it.deb;});src.push({from:it.deb,fin:it.fin,h10:it.h10,h25:it.h25,depuis:it.depuis,choix:coches[i]?'report':'garder'});});
+    var h10=0,h25=0;src.forEach(function(s){if(s.choix==='report'){h10+=+s.h10||0;h25+=+s.h25||0;}});
+    m[to]={to:to,choix:(h10+h25>0.001)?'report':'garder',h10:Math.round(h10*100)/100,h25:Math.round(h25*100)/100,sources:src};
+    try{localStorage.setItem(kMap(),JSON.stringify(m));}catch(e){}}
+  /* Fenêtre de choix : une ligne par exercice, cochée par défaut */
+  window.M5_demanderReports=function(items,to,apres){
+    if(!items||!items.length){if(apres)apres();return;}
+    var c=M5_Contract.get(),r1=Math.round((c.rate1||0.10)*100),r2=Math.round((c.rate2||0.25)*100);
+    var ov=document.createElement('div');ov.id='m5RepOv';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(20,10,40,.55);display:flex;align-items:flex-end;justify-content:center';
+    var tot=0;items.forEach(function(it){tot+=it.h10+it.h25;});
+    var h='<div style="background:#fff;color:#2a2340;width:100%;max-width:520px;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))">'
+      +'<div style="font-size:12px;font-weight:800;color:#e67e22;letter-spacing:.04em;text-transform:uppercase">Reste à payer</div>'
+      +'<div style="font-size:17px;font-weight:800;margin:4px 0 6px">'+fH(tot)+' d\'heures complémentaires non payées</div>'
+      +'<div style="font-size:13px;line-height:1.45;color:#4a3f66;margin-bottom:10px">Elles restent dues pendant 3 ans (art. L3245-1 du Code du travail). Coche celles à reporter dans l\'exercice qui commence le '+fr(to)+' : elles s\'ajoutent au report de sa première semaine ou période, avec leurs taux. Les autres restent dans le bilan de leur exercice et te seront reproposées à l\'ouverture du suivant.</div>';
+    items.forEach(function(it,i){var det=[];if(it.h10>0.01)det.push(fH(it.h10)+' à +'+r1+' %');if(it.h25>0.01)det.push(fH(it.h25)+' à +'+r2+' %');
+      h+='<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1.5px solid #e8dcc0;border-radius:12px;margin-bottom:8px;background:#fffaf0">'
+        +'<input type="checkbox" data-i="'+i+'" checked style="width:20px;height:20px;margin-top:2px;flex:none">'
+        +'<span style="font-size:13.5px;line-height:1.4"><b>Exercice '+it.an+' : '+fH(it.h10+it.h25)+'</b><br><span style="color:#6b5f86">'+det.join(' + ')+'</span><br>'
+        +'<span style="font-size:12px;color:#8a6d2f">Réclamable : les plus anciennes heures jusqu\'au '+fr(it.limite)+' environ</span></span></label>';});
+    h+='<div style="font-size:11.5px;color:#7a6f92;margin:4px 0 12px">Les 3 ans courent à partir de chaque date de paie : les heures du début de l\'exercice se prescrivent en premier. Date indicative.</div>'
+      +'<button data-ok style="width:100%;padding:13px;border:none;border-radius:12px;background:#e67e22;color:#fff;font-weight:800;font-size:15px">Valider</button>'
+      +'<button data-non style="width:100%;padding:11px;border:none;background:none;color:#6b5f86;font-weight:700;margin-top:6px">Ne rien reporter pour l\'instant</button></div>';
+    ov.innerHTML=h;document.body.appendChild(ov);
+    function fin(coches){enregistrer(to,items,coches);ov.remove();
+      var n=0;coches.forEach(function(x,i){if(x)n+=items[i].h10+items[i].h25;});
+      if(typeof toast==='function')toast(n>0.01?'↪ '+fH(n)+' reportées dans l\'exercice en cours':'Restes gardés dans le bilan de leur exercice','success');
       if(apres)apres();
-      // Le solde des heures complémentaires se recalcule au chargement : on recharge
-      setTimeout(function(){if(!document.getElementById('modal-contract')||!document.getElementById('modal-contract').classList.contains('open'))location.reload();},apres?900:700);}
-    hsNouvelExercice.demander({surtitre:'Reste à payer',titre:fH(tot)+' d\'heures complémentaires non payées',couleur:'#e67e22',
-      question:'Que faire de ces heures ('+det.join(' + ')+') ?',icoAuto:'↪',icoManuel:'📷',
-      titreAuto:'Les reporter dans le nouvel exercice',texteAuto:'Elles s\'ajoutent au report de ta première semaine ou période, avec leurs taux. Tu les coches payées quand ton employeur les règle.',
-      titreManuel:'Ne pas les reporter',texteManuel:'Le nouvel exercice repart de zéro. Elles restent dans le bilan de l\'exercice terminé : garde l\'image, tu as 3 ans pour les réclamer.',
-      auto:function(){choisir('report');},manuel:function(){choisir('garder');}});
+      setTimeout(function(){var mc=document.getElementById('modal-contract');if(!mc||!mc.classList.contains('open'))location.reload();},apres?900:700);}
+    ov.querySelector('[data-ok]').onclick=function(){fin(items.map(function(_,i){var b=ov.querySelector('[data-i="'+i+'"]');return !!(b&&b.checked);}));};
+    ov.querySelector('[data-non]').onclick=function(){fin(items.map(function(){return false;}));};
   };
+  /* Compatibilité : ancien appel avec un seul reste */
+  window.M5_demanderReport=function(reste,to,apres){
+    var items=restesDus(to,iso(new Date()),true);
+    if(!items.length&&reste&&reste.h10+reste.h25>0.01)items=[{deb:reste.deb,fin:reste.fin,h10:reste.h10,h25:reste.h25,depuis:reste.deb,limite:limite(reste.deb),an:anLbl({deb:reste.deb,fin:reste.fin})}];
+    window.M5_demanderReports(items,to,apres);
+  };
+  /* Statut du reste d'un exercice terminé, pour son bilan */
+  function statutReste(deb){var m=lireMap(),t=reporteDans(deb,m);
+    if(t)return 'Ce reste a été reporté dans l\'exercice commencé le '+fr(t)+' : il y figure dans le report.';
+    var lim=limite(depuisDe(deb,m));
+    if(lim<=iso(new Date()))return 'Non reporté. Le délai de 3 ans est dépassé pour les plus anciennes heures depuis le '+fr(lim)+' environ.';
+    return 'Non reporté : il reste dû. Les plus anciennes heures sont réclamables jusqu\'au '+fr(lim)+' environ ; il te sera reproposé à l\'ouverture de chaque exercice d\'ici là.';}
   /* Exercice suivant préparé à l'avance (créé à la main avant la fin) : ses clôtures
      choisies sont gardées et appliquées au moment du passage. */
   function suivantAvec(forcees,manuel){
@@ -3563,7 +3627,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.M5_voirBilan=function(y){
     var c=M5_Contract.get(),cp=window.M5_contratPourAnnee?M5_contratPourAnnee(String(y),c):c,lp=derniere(cp),l=null;try{l=bilanLignes(cp,lp);}catch(e){}
     var an=lp?(cp.exerciceStart.slice(0,4)===lp.slice(0,4)?lp.slice(0,4):cp.exerciceStart.slice(0,4)+'-'+lp.slice(2,4)):String(y);
-    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:an,module:'Mizuki · temps partiel',couleur:'#6C3FC5',image:'../images/Mizuki.PNG',lignes:l,alerte:window.__m5Alerte});
+    var al=window.__m5Alerte;
+    if(al&&lp&&lp<(c.exerciceStart||'9999')&&window.__m5Reste&&window.__m5Reste.h10+window.__m5Reste.h25>0.01){
+      var st=statutReste(cp.exerciceStart);al=Object.assign({},al,{texte:st+' '+al.texte});
+      if(reporteDans(cp.exerciceStart))al.titre=al.titre.replace('⚠️ Exercice non soldé','↪ Reste reporté');}
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:an,module:'Mizuki · temps partiel',couleur:'#6C3FC5',image:'../images/Mizuki.PNG',lignes:l,alerte:al});
     else if(typeof toast==='function')toast('Pas encore d\'heures sur cet exercice','info');
   };
   window.M5_exercicePlusTard=function(){try{localStorage.setItem('M5_EXO_PLUS_TARD',iso(new Date()));}catch(e){}verifier();};
@@ -3577,7 +3645,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     /* 27/09/2026 : exercice passé consulté (comme le compteur annuel et M2) */
     try{var yv=String(M5_DataStore.getYear()),cp=window.M5_contratPourAnnee?M5_contratPourAnnee(yv,c):c,lp=derniere(cp);
       if(c.hoursBase&&cp&&cp._projete){
-        el.innerHTML='📅 <b>Exercice à venir : il commencera le '+fr(cp.exerciceStart)+'.</b><br>'+(cp._prepare?'Tes clôtures sont déjà choisies ; il s\'ouvrira le moment venu.':'Clôtures automatiques affichées pour l\'instant ; tu peux les choisir dès maintenant.')+
+        var ap='';try{if(c.modeCalcul!=='ANNUEL'){var pv=restesDus(cp.exerciceStart,cp.exerciceStart,true);
+          if(pv.length)ap='<br>À son ouverture, on te proposera de reporter les heures non payées : '+pv.map(function(x){return '<b>'+x.an+' : '+fH(x.h10+x.h25)+'</b>'+(x.deb===c.exerciceStart?' (à ce jour)':'');}).join(' · ')+'.';}}catch(e){}
+        el.innerHTML='📅 <b>Exercice à venir : il commencera le '+fr(cp.exerciceStart)+'.</b><br>'+(cp._prepare?'Tes clôtures sont déjà choisies ; il s\'ouvrira le moment venu.':'Clôtures automatiques affichées pour l\'instant ; tu peux les choisir dès maintenant.')+ap+
           '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+(cp._prepare?'':'<button onclick="M5_preparerSuivant(\''+yv+'\')" style="flex:1;padding:10px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:800">Choisir mes clôtures</button>')+
           '<button onclick="switchYear(\''+String(new Date().getFullYear())+'\')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#6C3FC5;color:#fff;font-weight:800">Aller à l\'exercice en cours</button></div>';
         el.style.display='block';return;}
@@ -3586,15 +3656,14 @@ document.addEventListener('DOMContentLoaded',()=>{
           '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button onclick="M5_voirBilan(\''+yv+'\')" style="flex:1;padding:10px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:800">📊 Bilan de cet exercice</button>'+
           '<button onclick="switchYear(\''+String(new Date().getFullYear())+'\')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#6C3FC5;color:#fff;font-weight:800">Aller à l\'exercice en cours</button></div>';
         el.style.display='block';return;}}catch(e){}
-    /* Reste de l'exercice précédent pas encore traité — seulement sur l'exercice en cours */
-    try{if(cp!==c)throw 0;var rp=JSON.parse(localStorage.getItem(kRep())||'null'),h=histo(),prev=null;
-      Object.keys(h).forEach(function(k){var x=h[k],l=derniere(x);if(l&&l<(c.exerciceStart||'')&&(!prev||l>derniere(prev)))prev=x;});
-      if(c.hoursBase&&prev&&!(window.M5_repExoPour&&M5_repExoPour(c.exerciceStart))&&(!rp||rp.to!==c.exerciceStart)&&c.modeCalcul!=='ANNUEL'&&localStorage.getItem('M5_REPORT_PLUS_TARD')!==auj){
-        var cprev=Object.assign({},c,{exerciceStart:prev.exerciceStart,cloturesDates:prev.cloturesDates});bilanLignes(cprev,derniere(prev));var rs=window.__m5Reste;
-        if(rs&&rs.h10+rs.h25>0.01){
-          window.__m5ResteAncien=rs;
-          el.innerHTML='⚠️ <b>'+fH(rs.h10+rs.h25)+' d\'heures complémentaires non payées sur ton exercice précédent.</b> Elles restent dues : 3 ans pour les réclamer (art. L3245-1). Tu peux les reporter dans l\'exercice en cours.'+
-            '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button onclick="M5_demanderReport(window.__m5ResteAncien,\''+c.exerciceStart+'\')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#e67e22;color:#fff;font-weight:800">Choisir</button>'+
+    /* Restes dus des exercices précédents (3 ans) pas encore traités — sur l'exercice en cours */
+    try{if(cp!==c)throw 0;
+      if(c.hoursBase&&c.modeCalcul!=='ANNUEL'&&localStorage.getItem('M5_REPORT_PLUS_TARD')!==auj){
+        var dus=restesDus(c.exerciceStart,auj,false);
+        if(dus.length){var tt=0;dus.forEach(function(x){tt+=x.h10+x.h25;});
+          window.__m5RestesDus=dus;
+          el.innerHTML='⚠️ <b>'+fH(tt)+' d\'heures complémentaires non payées sur '+(dus.length>1?'tes exercices précédents':'ton exercice précédent')+'</b> ('+dus.map(function(x){return x.an+' : '+fH(x.h10+x.h25);}).join(' · ')+'). Elles restent dues : 3 ans pour les réclamer (art. L3245-1). Tu peux les reporter dans l\'exercice en cours.'+
+            '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button onclick="M5_demanderReports(window.__m5RestesDus,\''+c.exerciceStart+'\')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#e67e22;color:#fff;font-weight:800">Choisir</button>'+
             '<button onclick="try{localStorage.setItem(\'M5_REPORT_PLUS_TARD\',\''+auj+'\')}catch(e){};M5_verifierExercice()" style="padding:10px 12px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:700">Plus tard</button></div>';
           el.style.display='block';return;}}}catch(e){}
     if(!c.hoursBase||!last||auj<=last||localStorage.getItem('M5_EXO_PLUS_TARD')===auj){el.style.display='none';return;}
