@@ -725,9 +725,7 @@ function switchYear(y){
   DATA = ALL_DATA[currentYear];
   // 26/09/2026 : une année passée s'ouvre sur décembre (sa dernière période)
   // 27/09/2026 : une année future s'ouvre sur janvier (sa première période)
-  const _ya=new Date().getFullYear();
-  const m = Number(currentYear)<_ya ? "12" : Number(currentYear)>_ya ? "01" : String(new Date().getMonth()+1).padStart(2,"0");
-  monthPicker.value = currentYear + "-" + m;
+  monthPicker.value = m2MoisOuverture(currentYear); // exercice passé : dernier mois ; à venir : premier
   closeYearsPopup();
   loadMonth();
   toast("📅 Exercice " + currentYear + " chargé","info");
@@ -792,9 +790,34 @@ function kData(y){return`${STORAGE_PREFIX}_DATA_${y}`}
 function kSettings(){return`${STORAGE_PREFIX}_SETTINGS`}
 function kCode(){return`${STORAGE_PREFIX}_CODE_HASH`}
 function kIndex(){return`${STORAGE_PREFIX}_INDEX`}
-function getYearFromMonth(k){return k.split("-")[0]}
+/* 27/09/2026 — PREMIER MOIS DE L'EXERCICE (SETTINGS.exoMois, 1 = janvier par défaut).
+   Le stockage ne change pas : un emplacement par année civile (lu aussi par Fox, M4, le menu).
+   Seul le regroupement change : l'exercice d'octobre 2026 à septembre 2027 s'appelle 2027
+   (année où il a le plus de mois ; égalité → année de début) et ALL_DATA["2027"] réunit ses 12 mois. */
+function m2S(){const v=parseInt((typeof SETTINGS!=="undefined"&&SETTINGS||{}).exoMois,10);return v>=1&&v<=12?v:1}
+function m2ExoDe(mk){const p=String(mk).split("-").map(Number),S=m2S();if(S===1)return String(p[0]);const deb=p[1]>=S?p[0]:p[0]-1;return String(S<=7?deb:deb+1)}
+function m2MoisExo(N){N=parseInt(N,10);const S=m2S(),deb=S<=7?N:N-1,out=[];for(let i=0;i<12;i++){const d=new Date(deb,S-1+i,1);out.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"))}return out}
+function m2MoisAuj(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")}
+function m2MoisOuverture(N){const ms=m2MoisExo(N),t=m2MoisAuj();return ms.indexOf(t)>=0?t:(t<ms[0]?ms[0]:ms[11])}
+function getYearFromMonth(k){return m2ExoDe(k)}
+/* Changement du premier mois : rien n'est déplacé dans le stockage, la liste des exercices
+   est recalculée et l'appli se recharge sur l'exercice d'aujourd'hui. */
+function m2ChangerDebutExercice(nv){
+  nv=Math.min(12,Math.max(1,parseInt(nv,10)||1));
+  const MN=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  const txt=nv===1?"L'exercice suivra l'année civile (janvier → décembre).":"L'exercice ira de "+MN[nv-1]+" à "+MN[(nv+10)%12]+". Il portera le nom de l'année où il a le plus de mois. Tes saisies ne bougent pas : elles sont regroupées autrement (contingent, bilan, reports).";
+  confirmModal(txt+" Continuer ?",function(){
+    SETTINGS.exoMois=nv;localStorage.setItem(kSettings(),JSON.stringify(SETTINGS));
+    const ex={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),m=k&&k.match(new RegExp("^"+STORAGE_PREFIX+"_DATA_(\\d{4})$"));if(!m)continue;
+      let b={};try{b=JSON.parse(localStorage.getItem(k)||"{}")||{}}catch(e){}Object.keys(b).forEach(mk=>{if(/^\d{4}-\d{2}$/.test(mk))ex[m2ExoDe(mk)]=1})}
+    ex[m2ExoDe(m2MoisAuj())]=1;localStorage.setItem(kIndex(),JSON.stringify(Object.keys(ex).sort()));
+    try{localStorage.setItem(ACTIVE_YEAR_KEY,m2ExoDe(m2MoisAuj()));}catch(e){}
+    toast("📅 Exercice mis à jour","success");setTimeout(()=>location.reload(),500);
+  },"Changer",false);
+}
 
 let DATA={},SETTINGS=JSON.parse(localStorage.getItem(kSettings())||"{}"),ALL_DATA={};
+if(m2S()!==1){currentYear=m2ExoDe(m2MoisAuj());try{localStorage.setItem(ACTIVE_YEAR_KEY,currentYear);}catch(e){}}
 let currentKey="",currentDay=null,unlocked=false;
 
 /* SCROLL LOCK */
@@ -971,7 +994,7 @@ function restoreSnapshot(index){const snaps=JSON.parse(localStorage.getItem(SNAP
 
 /* CALENDRIER */
 const closingDate=document.getElementById("closingDate"),monthPicker=document.getElementById("monthPicker"),paidInput=document.getElementById("paidHours");
-monthPicker.value=currentYear+"-"+(String(new Date().getMonth()+1).padStart(2,"0"));
+monthPicker.value=m2MoisOuverture(currentYear);
 monthPicker.onchange=loadMonth;
 paidInput.oninput=()=>{if(!DATA||!DATA[currentKey])return;DATA[currentKey].paid=parseFloat(paidInput.value)||0;save();recalc()};
 
@@ -1009,9 +1032,9 @@ function getPeriodBounds(monthKey){
      fin de semaine du mois), comme le mois précédent s'il n'existe pas : la période de
      janvier commence le lendemain de la clôture automatique de décembre, même si décembre
      n'a jamais été ouvert. Les mois enregistrés gardent leur clôture. */
-  const yd=ALL_DATA[String(y)],cm=(yd&&yd[monthKey])||{};
+  const yd=ALL_DATA[m2ExoDe(monthKey)],cm=(yd&&yd[monthKey])||{};
   const pmd=new Date(y,m-2,1),pk=pmd.getFullYear()+"-"+String(pmd.getMonth()+1).padStart(2,"0");
-  const pyd=ALL_DATA[String(pmd.getFullYear())]||{},pm=pyd[pk];
+  const pyd=ALL_DATA[m2ExoDe(pk)]||{},pm=pyd[pk];
   let pcl=pm&&typeof pm.closing==="number"&&new Date(pmd.getFullYear(),pmd.getMonth(),pm.closing).getDay()===getClosingDow()?pm.closing:getLastClosingDay(pmd.getFullYear(),pmd.getMonth());
   let start=new Date(pmd.getFullYear(),pmd.getMonth(),pcl+1);
   let closing=cm.closing;if(typeof closing!=="number"||new Date(y,m-1,closing).getDay()!==getClosingDow())closing=getLastClosingDay(y,m-1);
@@ -1096,16 +1119,17 @@ function renderCalendar(){
      (après la clôture de décembre) s'affichent avant le 1er et se modifient ici :
      l'année précédente n'est pas accessible par glissement. */
   const _prev=[];
-  if(m===1){const py=String(y-1),pk=py+"-12";if(!ALL_DATA[py]){const l=loadYearData(py);if(l&&Object.keys(l).length)ALL_DATA[py]=l;}
-    for(let d=new Date(start);d<new Date(y,0,1);d.setDate(d.getDate()+1))_prev.push(new Date(d));}
+  const _pmk=(()=>{const d=new Date(y,m-2,1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")})();
+  if(m2MoisExo(getYearFromMonth(currentKey))[0]===currentKey){const py=m2ExoDe(_pmk);if(!ALL_DATA[py]){const l=loadYearData(py);if(l&&Object.keys(l).length)ALL_DATA[py]=l;}
+    for(let d=new Date(start);d<new Date(y,m-1,1);d.setDate(d.getDate()+1))_prev.push(new Date(d));}
   const _lead=firstDay-1,_n=_prev.length,_blank=_n<=_lead?_lead-_n:(7-((_n-_lead)%7))%7;
   for(let i=0;i<_blank;i++)cal.appendChild(document.createElement("div"));
   _prev.forEach(date=>{
-    const py=String(date.getFullYear()),pk=py+"-12",dd=date.getDate(),div=document.createElement("div");
+    const pk=_pmk,py=m2ExoDe(pk),dd=date.getDate(),div=document.createElement("div"),_mc=MOIS_NOMS[date.getMonth()].slice(0,4).toLowerCase();
     div.className="day prev-year";const lk=isDateLocked(date);if(lk)div.classList.add("locked");
     const v=((ALL_DATA[py]||{})[pk]||{days:{}}).days[dd];
-    div.innerHTML=`<b style="font-size:12px">${dd}<span style="font-size:9px;opacity:.75"> déc</span></b><br><span style="color:#fff;font-weight:600;font-size:11px;display:block;line-height:1.2">${v?fmtH(v):""}</span>`;
-    div.title="Fin décembre "+py+" : compté dans la période de janvier";
+    div.innerHTML=`<b style="font-size:12px">${dd}<span style="font-size:9px;opacity:.75"> ${_mc}</span></b><br><span style="color:#fff;font-weight:600;font-size:11px;display:block;line-height:1.2">${v?fmtH(v):""}</span>`;
+    div.title="Fin "+MOIS_NOMS[date.getMonth()].toLowerCase()+" "+date.getFullYear()+" : compté dans la période de "+MOIS_NOMS[m-1].toLowerCase();
     div.onclick=()=>{if(lk){toast("🔒 Période verrouillée","warn");return}openHoursRef(py,pk,dd)};
     cal.appendChild(div);
   });
@@ -2262,8 +2286,15 @@ function updateSaveBadge(){
   if(fileEl){const fs=Number(localStorage.getItem(`${STORAGE_PREFIX}_FILE_SAVE_DATE`));fileEl.textContent=(!fs||isNaN(fs))?"—":new Date(fs).toLocaleString();}
 }
 function registerYear(y){let idx=JSON.parse(localStorage.getItem(kIndex())||"[]");if(!idx.includes(y)){idx.push(y);idx.sort();localStorage.setItem(kIndex(),JSON.stringify(idx))}}
-function loadYearData(y){return JSON.parse(localStorage.getItem(kData(y))||"{}")}
-function saveYearData(y,d){localStorage.setItem(kData(y),JSON.stringify(d))}
+function _m2Brut(y){try{return JSON.parse(localStorage.getItem(kData(y))||"{}")||{}}catch(e){return {}}}
+function _m2AnneesExo(N){const a={};m2MoisExo(N).forEach(k=>{a[k.slice(0,4)]=1});a[String(N)]=1;return Object.keys(a)}
+function loadYearData(y){if(m2S()===1)return JSON.parse(localStorage.getItem(kData(y))||"{}");
+  const N=String(y),r={};_m2AnneesExo(N).forEach(cy=>{const b=_m2Brut(cy);Object.keys(b).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k)){if(m2ExoDe(k)===N)r[k]=b[k]}else if(cy===N)r[k]=b[k]})});return r}
+function saveYearData(y,d){if(m2S()===1){localStorage.setItem(kData(y),JSON.stringify(d));return}
+  const N=String(y);d=d||{};_m2AnneesExo(N).forEach(cy=>{const b=_m2Brut(cy);
+    Object.keys(b).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k)?(m2ExoDe(k)===N&&!(k in d)):(cy===N&&!(k in d)))delete b[k]});
+    Object.keys(d).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k)?k.slice(0,4)===cy:cy===N)b[k]=d[k]});
+    localStorage.setItem(kData(cy),JSON.stringify(b))})}
 
 /* PARAMS € */
 function getDefaultCoefs(){
@@ -2324,7 +2355,7 @@ function exportJSON(){
 function openPdfModal(){
   // Pré-remplir les pickers
   document.getElementById("pdfMonthPicker").value = currentKey;
-  document.getElementById("pdfYearPicker").value  = currentKey.slice(0,4);
+  document.getElementById("pdfYearPicker").value  = getYearFromMonth(currentKey);
   // Pré-remplir période avec la période de paie active
   const {start, end} = getPeriodBounds(currentKey);
   document.getElementById("periodStart").value = toInputDate(start);
@@ -2669,8 +2700,9 @@ function generateAnnualPDF(){
   let annualTotal=0,annualPaid=0,annualH1=0,annualHInter=0,annualH2=0;
   const monthsData=[];
   for(let mi=0;mi<12;mi++){
-    const mk=`${y}-${String(mi+1).padStart(2,"0")}`;
+    const mk=m2MoisExo(y)[mi];
     const {start,end}=getPeriodBounds(mk);
+    if(!ALL_DATA[yearStr])ALL_DATA[yearStr]=loadYearData(yearStr);
     const md=ALL_DATA[yearStr]?.[mk]||{days:{},paid:0,carry:0};
     const allDays=buildDayList(start,end);
     const total=allDays.reduce((s,r)=>s+r.h,0);
@@ -2731,7 +2763,7 @@ function generateAnnualPDF(){
     const periodeStr=`${start.getDate().toString().padStart(2,"0")}/${(start.getMonth()+1).toString().padStart(2,"0")} → ${end.getDate().toString().padStart(2,"0")}/${(end.getMonth()+1).toString().padStart(2,"0")}`;
     pdf.setFontSize(8.5);pdf.setFont(undefined,total>0?"bold":"normal");
     pdf.setTextColor(total>0?0:60,total>0?0:60,total>0?0:60);
-    pdf.text(pdfStr(MOIS_NOMS[mi].slice(0),4)+".",C.MOIS,curY);
+    pdf.text(pdfStr(MOIS_NOMS[parseInt(mk.slice(5,7),10)-1].slice(0),4)+".",C.MOIS,curY);
     pdf.text(pdfStr(periodeStr),C.PERIODE,curY);
     pdf.text(pdfStr(total>0?fmtH(total):"—"),C.TOTAL,curY);
     pdf.text(pdfStr(h25>0?fmtH(h25):"—"),C.H1,curY);
@@ -2785,7 +2817,7 @@ function generateAnnualPDF(){
       if(total===0)return; // Saute les mois vides
       pdfFooter(pdf);pdf.addPage();
       curY=pdfHeader(pdf,
-        `Détail – ${MOIS_NOMS[mi]} ${y}`,
+        `Détail – ${MOIS_NOMS[parseInt(mk.slice(5,7),10)-1]} ${mk.slice(0,4)}`,
         `Période : ${formatDate(start)} → ${formatDate(end)}`
       );
       curY=pdfDayTable(pdf,curY,allDays,true,true);
@@ -2804,7 +2836,7 @@ function setPeriodShortcut(type){
   if(type==="month"){start=new Date(y,m,1);end=new Date(y,m+1,0);}
   else if(type==="prevmonth"){start=new Date(y,m-1,1);end=new Date(y,m,0);}
   else if(type==="quarter"){const q=Math.floor(m/3);start=new Date(y,q*3,1);end=new Date(y,q*3+3,0);}
-  else if(type==="year"){start=new Date(y,0,1);end=new Date(y,12,0);}
+  else if(type==="year"){if(m2S()===1){start=new Date(y,0,1);end=new Date(y,12,0);}else{const ms=m2MoisExo(getYearFromMonth(currentKey)),a=ms[0].split("-").map(Number),b=ms[11].split("-").map(Number);start=new Date(a[0],a[1]-1,1);end=new Date(b[0],b[1],0);}}
   else if(type==="payperiod"){const b=getPeriodBounds(currentKey);start=b.start;end=b.end;}
   document.getElementById("periodStart").value=toInputDate(start);
   document.getElementById("periodEnd").value=toInputDate(end);
@@ -2884,7 +2916,7 @@ function confirmModal(msg,onOk,okLabel="Confirmer",danger=false){
       const[y,m]=monthPicker.value.split("-").map(Number);
       const d=new Date(y,m-1+(dx<0?1:-1),1);
       // Rester dans l'exercice actif
-      if(String(d.getFullYear())===String(currentYear)){
+      if(m2ExoDe(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"))===String(currentYear)){
         monthPicker.value=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
         loadMonth();
       } else {
@@ -2930,7 +2962,7 @@ function showSaveFeedback(dayNum,prevYear){
 function m2ContingentAnnee(y){
   let total=0;
   for(let mi=1;mi<=12;mi++){
-    const b=getPeriodBounds(y+"-"+String(mi).padStart(2,"0"));
+    const b=getPeriodBounds(m2MoisExo(y)[mi-1]);
     buildDayList(b.start,b.end).forEach(r=>{total+=r.h||0;});
   }
   return Math.round(total*100)/100;
@@ -2991,10 +3023,9 @@ function resetCurrentYear(){
       saveYearData(currentYear,{});
       ALL_DATA[currentYear]={};
       DATA={};
-      localStorage.removeItem(kData(currentYear));
+      if(m2S()===1)localStorage.removeItem(kData(currentYear));
       // Forcer la réinitialisation propre du mois
-      const m=String(new Date().getMonth()+1).padStart(2,"0");
-      monthPicker.value=currentYear+"-"+m;
+      monthPicker.value=m2MoisOuverture(currentYear);
       loadMonth();
       toast("Exercice "+currentYear+" reinitialise","success");
     },
@@ -3058,19 +3089,24 @@ function openClosuresModal(){
   const grid=document.getElementById("closuresGrid");
   grid.innerHTML="";
   const year=getYearFromMonth(currentKey);
-  const y=parseInt(year);
+  {const old=document.getElementById("clsExoBox");if(old)old.remove();
+   const row=document.createElement("div");row.id="clsExoBox";row.style.cssText="display:block;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:12px;margin-bottom:12px";
+   row.innerHTML='<label style="display:block;font-weight:700;margin-bottom:6px">Premier mois de l\'exercice</label><select id="clsExoMois" style="width:100%">'+MOIS_NOMS.map((n,i)=>'<option value="'+(i+1)+'"'+(i+1===m2S()?' selected':'')+'>'+n+(i===0?' (année civile)':'')+'</option>').join('')+'</select>'
+     +'<div style="font-size:11.5px;opacity:.8;margin-top:6px;line-height:1.35">Par défaut le contingent se compte sur l\'année civile ; un accord collectif peut prévoir une autre période de 12 mois. L\'exercice porte le nom de l\'année où il a le plus de mois (octobre 2026 → septembre 2027 = 2027). Tes saisies ne bougent pas.</div>';
+   grid.parentNode.insertBefore(row,grid);}
   for(let m=0;m<12;m++){
-    const mk=`${y}-${String(m+1).padStart(2,"0")}`;
+    const _mk=m2MoisExo(year)[m],y=parseInt(_mk),mm=parseInt(_mk.slice(5,7),10)-1;
+    const mk=_mk;
     if(!ALL_DATA[year]) ALL_DATA[year]={};
-    if(!ALL_DATA[year][mk]) ALL_DATA[year][mk]={days:{},paid:0,carry:0,closing:getLastClosingDay(y,m),locked:false};
+    if(!ALL_DATA[year][mk]) ALL_DATA[year][mk]={days:{},paid:0,carry:0,closing:getLastClosingDay(y,mm),locked:false};
     const closing=ALL_DATA[year][mk].closing;
     const row=document.createElement("div"); row.className="closure-row";
-    const lbl=document.createElement("label"); lbl.textContent=MOIS_NOMS[m]+" "+y;
+    const lbl=document.createElement("label"); lbl.textContent=MOIS_NOMS[mm]+" "+y;
     const inp=document.createElement("input"); inp.type="date"; inp.id="cls_"+m;
-    if(closing){inp.value=`${y}-${String(m+1).padStart(2,"0")}-${String(closing).padStart(2,"0")}`;}
-    inp.min=`${y}-${String(m+1).padStart(2,"0")}-01`;
-    const lastDay=new Date(y,m+1,0).getDate();
-    inp.max=`${y}-${String(m+1).padStart(2,"0")}-${lastDay}`;
+    if(closing){inp.value=`${y}-${String(mm+1).padStart(2,"0")}-${String(closing).padStart(2,"0")}`;}
+    inp.min=`${y}-${String(mm+1).padStart(2,"0")}-01`;
+    const lastDay=new Date(y,mm+1,0).getDate();
+    inp.max=`${y}-${String(mm+1).padStart(2,"0")}-${lastDay}`;
     inp.onchange=()=>{if(!inp.value) return;const sel=new Date(inp.value+"T12:00:00");if(sel.getDay()!==getClosingDow()){ toast("⛔ Doit être un "+getClosingDayLabel(),"error"); inp.value=""; return; }};
     row.appendChild(lbl); row.appendChild(inp); grid.appendChild(row);
   }
@@ -3080,18 +3116,19 @@ function openClosuresModal(){
 
 function saveAllClosures(){
   const year=getYearFromMonth(currentKey);
-  const y=parseInt(year);
   let changed=0;
   for(let m=0;m<12;m++){
-    const mk=`${y}-${String(m+1).padStart(2,"0")}`;
+    const mk=m2MoisExo(year)[m],y=parseInt(mk),mm=parseInt(mk.slice(5,7),10)-1;
     const inp=document.getElementById("cls_"+m);
     if(!inp) continue;
     if(!ALL_DATA[year]) ALL_DATA[year]={};
-    if(!ALL_DATA[year][mk]) ALL_DATA[year][mk]={days:{},paid:0,carry:0,closing:getLastClosingDay(y,m),locked:false};
+    if(!ALL_DATA[year][mk]) ALL_DATA[year][mk]={days:{},paid:0,carry:0,closing:getLastClosingDay(y,mm),locked:false};
     if(inp.value){const sel=new Date(inp.value+"T12:00:00");if(sel.getDay()===getClosingDow()){ALL_DATA[year][mk].closing=sel.getDate();changed++;}}
-    else{ALL_DATA[year][mk].closing=getLastClosingDay(y,m);changed++;}
+    else{ALL_DATA[year][mk].closing=getLastClosingDay(y,mm);changed++;}
   }
   save();
+  {const sel=document.getElementById("clsExoMois"),nv=sel?parseInt(sel.value,10):m2S();
+   if(nv!==m2S()){closeClosuresModal();m2ChangerDebutExercice(nv);return;}}
   closeClosuresModal();
   syncClosingDate();
   renderCalendar();
@@ -3206,8 +3243,8 @@ function closeTip(){
   function go(){try{
     var w=document.getElementById('wizardModal');if(w&&w.classList.contains('open'))return;
     var d=new Date(),k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    /* 26/09/2026 : saisie rapide = toujours l'année et le mois d'aujourd'hui */
-    try{var y=String(d.getFullYear());if(String(currentYear)!==y&&getExistingYears().map(String).indexOf(y)>=0)switchYear(y);}catch(e){}
+    /* 26/09/2026 : saisie rapide = toujours l'exercice et le mois d'aujourd'hui */
+    try{var y=m2ExoDe(k);if(String(currentYear)!==y&&getExistingYears().map(String).indexOf(y)>=0)switchYear(y);}catch(e){}
     if(monthPicker.value!==k){monthPicker.value=k;loadMonth();}
     if(isDateLocked(d)){toast('🔒 Période verrouillée','warn');return;}
     openHours(d.getDate());}catch(e){}}
@@ -3231,9 +3268,9 @@ function closeTip(){
      décembre (plus au 1er janvier). Les jours saisis fin décembre restent rangés
      en décembre : la période de janvier les lit déjà (toutes années). */
   function finDecembre(an){
-    an=parseInt(an,10);var mk=an+'-12',m=(ALL_DATA[String(an)]||{})[mk];
-    var cl=(m&&typeof m.closing==='number'&&new Date(an,11,m.closing).getDay()===getClosingDow())?m.closing:getLastClosingDay(an,11);
-    return iso(new Date(an,11,cl));
+    an=parseInt(an,10);var mk=m2MoisExo(an)[11],ya=parseInt(mk,10),mo=parseInt(mk.slice(5,7),10)-1,m=(ALL_DATA[String(an)]||{})[mk];
+    var cl=(m&&typeof m.closing==='number'&&new Date(ya,mo,m.closing).getDay()===getClosingDow())?m.closing:getLastClosingDay(ya,mo);
+    return iso(new Date(ya,mo,cl));
   }
   function frD(s){return new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});}
   window.m2OuvrirNouvelleAnnee=function(){
@@ -3241,7 +3278,7 @@ function closeTip(){
     try{ registerYear(y); if(Object.keys(loadYearData(y)||{}).length===0) saveYearData(y,{}); }catch(e){}
     switchYear(y);
     // En décembre, on se place sur la période de janvier (celle qui a commencé)
-    try{ if(new Date().getFullYear()<parseInt(y,10)){ monthPicker.value=y+'-01'; loadMonth(); } }catch(e){}
+    try{ var p1=m2MoisExo(y)[0]; if(m2MoisAuj()<p1){ monthPicker.value=p1; loadMonth(); } }catch(e){}
     try{ localStorage.setItem('M2_NOUVELLE_ANNEE_VU',y); }catch(e){}
     if(window.hsBackupNudge) hsBackupNudge('year');
     verifier();
@@ -3251,7 +3288,7 @@ function closeTip(){
     try{
       var r=getCCNRules(),tot=0,paid=0,h1=0,hI=0,h2=0,mois=0,carry=0;
       for(var mi=0;mi<12;mi++){
-        var mk=yearStr+'-'+String(mi+1).padStart(2,'0'),b=getPeriodBounds(mk);
+        var mk=m2MoisExo(yearStr)[mi],b=getPeriodBounds(mk);
         var md=(ALL_DATA[yearStr]||{})[mk]||{days:{},paid:0,carry:0};
         var days=buildDayList(b.start,b.end),t=days.reduce(function(s,x){return s+x.h;},0),w=calcWeeks(days);
         tot+=t;paid+=(md.paid||0);h1+=w.h25;hI+=(w.hInter||0);h2+=w.h50;if(t>0)mois++;carry=md.carry||0;
@@ -3344,7 +3381,7 @@ function closeTip(){
   window.m2VuNouvelleAnnee=function(){try{localStorage.setItem('M2_NOUVELLE_ANNEE_VU',String(new Date().getFullYear()));}catch(e){}verifier();};
   function verifier(){
     var el=document.getElementById('m2NouvelleAnnee');if(!el)return;
-    var now=new Date(),y=now.getFullYear(),cur=parseInt(currentYear,10);
+    var now=new Date(),y=parseInt(m2ExoDe(m2MoisAuj()),10),cur=parseInt(currentYear,10);
     var choisie=!!localStorage.getItem(ACTIVE_YEAR_KEY);
     var finD=finDecembre(cur),nx=cur+1;
     if(iso(now)>finD){
@@ -3364,7 +3401,7 @@ function closeTip(){
     }
     var prec=String(y-1),aDesDonnees=false;
     try{aDesDonnees=Object.keys(loadYearData(prec)||{}).length>0;}catch(e){}
-    if(cur===y&&!choisie&&now.getMonth()===0&&aDesDonnees&&localStorage.getItem('M2_NOUVELLE_ANNEE_VU')!==String(y)){
+    if(cur===y&&!choisie&&m2MoisAuj()===m2MoisExo(y)[0]&&aDesDonnees&&localStorage.getItem('M2_NOUVELLE_ANNEE_VU')!==String(y)){
       el.innerHTML='🎉 <b>Nouvelle année : ton suivi est passé en '+y+'.</b> Le contingent annuel repart à zéro. Tes heures de '+prec+' restent consultables avec le bouton 📅 Exercice.'+
         '<div style="display:flex;gap:8px;margin-top:10px">'+bouton('C\'est noté','m2VuNouvelleAnnee()',true)+(m2BilanLignes(prec)?bouton('📊 Mon bilan '+prec,'m2VoirBilan(\''+prec+'\')',false):'')+'</div>';
       el.style.display='block';
@@ -3376,10 +3413,10 @@ function closeTip(){
   window.m2VerifierAnnee=verifier;
   // Entre la clôture de décembre et le 31/12 : si l'année suivante est déjà ouverte, on y va
   function anneeEnCours(){try{
-    var t=new Date(),y=t.getFullYear(),nx=String(y+1);
+    var t=new Date(),y=parseInt(m2ExoDe(m2MoisAuj()),10),nx=String(y+1);
     if(String(currentYear)===String(y)&&iso(t)>finDecembre(y)&&Object.keys(loadYearData(nx)||{}).length){
       registerYear(nx);localStorage.setItem(ACTIVE_YEAR_KEY,nx);currentYear=nx;ALL_DATA[nx]=loadYearData(nx);DATA=ALL_DATA[nx];
-      monthPicker.value=nx+'-01';loadMonth();}
+      monthPicker.value=m2MoisExo(nx)[0];loadMonth();}
   }catch(e){}}
   function demarrer(){anneeEnCours();setTimeout(verifier,300);}
   if(document.readyState==='complete')setTimeout(demarrer,200);else window.addEventListener('load',function(){setTimeout(demarrer,200);});
