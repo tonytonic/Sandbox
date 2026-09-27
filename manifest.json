@@ -2,9 +2,9 @@
   "name": "Simulateur Heures Supplémentaires",
   "short_name": "Heures Sup",
   "description": "Outil personnel de suivi des heures supplémentaires. Compteur annuel et simulateur mensuel avec report automatique, estimation € et export PDF/JSON.",
-  "id": "https://simulateurheuressupfrance.pages.dev/menu.html",
-  "start_url": "https://simulateurheuressupfrance.pages.dev/menu.html",
-  "scope": "https://simulateurheuressupfrance.pages.dev/",
+  "id": "./menu.html",
+  "start_url": "./menu.html",
+  "scope": "./",
   "display": "standalone",
   "display_override": [
     "standalone",
@@ -32,17 +32,17 @@
   "protocol_handlers": [
     {
       "protocol": "web+heures",
-      "url": "https://simulateurheuressupfrance.pages.dev/menu.html?type=%s"
+      "url": "./menu.html?type=%s"
     }
   ],
   "note_taking": {
-    "new_note_url": "https://simulateurheuressupfrance.pages.dev/paye/index.html"
+    "new_note_url": "./paye/index.html"
   },
   "edge_side_panel": {
     "preferred_width": 400
   },
   "share_target": {
-    "action": "https://simulateurheuressupfrance.pages.dev/menu.html",
+    "action": "./menu.html",
     "method": "GET",
     "enctype": "application/x-www-form-urlencoded",
     "params": {
@@ -53,7 +53,7 @@
   },
   "file_handlers": [
     {
-      "action": "https://simulateurheuressupfrance.pages.dev/menu.html",
+      "action": "./menu.html",
       "accept": {
         "application/json": [
           ".json"
@@ -102,7 +102,7 @@
     {
       "name": "Compteur annuel",
       "short_name": "Annuel",
-      "url": "https://simulateurheuressupfrance.pages.dev/heures/index.html",
+      "url": "./heures/index.html",
       "icons": [
         {
           "src": "icon-192.png",
@@ -113,7 +113,7 @@
     {
       "name": "Simulateur mensuel",
       "short_name": "Mensuel",
-      "url": "https://simulateurheuressupfrance.pages.dev/paye/index.html",
+      "url": "./paye/index.html",
       "icons": [
         {
           "src": "icon-192.png",
@@ -124,7 +124,7 @@
     {
       "name": "Kitsune — Compagnon légal",
       "short_name": "Kitsune",
-      "url": "https://simulateurheuressupfrance.pages.dev/fox/index.html",
+      "url": "./fox/index.html",
       "icons": [
         {
           "src": "icon-192.png",
@@ -135,7 +135,7 @@
     {
       "name": "DTE — Jumeau biologique",
       "short_name": "DTE",
-      "url": "https://simulateurheuressupfrance.pages.dev/module4/index.html",
+      "url": "./module4/index.html",
       "icons": [
         {
           "src": "icon-192.png",
@@ -146,7 +146,7 @@
     {
       "name": "Temps partiel — Mizuki",
       "short_name": "Temps partiel",
-      "url": "https://simulateurheuressupfrance.pages.dev/module5/index.html",
+      "url": "./module5/index.html",
       "icons": [
         {
           "src": "icon-192.png",
