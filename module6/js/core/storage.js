@@ -173,8 +173,40 @@ const M6_Storage = {
   rangerJours(regime) {
     const re = /^\d{4}-\d{2}-\d{2}$/, wk = /^(\d{4})-W(\d{2})$/;
     const existe = a => !!localStorage.getItem(`${NS}_${regime}_${a}_DATA`) || !!localStorage.getItem(`${NS}_${regime}_${a}_CONTRACT`) || a === this.currentExoYear(regime);
-    const cache = {}, B = a => cache[a] || (cache[a] = global.M6_Periode.bornes(this.getContract(regime, a), a, regime));
+    let cache = {}; const B = a => cache[a] || (cache[a] = global.M6_Periode.bornes(this.getContract(regime, a), a, regime));
     let n = 0;
+    /* Jours qui ne sont dans AUCUN exercice existant (ex. exercice 2025 disparu après un
+       renommage) : l'exercice qui les contient est recréé, avec des dates calées sur ses
+       voisins, puis les jours y sont rangés. */
+    try {
+      const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const plus = (x, k) => { const d = new Date(x + 'T12:00:00'); d.setDate(d.getDate() + k); return iso(d); };
+      const creer = new Set();
+      for (let i = 0; i < localStorage.length; i++) {
+        const m = new RegExp(`^${NS}_${regime}_(\\d{4})_DATA$`).exec(localStorage.key(i) || ''); if (!m) continue;
+        const y = +m[1], t = this._json(localStorage.key(i), null); if (!t || typeof t !== 'object' || Array.isArray(t)) continue;
+        Object.keys(t).forEach(k => {
+          if (!re.test(k) && !wk.test(k)) return;
+          const yk = parseInt(k, 10);
+          if ([y, yk, yk + 1, yk - 1].some(x => existe(x) && global.M6_Periode.inclut(k, B(x)))) return;
+          const a = [yk, yk + 1, yk - 1].find(x => !existe(x) && global.M6_Periode.inclut(k, B(x)));
+          if (a !== undefined) creer.add(a);
+        });
+      }
+      Array.from(creer).sort().forEach(a => {
+        const b = B(a), c = Object.assign({}, this.getContract(regime, a));
+        let d = b.deb, f = b.fin;
+        if (existe(a - 1)) d = plus(B(a - 1).fin, 1);
+        if (existe(a + 1)) f = plus(B(a + 1).deb, -1);
+        if (!(f > d) || global.M6_exoAnnee(d, f) !== a) { d = b.deb; f = b.fin; }
+        const civ = d === a + '-01-01' && f === a + '-12-31';
+        c.dateDebutExercice = civ ? null : d; c.dateFinExercice = civ ? null : f;
+        localStorage.setItem(`${NS}_${regime}_${a}_CONTRACT`, JSON.stringify(c));
+        if (!localStorage.getItem(`${NS}_${regime}_${a}_DATA`)) localStorage.setItem(`${NS}_${regime}_${a}_DATA`, '{}');
+        this._log(regime, a, 'SYSTEM', `Exercice ${a} recréé (${d} → ${f}) pour ranger des jours saisis`);
+        cache = {};
+      });
+    } catch (_) {}
     ['DATA', 'MOODS', 'DEPLACEMENT'].forEach(suf => {
       const annees = [];
       for (let i = 0; i < localStorage.length; i++) { const m = new RegExp(`^${NS}_${regime}_(\\d{4})_${suf}$`).exec(localStorage.key(i) || ''); if (m) annees.push(+m[1]); }
@@ -631,12 +663,13 @@ global.M6_PhaseAlert = M6_PhaseAlert;
   } catch (_) { /* best-effort */ }
 })();
 
-/* Migration unique (27/09/2026, M6_EXO_ALIGN_V3) : exercices voisins recalés sur l'exercice
-   en cours (plus de chevauchement ni de trou), puis chaque jour rangé dans l'exercice qui le
-   contient (décembre d'un exercice à cheval enfin compté). */
+/* Migration unique (27/09/2026, M6_EXO_ALIGN_V4 ; V3 ne recalait que les voisins directs et
+   ne recréait pas un exercice disparu) : tous les exercices recalés de proche en proche à
+   partir de l'exercice en cours (plus de chevauchement ni de trou), puis chaque jour rangé
+   dans l'exercice qui le contient, en recréant au besoin un exercice passé disparu. */
 (function alignerExercices() {
   try {
-    if (localStorage.getItem('M6_EXO_ALIGN_V3') || !global.M6_Periode) return;
+    if (localStorage.getItem('M6_EXO_ALIGN_V4') || !global.M6_Periode) return;
     const regimes = new Set();
     for (let i = 0; i < localStorage.length; i++) { const m = /^M6_(.+)_CONTRACT$/.exec(localStorage.key(i) || ''); if (m && !/_\d{4}$/.test(m[1])) regimes.add(m[1]); }
     regimes.forEach(r => {
@@ -644,10 +677,15 @@ global.M6_PhaseAlert = M6_PhaseAlert;
         const g = M6_Storage.getContractGlobal(r) || {}, C = M6_Storage.currentExoYear(r);
         const sn = M6_Storage.hasYearContract(r, C) ? M6_Storage.getContract(r, C) : g;
         M6_Storage.aligner(r, C, sn.dateDebutExercice, sn.dateFinExercice);
+        const ys = []; for (let i = 0; i < localStorage.length; i++) { const m = new RegExp('^M6_' + r + '_(\\d{4})_(CONTRACT|DATA)$').exec(localStorage.key(i) || ''); if (m) ys.push(+m[1]); }
+        const haut = Math.max(C, ...ys), bas = Math.min(C, ...ys);
+        const al = y => { const b = M6_Periode.bornes(M6_Storage.getContract(r, y), y, r); M6_Storage.aligner(r, y, b.deb, b.fin); };
+        for (let y = C + 1; y < haut; y++) al(y);
+        for (let y = C - 1; y > bas; y--) al(y);
         M6_Storage.rangerJours(r);
       } catch (_) {}
     });
-    localStorage.setItem('M6_EXO_ALIGN_V3', new Date().toISOString().slice(0, 10));
+    localStorage.setItem('M6_EXO_ALIGN_V4', new Date().toISOString().slice(0, 10));
   } catch (_) { /* best-effort */ }
 })();
 

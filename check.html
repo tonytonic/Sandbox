@@ -301,6 +301,7 @@ function dataChecks(){
   if(!reg)add(S6,'info','Pas encore configuré','');
   else{
     add(S6,localStorage.getItem('M6_EXO_CONTRATS_V1')?'ok':'warn','Réglages par exercice',localStorage.getItem('M6_EXO_CONTRATS_V1')?'En place depuis le '+localStorage.getItem('M6_EXO_CONTRATS_V1'):'Pas encore : ouvre Zenji une fois.');
+    add(S6,localStorage.getItem('M6_EXO_ALIGN_V4')?'ok':'warn','Exercices recalés et jours rangés',localStorage.getItem('M6_EXO_ALIGN_V4')?'Fait le '+localStorage.getItem('M6_EXO_ALIGN_V4'):'Pas encore : ouvre Zenji une fois.');
     add(S6,localStorage.getItem('M6_MIGR_EXO_V1')?'ok':'warn','Migration des exercices',localStorage.getItem('M6_MIGR_EXO_V1')?'Faite le '+localStorage.getItem('M6_MIGR_EXO_V1'):'Pas encore faite : ouvre Zenji une fois.');
     ['forfait_jours','forfait_heures','cadre_dirigeant'].forEach(function(r){var c=jget('M6_'+r+'_CONTRACT');if(c===undefined){add(S6,'ko',r+' : contrat illisible','');return;}if(!c)return;
       var deb=c.dateDebutExercice,fin=c.dateFinExercice,re=/^\d{4}-\d{2}-\d{2}$/,dat=re.test(deb||'')&&re.test(fin||'');
@@ -318,7 +319,7 @@ function dataChecks(){
           if(!re.test(dk))return;tot++;if(dk<bb[0]||dk>bb[1]){mal++;mY++;}});
         det.push(y+' : '+bb[0]+' → '+bb[1]+(jget('M6_'+r+'_'+y+'_CONTRACT')?' (réglages propres)':'')+(mY?' · '+mY+' hors exercice':''));});
       var aj=iso(new Date()),perime=dat&&fin<aj;
-      add(S6,mal?'warn':(r===reg?'ok':'info'),r.replace('_',' ')+(r===reg?' (régime actif)':''),(dat?'exercice '+deb+' → '+fin:'année civile')+' · '+tot+' saisies · années '+(yrs.sort().join(', ')||'aucune')+(det.length?'\n'+det.join('\n'):'')+(mal?'\n'+mal+' saisie(s) hors de leur exercice : vérifie les dates de ces exercices (⚙️ Contrat, bouton Réinitialiser pour revenir à l\'année civile).':'')+(perime?'\nExercice terminé : le bandeau « nouvel exercice » doit s\'afficher dans Zenji.':''));});
+      add(S6,mal?'warn':(r===reg?'ok':'info'),r.replace('_',' ')+(r===reg?' (régime actif)':''),(dat?'exercice '+deb+' → '+fin:'année civile')+' · '+tot+' saisies · années '+(yrs.sort().join(', ')||'aucune')+(det.length?'\n'+det.join('\n'):'')+(mal?'\n'+mal+' saisie(s) hors de leur exercice : ouvre Zenji une fois (elles sont rangées automatiquement) ; sinon vérifie les dates de ces exercices (⚙️ Contrat, bouton « ↺ Effacer les dates » pour revenir à l\'année civile).':'')+(perime?'\nExercice terminé : le bandeau « nouvel exercice » doit s\'afficher dans Zenji.':''));});
   }
   // Taiko, Fox, frais
   var tk=jget('TAIKO_V1');add('Autres modules',tk===undefined?'ko':'ok','Taiko',tk===undefined?'Données illisibles':tk?'données présentes':'pas encore utilisé');
