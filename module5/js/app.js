@@ -1717,9 +1717,15 @@ function updatePDFPreview() {
   }
   const weeks=filterWeeksByPeriode(allWeeks, periode, year);
   if(info) info.textContent=`${weeks.length} semaine(s) dans la période sélectionnée`;
-  { const bc=document.getElementById('pdf-commun-btn'), multi=window.M5_Contrats&&M5_Contrats.existing().length>1;
-    if(bc){ bc.style.display=multi?'block':'none'; if(multi) bc.textContent='📑 PDF commun — mes '+M5_Contrats.existing().length+' contrats'; }
-    const bp=document.getElementById('pdf-contrat-lbl'); if(bp) bp.textContent=multi?'📄 PDF de « '+M5_Contrats.nom(M5_Contrats.active)+' »':'📄 Générer le PDF'; }
+  { const multi=window.M5_Contrats&&M5_Contrats.existing().length>1, box=document.getElementById('pdf-contrat-box'), sel=document.getElementById('pdf-contrat-sel');
+    const bc=document.getElementById('pdf-commun-btn'); if(bc) bc.style.display='none';
+    if(box) box.style.display=multi?'block':'none';
+    if(sel&&multi&&!sel.options.length){
+      M5_Contrats.existing().forEach(n=>{const o=document.createElement('option');o.value=String(n);o.textContent='📄 '+M5_Contrats.nom(n)+(n===M5_Contrats.active?' (affiché)':'');sel.appendChild(o);});
+      const o=document.createElement('option');o.value='tous';o.textContent='📑 Tous mes contrats (PDF commun)';sel.appendChild(o);
+      sel.value=String(M5_Contrats.active);
+    }
+    const bp=document.getElementById('pdf-contrat-lbl'); if(bp) bp.textContent='📄 Générer le PDF'; }
 }
 
 function filterWeeksByPeriode(allWeeks, periode, year) {
@@ -1744,6 +1750,44 @@ function filterWeeksByPeriode(allWeeks, periode, year) {
   return allWeeks; // ANNUEL
 }
 
+/* 27/09/2026 : PDF d'un contrat choisi dans la fenêtre (sans changer de contrat affiché) */
+function _m5StatsSemaines(c,weeks){
+  const base=c.hoursBase||0,thr=base*(c.threshold||0.10);let t=0,tc=0,t1=0,t2=0,wc=0,mx=0;
+  weeks.forEach(w=>{const h=w.worked||0;t+=h;if(h>mx)mx=h;const d=Math.max(0,h-base);if(d>0){wc++;tc+=d;t1+=Math.min(d,thr);t2+=Math.max(0,d-thr);}});
+  const n=weeks.length||1,r=x=>Math.round(x*100)/100;
+  return {totalWeeks:weeks.length,weeksWithComp:wc,pctOverContract:Math.round(wc/n*100),totalComp:r(tc),totalComp1:r(t1),totalComp2:r(t2),avgWorked:r(t/n),maxWorked:r(mx),totalWorked:r(t)};
+}
+function launchPDFContrat(n){
+  try{
+    n=parseInt(n,10);
+    if(!window.M5_Contrats||n===M5_Contrats.active){launchPDF();return;}
+    let c={};try{c=JSON.parse(localStorage.getItem(M5_Contrats.keyFor(n,'M5_CONTRACT'))||'{}')||{};}catch(e){}
+    if(!c.hoursBase){toast('Ce contrat n\'est pas configuré','error');return;}
+    try{if(c.idcc>0&&window.CCN_PARTIEL_API)c.cap=CCN_PARTIEL_API.getRules(c.idcc).cap||c.cap;}catch(e){}
+    const year=M5_DataStore.getYear(),y0=parseInt(year,10),periode=document.getElementById('pdf-periode')?.value||'ANNUEL';
+    const cum=M5_Contrats.semainesCumul([String(y0-1),String(y0),String(y0+1)],M5_Contract.get().weekStartDay||0)
+      .filter(w=>w.parContrat[n]>0).map(w=>({monday:w.monday,worked:w.parContrat[n]}));
+    const weeks=filterWeeksByPeriode(periode==='ANNUEL'?cum.filter(w=>String(w.monday).slice(0,4)===String(year)):cum,periode,year);
+    const stats=_m5StatsSemaines(c,weeks);
+    const periodeLabel=periode==='MENSUEL'?['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][parseInt(document.getElementById('pdf-mois')?.value||'1')-1]+' '+year
+      :periode==='CUSTOM'?(document.getElementById('pdf-date-debut')?.value||'')+' → '+(document.getElementById('pdf-date-fin')?.value||'')
+      :periode==='PAIE'?'Période de paie : '+((()=>{const s2=document.getElementById('pdf-paie-select');return (s2&&s2.options[s2.selectedIndex]&&s2.options[s2.selectedIndex].textContent)||'';})()):String(year);
+    const pay=_m5PayePeriode(c,weeks,M5_Contrats.keyFor(n,'M5_HC_PAID'));
+    const userName=(localStorage.getItem('M5_USER_NAME')||localStorage.getItem('SH_PRENOM')||'');
+    const cw={...c,userName,periodeLabel,periodeMode:periode,nomContrat:M5_Contrats.nom(n),pay};
+    closeModal('modal-pdf');
+    setTimeout(()=>M5_PdfReport.generate(cw,stats,weeks,null),200);
+  }catch(e){toast('Erreur PDF : '+e.message,'error');console.error(e);}
+}
+window.launchPDFContrat=launchPDFContrat;
+function launchPDFChoisi(){
+  const v=document.getElementById('pdf-contrat-sel')?.value||'';
+  if(v==='tous')return launchPDFCommun();
+  if(v)return launchPDFContrat(v);
+  launchPDF();
+}
+window.launchPDFChoisi=launchPDFChoisi;
+
 function launchPDF() {
   try {
     const contract=M5_Contract.get();
@@ -1762,7 +1806,10 @@ function launchPDF() {
         ? 'Période de paie : '+(()=>{const s2=document.getElementById('pdf-paie-select');return (s2&&s2.options[s2.selectedIndex]&&s2.options[s2.selectedIndex].textContent)||'';})()
         : String(year);
     const nomContrat=(window.M5_Contrats&&M5_Contrats.existing().length>1)?M5_Contrats.nom(M5_Contrats.active):'';
-    const pay=_m5PayePeriode(contract, weeks.map(w=>({monday:w.monday,worked:w.worked||0})), M5_key('M5_HC_PAID'));
+    let pay=_m5PayePeriode(contract, weeks.map(w=>({monday:w.monday,worked:w.worked||0})), M5_key('M5_HC_PAID'));
+    // Contrat affiché : même moteur que la carte « Solde » (fériés, périodes de paie)
+    if(weeks.length&&window.M5_hcExercice){const H=M5_hcExercice(contract,weeks[0].monday,weeks[weeks.length-1].monday);
+      pay={du10:H.d10,du25:H.d25,paye10:H.p10,paye25:H.p25,reste10:H.r10,reste25:H.r25};}
     const contractWithName={...contract, userName, periodeLabel, periodeMode:periode, nomContrat, pay};
     closeModal('modal-pdf');
     setTimeout(()=>{
@@ -2063,6 +2110,8 @@ function switchYear(y) {
   toast('Exercice '+y+' activé','success');
   refreshUI();
   updateYearBadge();
+  // 27/09/2026 : le bandeau d'exercice suit l'année affichée
+  if(window.M5_verifierExercice) setTimeout(window.M5_verifierExercice,60);
 }
 
 function createNewYear() {
@@ -2862,6 +2911,41 @@ document.addEventListener('DOMContentLoaded',()=>{
     return out;
   }
 
+  /* 27/09/2026 : heures complémentaires d'un EXERCICE avec le moteur de la carte Solde
+     (fériés, jours travaillés, périodes de paie en mode mensuel). Dues par taux, payées
+     (cases cochées), reste en fin d'exercice (report semaine après semaine, ou période après
+     période). Le bilan de fin d'exercice et le bandeau « reste dû » utilisent ces chiffres. */
+  window.M5_hcExercice=function(c,deb,fin,paidKey){
+    var o={d10:0,d25:0,p10:0,p25:0,r10:0,r25:0,sem:0};
+    try{
+      var pm={};try{pm=JSON.parse(localStorage.getItem(paidKey||M5_key('M5_HC_PAID'))||'{}')||{};}catch(e){}
+      var rp=_repExo(),b10=0,b25=0;
+      if(rp&&rp.to===deb&&rp.choix==='report'){b10=+rp.h10||0;b25=+rp.h25||0;}
+      var all=_allWeeksRaw().filter(function(w){return w.monday>=deb&&w.monday<=fin;}),rate=(c.hourlyRate||c.rate||0);
+      if((c.modeCalcul||'HEBDO')==='MENSUEL'&&typeof buildPeriodes==='function'){
+        var vu={},pers=[];
+        for(var y=parseInt(deb,10);y<=parseInt(fin,10);y++)(buildPeriodes(String(y),c)||[]).forEach(function(p){if(p.debutStr&&p.debutStr>=deb&&p.finStr<=fin&&!vu[p.debutStr]){vu[p.debutStr]=1;pers.push(p);}});
+        pers.sort(function(a,b){return a.debutStr<b.debutStr?-1:1;});
+        var raw=_allWeeksRaw();
+        pers.forEach(function(per){var wks=_weeksInPeriode(raw,per);if(!wks.length)return;o.sem+=wks.length;
+          var nbJ=Math.round((new Date(per.finStr+'T12:00:00')-new Date(per.debutStr+'T12:00:00'))/86400000)+1;
+          var r=CalcEngine.calcMonth(c.hoursBase,wks,c,rate,nbJ),pd=pm['per:'+per.debutStr]||pm[per.debutStr]||{};
+          var pw={h10:0,h25:0};Object.keys(pm).forEach(function(k){if(k.indexOf('week:')===0){var m=k.slice(5);if(m>=per.debutStr&&m<=per.finStr){pw.h10+=+(pm[k].h10)||0;pw.h25+=+(pm[k].h25)||0;}}});
+          var q10=(+pd.h10||0)+pw.h10,q25=(+pd.h25||0)+pw.h25;
+          o.d10+=r.compH1||0;o.d25+=r.compH2||0;o.p10+=q10;o.p25+=q25;
+          b10=Math.max(0,b10+(r.compH1||0)-q10);b25=Math.max(0,b25+(r.compH2||0)-q25);});
+      }else{
+        all.forEach(function(w){var wk=(w.worked!=null?w.worked:(w.hours||0));if(!(wk>0))return;o.sem++;
+          var r=CalcEngine.calcWeek(c.hoursBase,wk,c,rate,_weekOpts(c,w.monday)),pd=pm['week:'+w.monday]||{};
+          o.d10+=r.compH1||0;o.d25+=r.compH2||0;o.p10+=+pd.h10||0;o.p25+=+pd.h25||0;
+          b10=Math.max(0,b10+(r.compH1||0)-(+pd.h10||0));b25=Math.max(0,b25+(r.compH2||0)-(+pd.h25||0));});
+      }
+      o.r10=b10;o.r25=b25;
+      Object.keys(o).forEach(function(k){o[k]=Math.round(o[k]*100)/100;});
+    }catch(e){}
+    return o;
+  };
+
   window._m5UpdateNet=function(){
     var card=document.getElementById('m5-solde-card'); if(!card) return;
     var due10=+card.getAttribute('data-due10')||0, due25=+card.getAttribute('data-due25')||0;
@@ -3320,6 +3404,16 @@ document.addEventListener('DOMContentLoaded',()=>{
       function score(x){return Object.values(x.cloturesDates||{}).filter(function(v){return String(v).slice(0,4)===String(year);}).length;}
       var best=cand[0],bs=score(best);
       cand.forEach(function(x){var sc=score(x);if(sc>bs){best=x;bs=sc;}});
+      /* 27/09/2026 : année APRÈS l'exercice en cours, sans exercice propre → exercice suivant
+         projeté (clôtures préparées, sinon automatiques), au lieu de l'exercice en cours */
+      var lastC=derniere(c);
+      if(bs===0&&lastC&&parseInt(year,10)>parseInt(lastC.slice(0,4),10)&&window.hsNouvelExercice){
+        var pr=null;try{pr=JSON.parse(localStorage.getItem(window.M5_key?M5_key('M5_EXO_PREPA'):'M5_EXO_PREPA')||'null');}catch(e){}
+        var fs=((c.weekStartDay||0)%7),ms=hsNouvelExercice.moisSuivant(lastC),auto=(pr&&Array.isArray(pr.auto)&&pr.auto.length)?pr.auto:hsNouvelExercice.clotures(ms.mois,ms.annee,fs);
+        var cd={};auto.forEach(function(d){cd[String(parseInt(d.slice(5,7),10))]=d;});
+        var st=plus(lastC,1);if(window.snapExerciceStart)st=snapExerciceStart(st,c.weekStartDay||0);
+        return Object.assign({},c,{exerciceStart:st,cloturesDates:cd,_projete:true,_prepare:!!pr});
+      }
       return best===cand[0]?c:Object.assign({},c,{exerciceStart:best.exerciceStart,cloturesDates:best.cloturesDates});
     }catch(e){return c;}
   };
@@ -3358,7 +3452,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     var r=function(x){return Math.round(x*100)/100;};
     var l=[['Heures travaillées',f(r(tot))],['Semaines saisies',String(ws.length)]];
     if(c.modeCalcul==='ANNUEL'){var obj=r(base*52),so=r(tot-obj);l.push(['Objectif annuel du contrat',f(obj)],['Écart avec l\'objectif',(so>0?'+':so<0?'−':'')+f(Math.abs(so))]);}
-    else{l.push(['Heures au-delà du contrat',f(r(hc))],['Dont à +'+Math.round((c.rate1||0.10)*100)+' %',f(r(h1))],['Dont à +'+Math.round((c.rate2||0.25)*100)+' %',f(r(h2))]);}
+    else{var HX=window.M5_hcExercice?M5_hcExercice(c,deb,fin):null;if(HX){h1=HX.d10;h2=HX.d25;hc=h1+h2;}
+      l.push(['Heures complémentaires',f(r(hc))],['Dont à +'+Math.round((c.rate1||0.10)*100)+' %',f(r(h1))],['Dont à +'+Math.round((c.rate2||0.25)*100)+' %',f(r(h2))]);}
     if(n35>0)l.push(['Semaines à 35 h ou plus',String(n35)]);
     /* 26/09/2026 : reste à payer en fin d'exercice. Heures complémentaires de l'exercice
        moins les paiements saisis sur l'exercice (cases « payé » par semaine ou période). */
@@ -3368,15 +3463,18 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(so2>0.01)window.__m5Alerte={titre:'⚠️ '+f(so2)+' au-delà de l\'objectif annuel du contrat',
         texte:'En fin de période annuelle, ces heures sont des heures complémentaires à payer (majorées). Si elles ne figurent pas sur ta paie, '+DELAI_MIN()};
     }else{
-      var pm={};try{pm=JSON.parse(localStorage.getItem(M5_key('M5_HC_PAID'))||'{}')||{};}catch(e){}
-      var p1=0,p2=0;Object.keys(pm).forEach(function(k){var d=k.replace(/^(week|per):/,'');if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d>=deb&&d<=fin){p1+=+((pm[k]||{}).h10)||0;p2+=+((pm[k]||{}).h25)||0;}});
-      var n1=r(Math.max(0,h1-p1)),n2=r(Math.max(0,h2-p2)),nT=r(n1+n2);
+      var HY=window.M5_hcExercice?M5_hcExercice(c,deb,fin):null,p1,p2,n1,n2;
+      if(HY){p1=HY.p10;p2=HY.p25;n1=HY.r10;n2=HY.r25;}
+      else{var pm={};try{pm=JSON.parse(localStorage.getItem(M5_key('M5_HC_PAID'))||'{}')||{};}catch(e){}
+        p1=0;p2=0;Object.keys(pm).forEach(function(k){var d=k.replace(/^(week|per):/,'');if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d>=deb&&d<=fin){p1+=+((pm[k]||{}).h10)||0;p2+=+((pm[k]||{}).h25)||0;}});
+        n1=r(Math.max(0,h1-p1));n2=r(Math.max(0,h2-p2));}
+      var nT=r(n1+n2);
       window.__m5Reste={h10:n1,h25:n2,deb:deb,fin:fin};
       if(p1+p2>0)l.push(['Heures complémentaires payées',f(r(p1+p2))]);
       if(nT>0.01){l.push(['Reste à payer en fin d\'exercice',f(nT)]);
         var det=[];if(n1>0.01)det.push(f(n1)+' à +'+Math.round((c.rate1||0.10)*100)+' %');if(n2>0.01)det.push(f(n2)+' à +'+Math.round((c.rate2||0.25)*100)+' %');
         window.__m5Alerte={titre:'⚠️ Exercice non soldé : '+f(nT)+' d\'heures complémentaires non payées',
-          texte:(det.length>1?'Soit '+det.join(' + ')+'. ':'')+'D\'après les paiements cochés dans Mizuki. '+((window.hsBilanAnnee&&hsBilanAnnee.delai)||'')};
+          texte:(det.length>1?'Soit '+det.join(' + ')+'. ':'')+'Même calcul que la carte « Solde » à la fin de l\'exercice : les heures non payées sont reportées de semaine en semaine (un paiement en trop n\'efface pas les semaines suivantes). '+((window.hsBilanAnnee&&hsBilanAnnee.delai)||'')};
       }
     }
     return l.filter(function(x){return !/^Dont /.test(x[0])||/[1-9]/.test(String(x[1]));});
@@ -3460,13 +3558,18 @@ document.addEventListener('DOMContentLoaded',()=>{
     var c=M5_Contract.get(),last=derniere(c),auj=iso(new Date());
     /* 27/09/2026 : exercice passé consulté (comme le compteur annuel et M2) */
     try{var yv=String(M5_DataStore.getYear()),cp=window.M5_contratPourAnnee?M5_contratPourAnnee(yv,c):c,lp=derniere(cp);
+      if(c.hoursBase&&cp&&cp._projete){
+        el.innerHTML='📅 <b>Exercice à venir : il commencera le '+fr(cp.exerciceStart)+'.</b><br>'+(cp._prepare?'Tes clôtures sont déjà choisies ; il s\'ouvrira le moment venu.':'Clôtures automatiques affichées pour l\'instant ; tu peux les choisir dès maintenant.')+
+          '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+(cp._prepare?'':'<button onclick="M5_preparerSuivant(\''+yv+'\')" style="flex:1;padding:10px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:800">Choisir mes clôtures</button>')+
+          '<button onclick="switchYear(\''+String(new Date().getFullYear())+'\')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#6C3FC5;color:#fff;font-weight:800">Aller à l\'exercice en cours</button></div>';
+        el.style.display='block';return;}
       if(c.hoursBase&&cp!==c&&lp&&lp<(c.exerciceStart||'9999')){
         el.innerHTML='📅 <b>Tu consultes l\'exercice terminé le '+fr(lp)+'.</b><br>Ton exercice en cours a commencé le '+fr(c.exerciceStart)+'.'+
           '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button onclick="M5_voirBilan(\''+yv+'\')" style="flex:1;padding:10px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:800">📊 Bilan de cet exercice</button>'+
           '<button onclick="switchYear(\''+String(new Date().getFullYear())+'\')" style="flex:1;padding:10px;border-radius:10px;border:none;background:#6C3FC5;color:#fff;font-weight:800">Aller à l\'exercice en cours</button></div>';
         el.style.display='block';return;}}catch(e){}
-    /* Reste de l'exercice précédent pas encore traité (passage fait avant cette version) */
-    try{var rp=JSON.parse(localStorage.getItem(kRep())||'null'),h=histo(),prev=null;
+    /* Reste de l'exercice précédent pas encore traité — seulement sur l'exercice en cours */
+    try{if(cp!==c)throw 0;var rp=JSON.parse(localStorage.getItem(kRep())||'null'),h=histo(),prev=null;
       Object.keys(h).forEach(function(k){var x=h[k],l=derniere(x);if(l&&l<(c.exerciceStart||'')&&(!prev||l>derniere(prev)))prev=x;});
       if(c.hoursBase&&prev&&(!rp||rp.to!==c.exerciceStart)&&c.modeCalcul!=='ANNUEL'&&localStorage.getItem('M5_REPORT_PLUS_TARD')!==auj){
         var cprev=Object.assign({},c,{exerciceStart:prev.exerciceStart,cloturesDates:prev.cloturesDates});bilanLignes(cprev,derniere(prev));var rs=window.__m5Reste;
