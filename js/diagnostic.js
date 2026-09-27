@@ -1,9 +1,9 @@
-/* SimulHeures — rapport technique pour « Nous contacter » (01/10/2026)
+/* SimulHeures — rapport de plantage pour « Nous contacter » (01/10/2026)
    hsDiagnostic() → Promise<string> : un texte court que l'utilisateur peut joindre à son mail.
-   Contenu TECHNIQUE uniquement : version, appareil, stockage, état des exercices (dates, nombres
-   de jours saisis), réglages de calcul, migrations, dernières erreurs.
-   Jamais : prénom, e-mail, nom des contrats ou des employeurs, taux horaire, montants, notes,
-   textes saisis, ni aucune adresse de dépôt de code. */
+   Limité au strict nécessaire pour comprendre une erreur : version, appareil et navigateur,
+   état du stockage (taille, données illisibles), migrations faites, dernières erreurs techniques.
+   Rien sur les saisies ni sur le travail de l'utilisateur (ni dates, ni heures, ni convention),
+   ni prénom, e-mail, employeur, taux, montant, ni aucune adresse de dépôt de code. */
 (function(){
   var re=/^\d{4}-\d{2}-\d{2}$/;
   function jget(k){try{var v=localStorage.getItem(k);return v===null?null:JSON.parse(v);}catch(e){return undefined;}}
@@ -31,7 +31,7 @@
   window.hsDiagnostic=async function(){
     var L=[],A=function(s){L.push(s);};
     var st=(navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches))?'appli installée':'navigateur';
-    A('RAPPORT TECHNIQUE — '+new Date().toLocaleString('fr-FR'));
+    A('RAPPORT DE PLANTAGE — '+new Date().toLocaleString('fr-FR'));
     // ── Appli et appareil
     var v=await versionSW(),nbCache='?',attente=false;
     try{if(window.caches){var ks=await caches.keys(),c=ks.filter(function(k){return /^heuressup-cache-v/.test(k);}).sort().pop();
@@ -44,51 +44,6 @@
     A('Stockage : '+Math.round(sz/1024)+' Ko · '+localStorage.length+' clés · '+prot+' · fichiers hors ligne : '+nbCache);
     var bad=[];for(var j=0;j<localStorage.length;j++){var kk=localStorage.key(j),vv=localStorage.getItem(kk)||'';if(/^\s*[\[{]/.test(vv)){try{JSON.parse(vv);}catch(e){bad.push(kk);}}}
     A('Données illisibles : '+(bad.length?bad.join(', '):'aucune'));
-    var lb=(localStorage.getItem('SH_LAST_BACKUP')||'').slice(0,10);
-    A('Dernière sauvegarde : '+(lb?fr(lb):'aucune'));
-    var idcc=localStorage.getItem('CCN_IDCC');A('CCN du menu : '+(jget('CCN_CUSTOM')?'accord personnalisé':idcc?'IDCC '+idcc:'droit commun'));
-
-    // ── Compteur annuel (M1)
-    var ex=cles(/^EXERCISE_START_(\d{4})$/).map(function(m){return m[1];}).sort();
-    if(ex.length){A('');A('[Compteur annuel] exercice ouvert : '+(localStorage.getItem('ACTIVE_YEAR_SUFFIX')||'?'));
-      ex.forEach(function(y){var d=jget('DATA_REPORT_'+y),deb=(localStorage.getItem('EXERCISE_START_'+y)||'').slice(0,10),fin=(localStorage.getItem('ANNUAL_DATE_'+y)||'').slice(0,10),cl=jget('CLOSURES_REPORT_'+y),hors=0;
-        if(d&&typeof d==='object')Object.keys(d).forEach(function(dk){if(re.test(dk)&&re.test(deb)&&re.test(fin)&&(dk<deb||dk>fin))hors++;});
-        A('  '+y+' : '+fr(deb)+' → '+fr(fin)+' · '+nbDates(d)+' jours · '+(Array.isArray(cl)?cl.length:0)+' clôtures'+(hors?' · '+hors+' hors exercice':'')+(localStorage.getItem('AUTO_FERIE_'+y)==='true'?' · fériés auto':'')+(d===undefined?' · ILLISIBLE':''));});}
-
-    // ── Heures mensualisées (M2)
-    var ys=cles(/^CA_HS_TRACKER_V1_DATA_(\d{4})$/).map(function(m){return m[1];}).sort();
-    if(ys.length){var s2=jget('CA_HS_TRACKER_V1_SETTINGS')||{};A('');A('[Heures mensualisées] premier mois de l\'exercice : '+(parseInt(s2.exoMois,10)||1));
-      ys.forEach(function(y){var d=jget('CA_HS_TRACKER_V1_DATA_'+y),mois=0,jours=0;if(d&&typeof d==='object')Object.keys(d).forEach(function(mk){if(/^\d{4}-\d{2}$/.test(mk)){mois++;jours+=Object.keys((d[mk]||{}).days||{}).length;}});
-        var ch=localStorage.getItem('M2_RELIQUAT_CHOIX_'+y),vers=localStorage.getItem('M2_RELIQUAT_VERS_'+y);
-        A('  '+y+' : '+mois+' mois · '+jours+' jours'+(ch?' · reste '+(ch==='report'?'reporté':vers?'reporté dans '+vers:'gardé'):'')+(d===undefined?' · ILLISIBLE':''));});}
-
-    // ── Mizuki (M5) — ni nom de contrat, ni taux, ni montant
-    var nb5=0;[1,2,3].forEach(function(n){var p=n===1?'M5_':'M5_C'+n+'_',c=jget(p+'CONTRACT');if(!c||!(c.hoursBase>0))return;
-      if(!nb5){A('');A('[Mizuki] contrat affiché : '+(localStorage.getItem('M5_ACTIVE_CONTRACT')||'1'));}nb5++;
-      var yrs=cles(new RegExp('^'+p+'DATA_(\\d{4})$')).map(function(m){return m[1];}).sort(),info=[];
-      yrs.forEach(function(y){info.push(y+' : '+nbDates(jget(p+'DATA_'+y))+' saisies');});
-      var cl=Object.values(c.cloturesDates||{}).filter(Boolean).sort(),hist=jget(p+'EXERCICES')||{},rep=jget(p+'REPORT_EXOS')||{};
-      A('  Contrat '+n+' : mode '+(c.modeCalcul||'HEBDO')+' · unité '+((c.dureeContrat&&c.dureeContrat.unite)||'S')+' · '+(c.idcc>0?'IDCC '+c.idcc:'droit commun')+' · plafond '+Math.round((c.cap||0.1)*100)+' %'
-        +' · exercice '+fr(c.exerciceStart)+' → '+fr(cl[cl.length-1])+' · '+Object.keys(hist).length+' exercice(s) passé(s) · '+Object.keys(rep).length+' choix de report');
-      if(info.length)A('    '+info.join(' · '));});
-
-    // ── Zenji (M6)
-    var reg=localStorage.getItem('M6_REGIME');
-    if(reg){A('');A('[Zenji] régime : '+reg);
-      ['forfait_jours','forfait_heures','cadre_dirigeant'].forEach(function(r){var c=jget('M6_'+r+'_CONTRACT');if(!c)return;
-        var yrs=cles(new RegExp('^M6_'+r+'_(\\d{4})_DATA$')).map(function(m){return m[1];}).sort();
-        A('  '+r+' : exercice en cours '+(c.dateDebutExercice?fr(c.dateDebutExercice)+' → '+fr(c.dateFinExercice):'année civile')+' · plafond '+(c.plafond||'—'));
-        yrs.forEach(function(y){var sn=jget('M6_'+r+'_'+y+'_CONTRACT')||{},d=jget('M6_'+r+'_'+y+'_DATA');
-          A('    '+y+' : '+(sn.dateDebutExercice?fr(sn.dateDebutExercice)+' → '+fr(sn.dateFinExercice):'année civile')+' · '+nbDates(d)+' saisies');});});}
-
-    // ── Autres modules (présence seulement)
-    var autres=[];
-    if(cles(/^DTE_/).length)autres.push('M4');
-    if(cles(/^M7_|^MIMIZUKU/i).length)autres.push('M7');
-    if(localStorage.getItem('TAIKO_V1'))autres.push('Taiko');
-    if(cles(/^FOX_|^RPG_/i).length)autres.push('Fox');
-    if(autres.length){A('');A('Autres modules utilisés : '+autres.join(', '));}
-
     // ── Migrations et erreurs
     var mig=['M6_MIGR_EXO_V1','M6_EXO_CONTRATS_V1','M6_EXO_NOM_V2','M6_EXO_ALIGN_V4'].filter(function(k){return localStorage.getItem(k);});
     A('');A('Migrations faites : '+(mig.length?mig.join(', '):'aucune'));
