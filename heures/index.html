@@ -782,6 +782,23 @@ function hsExerciceEnCours(){
     const d=String(localStorage.getItem(k)||'').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<=auj&&d>bestDeb){bestDeb=d;best=m[1];}}
   return best;
 }
+/* 27/09/2026 — un jour appartient à l'exercice qui contient sa date. Avant : saisi depuis un autre
+   exercice (ex. 29/12/2025 tapé dans 2025 qui finit le 28/12), il restait rangé là et n'était compté
+   nulle part. hsBornesExo(y) = [début, fin] ; hsExoDeDate(d) = exercice qui contient d. */
+function hsBornesExo(y){const d=String(localStorage.getItem('EXERCISE_START_'+y)||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(d))return null;
+  let f=String(localStorage.getItem('ANNUAL_DATE_'+y)||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(f)){try{const c=JSON.parse(localStorage.getItem('CLOSURES_REPORT_'+y)||'[]').filter(Boolean).sort();f=c[c.length-1]||'';}catch(e){f='';}}
+  return /^\d{4}-\d{2}-\d{2}$/.test(f)&&f>=d?{deb:d,fin:f}:null;}
+function hsExoDeDate(dk){for(let i=0;i<localStorage.length;i++){const m=/^EXERCISE_START_(\d{4})$/.exec(localStorage.key(i)||'');if(!m)continue;const b=hsBornesExo(m[1]);if(b&&dk>=b.deb&&dk<=b.fin)return m[1];}return null;}
+(function hsRangerJours(){try{
+  const ys=[];for(let i=0;i<localStorage.length;i++){const m=/^DATA_REPORT_(\d{4})$/.exec(localStorage.key(i)||'');if(m)ys.push(m[1]);}
+  const tabs={},mod={};ys.forEach(y=>{try{tabs[y]=JSON.parse(localStorage.getItem('DATA_REPORT_'+y)||'{}')||{};}catch(e){tabs[y]=null;}});
+  ys.forEach(y=>{const b=hsBornesExo(y),t=tabs[y];if(!b||!t)return;
+    Object.keys(t).forEach(dk=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(dk)||(dk>=b.deb&&dk<=b.fin))return;
+      const a=hsExoDeDate(dk);if(!a||a===y)return;if(!tabs[a])tabs[a]=JSON.parse(localStorage.getItem('DATA_REPORT_'+a)||'{}')||{};
+      if(Object.prototype.hasOwnProperty.call(tabs[a],dk))return;   // jamais d'écrasement
+      tabs[a][dk]=t[dk];delete t[dk];mod[a]=1;mod[y]=1;});});
+  Object.keys(mod).forEach(y=>{localStorage.setItem('DATA_REPORT_'+y,JSON.stringify(tabs[y]));localStorage.setItem('REPORTS_REPORT_'+y,'{}');});
+}catch(e){}})();
 (function(){try{const y=hsExerciceEnCours();if(y)localStorage.setItem("ACTIVE_YEAR_SUFFIX",y);
   const remettre=function(){try{const y2=hsExerciceEnCours();if(y2)localStorage.setItem("ACTIVE_YEAR_SUFFIX",y2);}catch(e){}};
   window.addEventListener('pagehide',remettre);
@@ -1269,6 +1286,9 @@ function calculate(){
 function openNotice(){document.getElementById("popupNotice").style.display="flex";}
 function closeNotice(){document.getElementById("popupNotice").style.display="none";}
 function openPopup(date){
+  /* 27/09/2026 : jour d'un autre exercice → on ouvre cet exercice (la saisie y sera rangée) */
+  try{const b=hsBornesExo(currentSuffix);if(b&&(date<b.deb||date>b.fin)){const a=hsExoDeDate(date);
+    if(a&&a!==String(currentSuffix)){confirmModal("Le "+date.split('-').reverse().join('/')+" appartient à l'exercice "+a+".\nL'ouvrir pour saisir ce jour ?",()=>{loadExercise(a);setTimeout(()=>openPopup(date),300);},"Ouvrir "+a);return;}}}catch(e){}
   if(isPeriodLocked(date)){toast("🔒 Période verrouillée","warn");return;}
   selectedDate=date;
   // NE PAS écrire absent automatiquement — le bloc AUTO_FERIE dans calculate() gère les -7h
