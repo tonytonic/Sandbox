@@ -82,7 +82,11 @@
      réel (refreshUI), avec une sécurité à 2,5 s. -->
 <script>(function(){try{var k=window.M5_key?M5_key('M5_CONTRACT'):'M5_CONTRACT',c=JSON.parse(localStorage.getItem(k)||'{}');
 if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente');setTimeout(function(){h.classList.remove('m5-attente');},2500);}}catch(e){}})();</script>
-<style>html.m5-attente #view-no-contract,html.m5-attente #mizuki-bubble-text{visibility:hidden}</style>
+<!-- 27/09/2026 : changement de contrat et ouverture sans flash (Android et iPhone). La page reste
+     invisible (fond seul) jusqu'au premier affichage réel (refreshUI) ; le premier rendu attend la fin
+     de la page (#m5-pret) : plus d'écran sombre intermédiaire pendant le chargement des scripts. -->
+<style>html.m5-attente body{visibility:hidden}</style>
+<link rel="expect" href="#m5-pret" blocking="render">
 </head>
 <body>
 <script>
@@ -1049,7 +1053,7 @@ function confirmResetM5() {
 <script src="../legi-ref.js"></script>
 <script src="js/features/glossaire.js?v=r6"></script>
 <script src="js/features/wellbeing.js?v=r9"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="../js/vendor/jspdf.umd.min.js"></script>
 <script src="js/app.js?v=r16"></script>
 <script src="../js/rappel-sauvegarde.js"></script>
 <script src="../js/bilan-annee.js"></script>
@@ -1072,5 +1076,6 @@ function confirmResetM5() {
   if(document.readyState==='complete')setTimeout(go,400);else window.addEventListener('load',function(){setTimeout(go,400);});
 })();
 </script>
+<div id="m5-pret" hidden></div>
 </body>
 </html>

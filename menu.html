@@ -10,6 +10,12 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>/* iPhone : pas de zoom automatique quand on touche un champ (27/09/2026). Remplace le script du 01/10 qui modifiait le viewport pendant le chargement : iOS recalculait alors la zone de l'encoche et l'en-tête remontait dessous. iOS ne zoome que sur un champ écrit en moins de 16 px ; cette règle ne vise que Safari iOS, et le zoom à deux doigts reste possible. */@supports(-webkit-touch-callout:none){input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select,textarea{font-size:max(16px,1em)!important}}</style>
   <meta name="color-scheme" content="only light">
+  <!-- 27/09/2026 : menu sans flash au retour d'un module (Android). Le premier rendu attend la fin de la
+       page (#menu-pret) : les styles placés plus bas sont lus avant d'afficher quoi que ce soit ; la page
+       reste ensuite invisible jusqu'à la fin de l'initialisation (DOMContentLoaded). Sécurité : 1,5 s. -->
+  <script>document.documentElement.classList.add('sh-boot');setTimeout(function(){document.documentElement.classList.remove('sh-boot');},1500);</script>
+  <style>html.sh-boot body{visibility:hidden}</style>
+  <link rel="expect" href="#menu-pret" blocking="render">
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#4FB3C2">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
@@ -5143,6 +5149,13 @@ function hasConsent(){
 </script>
 <!-- 01/10/2026 : rapport technique pour « Nous contacter » + journal des erreurs -->
 <script src="js/journal-erreurs.js"></script>
+<script>/* 27/09/2026 : fin de l'initialisation du menu → on l'affiche (images visibles décodées, 250 ms max) */
+(function(){function montrer(){var h=document.documentElement;if(!h.classList.contains('sh-boot'))return;
+  var imgs=[].slice.call(document.images).filter(function(i){if(i.complete)return false;var r=i.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight&&r.width>0;});
+  var fini=false,go=function(){if(fini)return;fini=true;h.classList.remove('sh-boot');};
+  if(!imgs.length)return go();setTimeout(go,250);var n=imgs.length;imgs.forEach(function(i){var f=function(){if(--n<=0)go();};i.addEventListener('load',f);i.addEventListener('error',f);});}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',montrer);else montrer();})();</script>
 <script src="js/diagnostic.js"></script>
+<div id="menu-pret" hidden></div>
 </body>
 </html>
