@@ -318,7 +318,7 @@ function recalc(){
   $('rDuree').textContent = moisStr(duree);
   $('rDetail').textContent = LABELS[motif] + ' · ' + cat + ' · ' + anc + ' an' + (anc!==1?'s':'');
   $('rDebut').textContent = 'J+1 notification';
-  $('rRef').textContent = REFS[motif];
+  $('rRef').innerHTML = REFS[motif]; // lien vers l'article (SH.artLien renvoie du HTML) — 27/09/2026
 
   // Comparatif tous motifs
   var cmp = $('cmpList');
