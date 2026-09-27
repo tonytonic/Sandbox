@@ -2370,7 +2370,22 @@ const _skipFirst=_startDay>1;let _i=_skipFirst?1:0,_count=0;while(_count<12&&_i<
   annualRate=Number(document.getElementById("wizHourlyRate").value)||10;localStorage.setItem("ANNUAL_RATE_"+currentSuffix,annualRate);
   AUTO_FERIE=document.getElementById("wizAutoFerie").checked;localStorage.setItem("AUTO_FERIE_"+currentSuffix,AUTO_FERIE);
   if(document.getElementById("wizImportFeries").checked){try{const years=[by-1,by,by+1];for(const y of years){const res=await fetch(`https://calendrier.api.gouv.fr/jours-feries/metropole/${y}.json`);const f=await res.json();Object.keys(f).forEach(d=>{if(!specialDays[d])specialDays[d]="ferie";});}localStorage.setItem(STORAGE.specialDays,JSON.stringify(specialDays));}catch(e){console.warn("Import jours fériés échoué:",e);}}
+  /* 27/09/2026 : un nouvel exercice (sans saisie) prend le nom de l'année où il a le plus de jours,
+     comme les autres modules (octobre 2026 → septembre 2027 = 2027 ; juin → mai = année de début). */
+  try{const fin=annualDate||closures[closures.length-1],L=hsNomExercice(exerciseStart,fin),cur=String(currentSuffix);
+    const vide=!Object.keys(JSON.parse(localStorage.getItem("DATA_REPORT_"+cur)||"{}")).some(k=>/^\d{4}-\d{2}-\d{2}$/.test(k));
+    if(L&&String(L)!==cur&&vide&&!localStorage.getItem("EXERCISE_START_"+L)&&!localStorage.getItem("DATA_REPORT_"+L)){
+      ["DATA_REPORT_","CLOSURES_REPORT_","REPORTS_REPORT_","PERIOD_META_REPORT_","ANNUAL_DATE_","SPECIAL_DAYS_","EXERCISE_START_","BASE_HEBDO_","ANNUAL_RATE_","AUTO_FERIE_","CONFIG_LOCK_","AUTO_SAVE_DATE_"].forEach(function(pf){const v=localStorage.getItem(pf+cur);if(v!==null){localStorage.setItem(pf+L,v);localStorage.removeItem(pf+cur);}});
+      closeWizardModal();loadExercise(String(L));showToast();return;}
+  }catch(e){}
   closeWizardModal();if(typeof buildPeriods==="function")buildPeriods();if(typeof update==="function")update();showToast();
+}
+/* Année où l'exercice a le plus de jours (égalité → année de début) */
+function hsNomExercice(deb,fin){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(deb||"")||!/^\d{4}-\d{2}-\d{2}$/.test(fin||"")||fin<deb)return null;
+  let best=parseInt(deb,10),bj=-1;
+  for(let y=parseInt(deb,10);y<=parseInt(fin,10);y++){const a=Math.max(Date.parse(deb+"T12:00:00"),Date.parse(y+"-01-01T12:00:00")),b=Math.min(Date.parse(fin+"T12:00:00"),Date.parse(y+"-12-31T12:00:00")),j=Math.round((b-a)/864e5)+1;if(j>bj){bj=j;best=y;}}
+  return best;
 }
 function openWizardModal(){wizReset();document.getElementById("wizardModal").style.display="flex";lockBodyScroll();}
 function closeWizardModal(){document.getElementById("wizardModal").style.display="none";unlockBodyScroll();}

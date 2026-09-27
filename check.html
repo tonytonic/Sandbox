@@ -282,6 +282,8 @@ function dataChecks(){
   // M2
   var S2='Heures mensualisées (M2)',ys=[];
   for(var a=0;a<localStorage.length;a++){var k2=localStorage.key(a);var m2=/^CA_HS_TRACKER_V1_DATA_(\d{4})$/.exec(k2);if(m2)ys.push(m2[1]);}
+  try{var _st=JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_SETTINGS')||'{}')||{},_S=parseInt(_st.exoMois,10)||1;
+    add(S2,'info','Premier mois de l\'exercice',_S===1?'Janvier (année civile)':['','','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'][_S]+' — les « années » ci-dessous sont les années civiles de stockage ; l\'appli les regroupe par exercice.');}catch(e){}
   if(!ys.length)add(S2,'info','Pas encore configuré','');
   ys.sort().forEach(function(y){var d=jget('CA_HS_TRACKER_V1_DATA_'+y);if(d===undefined){add(S2,'ko','Année '+y+' illisible','');return;}
     var mois=Object.keys(d||{}).filter(function(x){return /^\d{4}-\d{2}$/.test(x);}),jours=0,paye=0;mois.forEach(function(mk){jours+=Object.keys((d[mk]||{}).days||{}).length;paye+=Number((d[mk]||{}).paid)||0;});
