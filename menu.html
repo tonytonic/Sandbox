@@ -5112,5 +5112,8 @@ function hasConsent(){
   window.hsSavePdf=function(doc,fn,ac){if(isAnd()){try{var b=doc.output('blob');doc.save(fn);window.hsFileSnack(b,fn,{kind:'pdf',accent:ac});}catch(e){try{doc.save(fn);}catch(_){}}}else{doc.save(fn);}};
 })();
 </script>
+<!-- 27/09/2026 : version réellement chargée par le téléphone (cache du service worker) -->
+<div id="shVersion" style="text-align:center;font-size:11px;color:rgba(255,255,255,0.45);padding:14px 0 calc(18px + env(safe-area-inset-bottom,0px));"></div>
+<script>(function(){try{if(!window.caches)return;caches.keys().then(function(k){var v=(k.filter(function(x){return /^heuressup-cache-v/.test(x);}).sort().pop()||'').replace('heuressup-cache-','');var m=(navigator.standalone||window.matchMedia('(display-mode: standalone)').matches)?'appli':'navigateur';var e=document.getElementById('shVersion');if(e&&v)e.textContent='Version '+v+' · '+m;});}catch(e){}})();</script>
 </body>
 </html>
