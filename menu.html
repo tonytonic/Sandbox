@@ -2020,7 +2020,7 @@ var BK_KEY='SH_LAST_BACKUP';
 /* Clés jamais copiées ni restaurées : état technique propre à l'appareil
    (plantage, mode secours de la paye, réglages de test de fox, bandeau
    d'installation iPhone, cache de déploiement, tests de stockage). */
-var BK_SKIP=/^(APP_CRASH_STATE|SH_LAST_BACKUP|SH_LAST_BACKUP_NAME|CA_HS_RECOVERY_MODE|CA_HS_LAST_CRASH|CA_DEBUG|FOX_EMU_MOCK_DATESTR|FOX_BURNOUT_OVERRIDE|FOX_SEASON_OVERRIDE|FOX_SOURCE_OVERRIDE|SH_DEPLOYED_CACHE|ios_banner_dismissed|__test__|test)$/;
+var BK_SKIP=/^(APP_CRASH_STATE|SH_LAST_BACKUP|SH_LAST_BACKUP_NAME|CA_HS_RECOVERY_MODE|CA_HS_LAST_CRASH|CA_DEBUG|FOX_EMU_MOCK_DATESTR|FOX_BURNOUT_OVERRIDE|FOX_SEASON_OVERRIDE|FOX_SOURCE_OVERRIDE|SH_DEPLOYED_CACHE|SH_CHECK_V1|ios_banner_dismissed|__test__|test)$/;
 /* Clés conservées depuis cet appareil (consentement donné ici) */
 var BK_KEEP=/^SH_CONSENT/;
 function bkHash(str){ /* empreinte cyrb53, synchrone (iOS exige le partage dans le geste) */
@@ -5114,6 +5114,8 @@ function hasConsent(){
 </script>
 <!-- 27/09/2026 : version réellement chargée par le téléphone (cache du service worker) -->
 <div id="shVersion" style="text-align:center;font-size:11px;color:rgba(255,255,255,0.45);padding:14px 0 calc(18px + env(safe-area-inset-bottom,0px));"></div>
-<script>(function(){try{if(!window.caches)return;caches.keys().then(function(k){var v=(k.filter(function(x){return /^heuressup-cache-v/.test(x);}).sort().pop()||'').replace('heuressup-cache-','');var m=(navigator.standalone||window.matchMedia('(display-mode: standalone)').matches)?'appli':'navigateur';var e=document.getElementById('shVersion');if(e&&v)e.textContent='Version '+v+' · '+m;});}catch(e){}})();</script>
+<script>(function(){try{if(!window.caches)return;caches.keys().then(function(k){var v=(k.filter(function(x){return /^heuressup-cache-v/.test(x);}).sort().pop()||'').replace('heuressup-cache-','');var m=(navigator.standalone||window.matchMedia('(display-mode: standalone)').matches)?'appli':'navigateur';var e=document.getElementById('shVersion');if(e&&v)e.textContent='Version '+v+' · '+m;});}catch(e){}
+/* Accès caché au module de vérification : 5 appuis rapides sur cette ligne */
+try{var el=document.getElementById('shVersion'),n=0,t=0;el.addEventListener('click',function(){var now=Date.now();n=(now-t<700)?n+1:1;t=now;if(n>=5){n=0;location.href='check.html';}});}catch(e){}})();</script>
 </body>
 </html>

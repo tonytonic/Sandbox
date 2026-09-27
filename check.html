@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1c22">
+<title>Check Sandbox — SimulHeures</title>
+<!-- Module de vérification caché (27/09/2026). Aucun lien dans l'appli : on l'ouvre par
+     5 appuis sur la ligne « Version » en bas du menu, ou à l'adresse …/check.html.
+     Tout reste sur l'appareil (clé SH_CHECK_V1, exclue des copies de sauvegarde). -->
+<style>
+:root{--bg:#0f1c22;--surface:#16262d;--surface2:#1d3139;--ink:#e4eef1;--muted:#93a9b0;--line:#27404a;
+  --accent:#4fc2d3;--ok:#5fd394;--ok-bg:#15332a;--warn:#f0c35a;--warn-bg:#352c14;--ko:#ff8a7a;--ko-bg:#3b1f1c;--info:#9fb7ff;--info-bg:#1c2540;--na:#8c9ea4;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:820px;margin:0 auto;padding:16px 16px 80px}
+header h1{margin:0;font-size:22px;font-weight:800;line-height:1.2}
+header p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-size:12px;font-weight:700;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:4px 10px}
+.chip.ok{color:var(--ok);border-color:var(--ok)}.chip.ko{color:var(--ko);border-color:var(--ko)}.chip.warn{color:var(--warn);border-color:var(--warn)}
+nav.tabs{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:6px;padding:12px 0 10px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+nav.tabs button{flex:1;font:inherit;font-size:13.5px;font-weight:700;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 6px;cursor:pointer}
+nav.tabs button[aria-selected="true"]{color:#06262c;background:var(--accent);border-color:var(--accent)}
+.panel[hidden]{display:none}
+h2{font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--accent);margin:18px 0 8px;font-weight:800}
+.row{display:flex;gap:10px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:6px}
+.badge{flex-shrink:0;font-size:11px;font-weight:800;border-radius:6px;padding:2px 7px;min-width:44px;text-align:center;margin-top:1px}
+.b-ok{background:var(--ok-bg);color:var(--ok)}.b-warn{background:var(--warn-bg);color:var(--warn)}.b-ko{background:var(--ko-bg);color:var(--ko)}.b-info{background:var(--info-bg);color:var(--info)}.b-run{background:var(--surface2);color:var(--muted)}
+.row .l{font-weight:700;font-size:14px}
+.row .d{color:var(--muted);font-size:12.5px;word-break:break-word;white-space:pre-wrap}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.btn{font:inherit;font-size:13.5px;font-weight:700;border-radius:10px;padding:9px 13px;border:1px solid var(--line);background:var(--surface2);color:var(--ink);cursor:pointer}
+.btn.p{background:var(--accent);border-color:var(--accent);color:#06262c}
+.btn.danger{border-color:var(--ko);color:var(--ko);background:transparent}
+.btn:disabled{opacity:.5}
+.note-box{background:var(--info-bg);border:1px solid #33427a;border-radius:10px;padding:10px 12px;font-size:13px;color:var(--ink);margin:8px 0}
+.sum{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+.sumc{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px}
+.sumc b{font-size:12.5px;color:var(--muted)}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;display:flex;margin:6px 0}
+.bar i{height:100%}
+.nums{font-size:12px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.filters button{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:5px 11px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#06262c}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:8px}
+.item.ko{border-color:var(--ko)}.item.ok{border-color:#2c5a45}
+.it-top{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+.it-t{font-weight:700;font-size:14.5px;line-height:1.35}
+.it-v{font-size:11px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+.it-h{margin:7px 0 0;font-size:13.5px}
+.it-e{margin:3px 0 0;font-size:13px;color:var(--muted)}
+.it-e b{color:var(--ink)}
+.st{display:flex;gap:6px;flex-shrink:0}
+.st button{font:inherit;font-size:12px;font-weight:800;border-radius:9px;border:1px solid var(--line);padding:6px 8px;min-width:70px;cursor:pointer;line-height:1.15}
+.st button small{display:block;font-size:10px;font-weight:600;opacity:.75}
+.s-todo{background:var(--warn-bg);color:var(--warn)}.s-ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok)!important}
+.s-ko{background:var(--ko-bg);color:var(--ko);border-color:var(--ko)!important}.s-na{background:var(--surface2);color:var(--na)}
+.st button[disabled]{cursor:default;opacity:.8}
+.it-foot{display:flex;gap:8px;align-items:center;margin-top:8px}
+.it-foot input{flex:1;min-width:0;font:inherit;font-size:16px;border:1px solid var(--line);border-radius:9px;padding:7px 9px;background:var(--bg);color:var(--ink)}
+.it-foot a{font-size:12.5px;font-weight:700;color:var(--accent);white-space:nowrap;text-decoration:none;border:1px solid var(--line);border-radius:9px;padding:7px 10px}
+textarea{width:100%;min-height:220px;font:12.5px/1.45 ui-monospace,Menlo,monospace;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px}
+select{font:inherit;font-size:16px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:6px 8px}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toast{position:fixed;left:16px;right:16px;bottom:20px;background:#08323a;border:1px solid var(--accent);color:var(--ink);border-radius:12px;padding:10px 14px;font-weight:700;font-size:13.5px;z-index:20;text-align:center}
+#frames{position:fixed;left:-9999px;top:0;width:390px;height:844px;overflow:hidden}
+#frames iframe{width:390px;height:844px;border:0}
+@media (max-width:540px){.it-top{flex-direction:column}.st{align-self:stretch}.st button{flex:1}.sum{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Check Sandbox</h1>
+  <p>Vérification complète avant la mise en prod · données lues et gardées uniquement sur cet appareil</p>
+  <div class="chips" id="chips"></div>
+</header>
+<nav class="tabs" role="tablist">
+  <button type="button" role="tab" id="t-auto" aria-selected="true" data-tab="auto">Diagnostic</button>
+  <button type="button" role="tab" id="t-list" aria-selected="false" data-tab="list">Checklist</button>
+  <button type="button" role="tab" id="t-rep" aria-selected="false" data-tab="rep">Rapport</button>
+</nav>
+
+<section class="panel" id="p-auto">
+  <div class="btns">
+    <button type="button" class="btn p" id="runAuto">Relancer le diagnostic</button>
+    <button type="button" class="btn" id="runMods">Tester l'ouverture des modules</button>
+    <a class="btn" href="menu.html" style="text-decoration:none">← Menu</a>
+  </div>
+  <div id="autoOut"></div>
+</section>
+
+<section class="panel" id="p-list" hidden>
+  <div class="note-box">Appareil : <select id="devSel"><option value="ios">iPhone</option><option value="android">Android</option></select>
+    — les coches vont dans la colonne de cet appareil. L'autre colonne se remplit en important le rapport de l'autre téléphone (onglet Rapport).</div>
+  <div class="sum" id="sum"></div>
+  <div class="filters" role="group" aria-label="Filtre">
+    <button type="button" data-f="tous" aria-pressed="true">Tout</button>
+    <button type="button" data-f="todo" aria-pressed="false">À faire ici</button>
+    <button type="button" data-f="ko" aria-pressed="false">KO</button>
+    <button type="button" data-f="notes" aria-pressed="false">Avec note</button>
+  </div>
+  <div id="listOut"></div>
+</section>
+
+<section class="panel" id="p-rep" hidden>
+  <h2>Rapport à m'envoyer</h2>
+  <p style="font-size:13px;color:var(--muted);margin:0 0 8px">Diagnostic + checklist + notes. Copie-le et colle-le dans la conversation.</p>
+  <div class="btns">
+    <button type="button" class="btn p" id="copyRep">Copier le rapport</button>
+    <button type="button" class="btn" id="refRep">Actualiser</button>
+  </div>
+  <textarea id="repOut" readonly></textarea>
+  <h2>Fusionner le rapport de l'autre téléphone</h2>
+  <p style="font-size:13px;color:var(--muted);margin:0 0 8px">Colle ici le rapport copié sur l'autre appareil : ses coches remplissent sa colonne.</p>
+  <textarea id="impIn" style="min-height:110px" placeholder="Colle le rapport complet ici"></textarea>
+  <div class="btns"><button type="button" class="btn" id="impBtn">Fusionner</button></div>
+  <h2>Outils</h2>
+  <div class="btns">
+    <button type="button" class="btn" id="swUpd">Chercher une mise à jour</button>
+    <button type="button" class="btn danger" id="swClear">Vider le cache de l'appli et recharger</button>
+    <button type="button" class="btn danger" id="resetCk">Remettre la checklist à zéro</button>
+  </div>
+  <p style="font-size:12.5px;color:var(--muted)">« Vider le cache » ne touche pas à tes données (heures, contrats…) : seulement aux fichiers de l'appli, rechargés ensuite depuis internet.</p>
+  <div id="resetConfirm"></div>
+</section>
+</div>
+<div id="frames" aria-hidden="true"></div>
+
+<script>
+(function(){
+'use strict';
+var KEY='SH_CHECK_V1';
+function $(id){return document.getElementById(id);}
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function toast(t){var o=document.querySelector('.toast');if(o)o.remove();var d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);setTimeout(function(){d.remove();},2600);}
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function jget(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return undefined;}}
+
+/* ── Appareil ─────────────────────────────────────────── */
+var UA=navigator.userAgent||'';
+var IS_IOS=/iP(hone|ad|od)/.test(UA)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+var IS_AND=/Android/i.test(UA);
+var STANDALONE=!!(navigator.standalone||(window.matchMedia&&matchMedia('(display-mode: standalone)').matches));
+var ck={dev:IS_AND?'android':'ios',s:{},n:{},auto:null,t:0};
+try{var sv=JSON.parse(localStorage.getItem(KEY)||'null');if(sv&&typeof sv==='object'){ck.dev=sv.dev||ck.dev;ck.s=sv.s||{};ck.n=sv.n||{};ck.auto=sv.auto||null;ck.t=sv.t||0;}}catch(e){}
+function save(){ck.t=Date.now();try{localStorage.setItem(KEY,JSON.stringify(ck));}catch(e){toast('Stockage plein : coches non enregistrées');}}
+
+/* ── Onglets ──────────────────────────────────────────── */
+document.querySelectorAll('nav.tabs button').forEach(function(b){b.addEventListener('click',function(){
+  document.querySelectorAll('nav.tabs button').forEach(function(x){x.setAttribute('aria-selected',x===b?'true':'false');});
+  ['auto','list','rep'].forEach(function(t){$('p-'+t).hidden=(t!==b.dataset.tab);});
+  if(b.dataset.tab==='rep')renderReport();
+  try{sessionStorage.setItem('ck-tab',b.dataset.tab);}catch(e){}
+});});
+
+/* ════════ DIAGNOSTIC AUTOMATIQUE ════════ */
+var RES=[];           // {sec, st: ok|warn|ko|info, l, d}
+function add(sec,st,l,d){RES.push({sec:sec,st:st,l:l,d:d||''});}
+function renderAuto(){
+  var h='',sec=null,lab={ok:'OK',warn:'ATTENTION',ko:'KO',info:'INFO',run:'…'};
+  RES.forEach(function(r){
+    if(r.sec!==sec){h+='<h2>'+esc(r.sec)+'</h2>';sec=r.sec;}
+    h+='<div class="row"><span class="badge b-'+r.st+'">'+lab[r.st]+'</span><div><div class="l">'+esc(r.l)+'</div>'+(r.d?'<div class="d">'+esc(r.d)+'</div>':'')+'</div></div>';
+  });
+  $('autoOut').innerHTML=h;
+  var c={ok:0,warn:0,ko:0};RES.forEach(function(r){if(c[r.st]!=null)c[r.st]++;});
+  var ch=[['Version '+(window.__ckVer||'?'),'']];
+  $('chips').innerHTML='<span class="chip">'+(IS_IOS?'iPhone':IS_AND?'Android':'Ordinateur')+' · '+(STANDALONE?'appli':'navigateur')+'</span>'
+    +'<span class="chip">'+esc(window.__ckVer||'version ?')+'</span>'
+    +'<span class="chip ok">'+c.ok+' OK</span>'+(c.warn?'<span class="chip warn">'+c.warn+' à surveiller</span>':'')+(c.ko?'<span class="chip ko">'+c.ko+' KO</span>':'');
+}
+function swList(txt){ // fichiers précachés, lus dans sw.js
+  var m=txt.match(/FILES_TO_CACHE\s*=\s*\[([\s\S]*?)\]/);if(!m)return [];
+  return (m[1].match(/"([^"]+)"/g)||[]).map(function(s){return s.slice(1,-1);});
+}
+function sizeLS(){var n=0,k;for(var i=0;i<localStorage.length;i++){k=localStorage.key(i);n+=(k.length+(localStorage.getItem(k)||'').length)*2;}return n;}
+function ko(n){return (n/1024).toFixed(0)+' Ko';}
+
+async function runAuto(){
+  RES=[];renderAuto();$('runAuto').disabled=true;
+  var S='Appli et appareil';
+  // Version chargée vs en ligne
+  var loaded='',online='',files=[];
+  try{var ks=await caches.keys();loaded=(ks.filter(function(k){return /^heuressup-cache-v/.test(k);}).sort().pop()||'').replace('heuressup-cache-','');}catch(e){}
+  try{var r=await fetch('sw.js',{cache:'no-store'});var t=await r.text();var m=t.match(/CACHE_NAME\s*=\s*"heuressup-cache-([^"]+)"/);online=m?m[1]:'';files=swList(t);}catch(e){}
+  window.__ckVer=loaded||online;
+  if(!loaded)add(S,'warn','Version chargée inconnue','Aucun cache de l\'appli sur cet appareil (première visite, ou navigateur sans service worker). En ligne : '+(online||'?'));
+  else if(online&&loaded!==online)add(S,'warn','Mise à jour en attente','Chargée : '+loaded+' · en ligne : '+online+'. Ferme complètement l\'appli et rouvre-la (ou Outils → Chercher une mise à jour).');
+  else add(S,'ok','Version '+loaded,online?'Identique à la version en ligne.':'Version en ligne non vérifiable (hors ligne ?).');
+  // Mode
+  if(IS_IOS&&!STANDALONE)add(S,'warn','Ouvert dans Safari, pas dans l\'appli','Sur iPhone, Safari et l\'appli installée n\'ont PAS les mêmes données. Pour vérifier tes données : ouvre l\'appli, puis 5 appuis sur la ligne « Version » en bas du menu.');
+  else add(S,'ok',STANDALONE?'Ouvert comme appli installée':'Ouvert dans le navigateur',(IS_IOS?'iPhone':IS_AND?'Android':'Ordinateur')+' · '+UA.replace(/^Mozilla\/5\.0 /,''));
+  // Service worker
+  try{
+    if(!('serviceWorker' in navigator))add(S,'warn','Service worker indisponible','Le hors-ligne ne fonctionnera pas dans ce navigateur.');
+    else{var reg=await navigator.serviceWorker.getRegistration();
+      if(!reg)add(S,'warn','Service worker non installé','Ouvre le menu une fois puis reviens.');
+      else add(S,reg.waiting?'warn':'ok','Service worker '+(navigator.serviceWorker.controller?'actif':'installé (pas encore actif sur cette page)'),'Portée : '+reg.scope+(reg.waiting?' · une nouvelle version attend : ferme et rouvre l\'appli.':''));}
+  }catch(e){add(S,'warn','Service worker illisible',String(e));}
+  // Encoche / zones sûres
+  try{var p=document.createElement('div');p.style.cssText='position:fixed;top:0;left:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);visibility:hidden';document.body.appendChild(p);
+    var cs=getComputedStyle(p),top=parseFloat(cs.paddingTop)||0,bot=parseFloat(cs.paddingBottom)||0;p.remove();
+    add(S,'info','Zones de l\'encoche vues par les pages','haut '+top+' px · bas '+bot+' px (0 est normal sans viewport-fit=cover : iOS réserve lui-même la zone de l\'heure).');
+  }catch(e){}
+  add(S,'info','Écran',screen.width+'×'+screen.height+' · fenêtre '+innerWidth+'×'+innerHeight+' · densité '+(window.devicePixelRatio||1));
+  // Stockage
+  try{var sz=sizeLS();add(S,sz>4.5*1024*1024?'ko':sz>3.5*1024*1024?'warn':'ok','Données de l\'appli : '+ko(sz),localStorage.length+' clés · limite pratique ≈ 5 Mo par appli.');}catch(e){add(S,'ko','Stockage local illisible',String(e));}
+  try{if(navigator.storage&&navigator.storage.persisted){var pe=await navigator.storage.persisted();add(S,pe?'ok':'info','Stockage '+(pe?'protégé':'non protégé'),pe?'Le navigateur ne videra pas les données de lui-même.':'Le système peut effacer les données en cas de manque de place (surtout Safari hors appli installée) : copies de sauvegarde régulières.');}}catch(e){}
+  renderAuto();
+
+  // Manifest
+  S='Installation (manifest)';
+  try{var mr=await fetch('manifest.json',{cache:'no-store'});var mf=await mr.json();var base=new URL('manifest.json',location.href);
+    var su=new URL(mf.start_url||'',base),sc=new URL(mf.scope||'./',base);
+    var okOrigin=su.origin===location.origin&&sc.origin===location.origin;
+    add(S,okOrigin?'ok':'ko','Adresses du manifest',(okOrigin?'Même adresse que l\'appli':'Pointe vers une autre adresse ! iOS ignore alors une partie du manifest')+' · démarrage '+su.pathname+' · portée '+sc.pathname);
+    add(S,mf.display==='standalone'?'ok':'warn','Affichage : '+(mf.display||'?'),'Nom : '+(mf.short_name||mf.name||'?'));
+  }catch(e){add(S,'ko','Manifest illisible',String(e));}
+  renderAuto();
+
+  // Pages
+  S='Pages de l\'appli';
+  var html=files.filter(function(f){return /\.html$/.test(f);}).map(function(f){return f.replace(/^\.\//,'');});
+  if(!html.length){add(S,'warn','Liste des pages introuvable','sw.js illisible (hors ligne ?).');}
+  else{
+    var bad={http:[],cover:[],zoom:[],title:[]},done=0;
+    add(S,'run','Contrôle de '+html.length+' pages…','');renderAuto();
+    var q=html.slice(),workers=[];
+    for(var w=0;w<6;w++)workers.push((async function(){while(q.length){var f=q.shift();try{var rr=await fetch(f,{cache:'no-store'});var tx=await rr.text();
+      if(!rr.ok||/<title>\s*Reconnexion/.test(tx))bad.http.push(f+' ('+rr.status+')');
+      var vp=(tx.match(/<meta[^>]*name=["']viewport["'][^>]*>/i)||[''])[0];
+      if(/viewport-fit\s*=\s*cover/i.test(vp))bad.cover.push(f);
+      if(/v\.content\s*\+=\s*['"],\s*maximum-scale/.test(tx))bad.zoom.push(f);
+      if(!/<title>[^<]+<\/title>/i.test(tx))bad.title.push(f);
+    }catch(e){bad.http.push(f+' ('+e.message+')');}done++;}})());
+    await Promise.all(workers);RES.pop();
+    add(S,bad.http.length?'ko':'ok',(html.length-bad.http.length)+' / '+html.length+' pages répondent',bad.http.join('\n'));
+    add(S,bad.cover.length?'ko':'ok','En-têtes iPhone (sans viewport-fit=cover)',bad.cover.length?'Encore présent sur :\n'+bad.cover.join('\n'):'Aucune page ne passe sous l\'heure.');
+    add(S,bad.zoom.length?'ko':'ok','Ancien script anti-zoom retiré',bad.zoom.join('\n'));
+    if(bad.title.length)add(S,'warn','Pages sans titre',bad.title.join('\n'));
+  }
+  // Cache hors ligne
+  try{if(loaded){var c=await caches.open('heuressup-cache-'+loaded);var keys=(await c.keys()).map(function(r){return new URL(r.url).pathname;});
+    var miss=files.filter(function(f){var pth=new URL(f,location.href).pathname;return keys.indexOf(pth)<0;});
+    add('Hors ligne',miss.length?(miss.length>5?'ko':'warn'):'ok',(files.length-miss.length)+' / '+files.length+' fichiers disponibles hors ligne',miss.length?'Manquants :\n'+miss.slice(0,30).join('\n')+(miss.length>30?'\n…':''):'Tout est en cache : l\'appli s\'ouvre sans réseau.');}}catch(e){}
+  renderAuto();
+
+  // Données
+  dataChecks();
+  ck.auto={t:new Date().toISOString(),ver:window.__ckVer,res:RES.filter(function(r){return r.st!=='run';})};save();
+  renderAuto();$('runAuto').disabled=false;
+}
+
+function dataChecks(){
+  var S='Tes données';
+  // Sauvegarde
+  var lb=(localStorage.getItem('SH_LAST_BACKUP')||'').slice(0,10);
+  if(!lb)add(S,'warn','Aucune copie de sauvegarde','Menu → Sauvegarde. Indispensable avant la mise en prod et avant de réinstaller une icône.');
+  else{var age=Math.floor((Date.now()-Date.parse(lb))/86400000);add(S,age>30?'warn':'ok','Dernière copie de sauvegarde : '+lb.split('-').reverse().join('/'),'Il y a '+age+' jour'+(age>1?'s':'')+(localStorage.getItem('SH_LAST_BACKUP_NAME')?' · '+localStorage.getItem('SH_LAST_BACKUP_NAME'):''));}
+  // JSON corrompus
+  var bads=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i),v=localStorage.getItem(k)||'';if(/^\s*[\[{]/.test(v)){try{JSON.parse(v);}catch(e){bads.push(k);}}}
+  add(S,bads.length?'ko':'ok',bads.length?bads.length+' donnée(s) illisible(s)':'Aucune donnée corrompue',bads.join('\n'));
+  // Profil
+  var cu=jget('CCN_CUSTOM'),idcc=localStorage.getItem('CCN_IDCC'),nom=localStorage.getItem('CCN_NOM');
+  add(S,'info','Convention collective du menu',cu?'Accord personnalisé : '+(cu.nom||'?'):idcc?nom+' · IDCC '+idcc:'Droit commun');
+  add(S,'info','Prénom (Paramètres)',localStorage.getItem('SH_PRENOM')||'non renseigné');
+  // M1
+  var S1='Compteur annuel (Heures)',ex=[];
+  for(var j=0;j<localStorage.length;j++){var kk=localStorage.key(j);var m=/^EXERCISE_START_(.+)$/.exec(kk);if(m)ex.push(m[1]);}
+  if(!ex.length)add(S1,'info','Pas encore configuré','');
+  else{ex.sort();ex.forEach(function(sfx){var d=jget('DATA_REPORT_'+sfx)||{},n=Object.keys(d).filter(function(x){return /^\d{4}-\d{2}-\d{2}$/.test(x);}).length,cl=jget('CLOSURES_REPORT_'+sfx),off=jget('SH_HS_OFFICIEL_M1_'+sfx);
+      add(S1,d===undefined?'ko':'ok','Exercice '+sfx,'début '+localStorage.getItem('EXERCISE_START_'+sfx)+' · '+n+' jours saisis · '+(Array.isArray(cl)?cl.length:0)+' clôtures'+(off?' · contingent '+(Math.round(off.total*100)/100)+' h':''));});
+    add(S1,'info','Exercice mémorisé',localStorage.getItem('ACTIVE_YEAR_SUFFIX')||'aucun (exercice en cours)');}
+  // M2
+  var S2='Heures mensualisées (M2)',ys=[];
+  for(var a=0;a<localStorage.length;a++){var k2=localStorage.key(a);var m2=/^CA_HS_TRACKER_V1_DATA_(\d{4})$/.exec(k2);if(m2)ys.push(m2[1]);}
+  if(!ys.length)add(S2,'info','Pas encore configuré','');
+  ys.sort().forEach(function(y){var d=jget('CA_HS_TRACKER_V1_DATA_'+y);if(d===undefined){add(S2,'ko','Année '+y+' illisible','');return;}
+    var mois=Object.keys(d||{}).filter(function(x){return /^\d{4}-\d{2}$/.test(x);}),jours=0,paye=0;mois.forEach(function(mk){jours+=Object.keys((d[mk]||{}).days||{}).length;paye+=Number((d[mk]||{}).paid)||0;});
+    var ch=localStorage.getItem('M2_RELIQUAT_CHOIX_'+y),off=jget('SH_HS_OFFICIEL_M2_'+y);
+    add(S2,'ok','Année '+y,mois.length+' mois · '+jours+' jours saisis · '+paye+' h payées'+(off?' · contingent '+(Math.round(off.total*100)/100)+' h':'')+(ch?' · reste de fin d\'année : '+(ch==='report'?'reporté dans '+(+y+1):'non reporté'):''));});
+  // M5
+  var S5='Mizuki (temps partiel)',nb=0;
+  [1,2,3].forEach(function(n){var p=n===1?'M5_':'M5_C'+n+'_',c=jget(p+'CONTRACT');if(c===undefined){add(S5,'ko','Contrat '+n+' illisible','');return;}if(!c||!(c.hoursBase>0))return;nb++;
+    var yrs=[];for(var i=0;i<localStorage.length;i++){var kk=localStorage.key(i),m=new RegExp('^'+p+'DATA_(\\d{4})$').exec(kk);if(m)yrs.push(m[1]);}
+    var du=c.dureeContrat?(c.dureeContrat.valeur+' h / '+({S:'semaine',M:'mois',A:'an'}[c.dureeContrat.unite]||'?')):c.hoursBase+' h / semaine';
+    var nm=(jget('M5_CONTRATS_NOMS')||{})[n];
+    add(S5,'ok','Contrat '+n+(nm?' · '+nm:''),du+' · '+(c.idcc>0?(c.ccnNom||'?')+' (IDCC '+c.idcc+')':'droit commun')+' · plafond HC '+Math.round((c.cap||0.1)*100)+' %'+(c.retraiteProgressive?' · retraite progressive':'')+' · années '+(yrs.sort().join(', ')||'aucune'));});
+  if(!nb)add(S5,'info','Pas encore configuré','');
+  else if(nb>1)add(S5,'info',nb+' contrats','Santé calculée sur le cumul · contrat affiché : '+(localStorage.getItem('M5_ACTIVE_CONTRACT')||'1'));
+  // M6
+  var S6='Zenji (cadres)',reg=localStorage.getItem('M6_REGIME');
+  if(!reg)add(S6,'info','Pas encore configuré','');
+  else{
+    add(S6,localStorage.getItem('M6_MIGR_EXO_V1')?'ok':'warn','Migration des exercices',localStorage.getItem('M6_MIGR_EXO_V1')?'Faite le '+localStorage.getItem('M6_MIGR_EXO_V1'):'Pas encore faite : ouvre Zenji une fois.');
+    ['forfait_jours','forfait_heures','cadre_dirigeant'].forEach(function(r){var c=jget('M6_'+r+'_CONTRACT');if(c===undefined){add(S6,'ko',r+' : contrat illisible','');return;}if(!c)return;
+      var deb=c.dateDebutExercice,fin=c.dateFinExercice,re=/^\d{4}-\d{2}-\d{2}$/,dat=re.test(deb||'')&&re.test(fin||'');
+      var yrs=[];for(var i=0;i<localStorage.length;i++){var m=new RegExp('^M6_'+r+'_(\\d{4})_DATA$').exec(localStorage.key(i));if(m)yrs.push(+m[1]);}
+      var mal=0,tot=0;
+      if(dat&&!(deb.slice(5)==='01-01'&&fin.slice(5)==='12-31')){var ec=parseInt(fin,10)-parseInt(deb,10);
+        yrs.forEach(function(y){var d=jget('M6_'+r+'_'+y+'_DATA')||{};Object.keys(d).forEach(function(k){var dk=k;var w=/^(\d{4})-W(\d{2})$/.exec(k);
+          if(w){var j4=new Date(+w[1],0,4,12),l=new Date(j4);l.setDate(j4.getDate()-((j4.getDay()+6)%7)+(+w[2]-1)*7);dk=iso(l);}
+          if(!re.test(dk))return;tot++;var h=(jget('M6_EXERCICES_'+r)||{})[y],b=h?h.deb:y+deb.slice(4),e=h?h.fin:(y+ec)+fin.slice(4);if(dk<b||dk>e)mal++;});});}
+      else yrs.forEach(function(y){tot+=Object.keys(jget('M6_'+r+'_'+y+'_DATA')||{}).length;});
+      var aj=iso(new Date()),perime=dat&&fin<aj;
+      add(S6,mal?'warn':(r===reg?'ok':'info'),r.replace('_',' ')+(r===reg?' (régime actif)':''),(dat?'exercice '+deb+' → '+fin:'année civile')+' · '+tot+' saisies · années '+(yrs.sort().join(', ')||'aucune')+(mal?'\n'+mal+' saisie(s) rangée(s) hors de leur exercice (doublons gardés par la migration)':'')+(perime?'\nExercice terminé : le bandeau « nouvel exercice » doit s\'afficher dans Zenji.':''));});
+  }
+  // Taiko, Fox, frais
+  var tk=jget('TAIKO_V1');add('Autres modules',tk===undefined?'ko':'ok','Taiko',tk===undefined?'Données illisibles':tk?'données présentes':'pas encore utilisé');
+  var fx=[];for(var f=0;f<localStorage.length;f++){var kf=localStorage.key(f);if(/^FOX_/.test(kf))fx.push(kf);}
+  add('Autres modules','info','Fox',fx.length+' réglage(s) enregistré(s)');
+  add('Autres modules','info','Rappel de sauvegarde',localStorage.getItem('SH_BACKUP_NUDGE')?'déjà montré : '+localStorage.getItem('SH_BACKUP_NUDGE'):'pas encore montré ce mois-ci');
+}
+
+/* ── Test d'ouverture des modules (données remises à l'identique après) ── */
+var MODS=[['Menu','menu.html','initCCNBadge'],['Compteur annuel','heures/index.html','hsBilanPuisOuvrir'],['Heures mensualisées','paye/index.html','m2BilanLignes'],
+  ['Fox','fox/index.html','hsOfficiel'],['Jumeau numérique (M4)','module4/index.html','DTE'],['Mizuki','module5/index.html','M5_Contract'],['Zenji','module6/index.html','M6_Storage'],
+  ['M7 Nuit, astreinte','module7/index.html',null],['Taiko','taiko.html',null],['GrillePaye','GrillePaye/index.html','gpOuvrirMaCCN'],['Trousse à outils','outils.html',null],
+  ['Outil Préavis','outils/module-preavis.html',null],['Carnet de frais','outils/module8.html',null]];
+async function runMods(){
+  var btn=$('runMods');btn.disabled=true;
+  var snap={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);snap[k]=localStorage.getItem(k);}
+  RES=RES.filter(function(r){return r.sec!=='Ouverture des modules';});
+  add('Ouverture des modules','info','Test en cours…','Chaque module est ouvert en arrière-plan. N\'utilise pas l\'appli pendant le test : tes données sont remises exactement à l\'identique à la fin.');renderAuto();
+  var out=[];
+  for(var m=0;m<MODS.length;m++){out.push(await testMod(MODS[m]));}
+  try{localStorage.clear();Object.keys(snap).forEach(function(k){localStorage.setItem(k,snap[k]);});}catch(e){}
+  RES=RES.filter(function(r){return r.sec!=='Ouverture des modules';});
+  out.forEach(function(o){add('Ouverture des modules',o.st,o.l,o.d);});
+  var same=Object.keys(snap).length===localStorage.length&&Object.keys(snap).every(function(k){return localStorage.getItem(k)===snap[k];});
+  add('Ouverture des modules',same?'ok':'ko','Données remises à l\'identique',same?Object.keys(snap).length+' clés restaurées.':'Écart détecté : fais une copie de sauvegarde et préviens-moi.');
+  ck.auto=ck.auto||{};ck.auto.mods=out;save();renderAuto();btn.disabled=false;
+}
+function testMod(md){return new Promise(function(res){
+  var fr=document.createElement('iframe'),errs=[],t0=Date.now(),fin=false,hooked=null;
+  function hook(){try{var w=fr.contentWindow;if(!w||w===hooked||w.location.href==='about:blank')return;hooked=w;
+    w.addEventListener('error',function(e){errs.push((e.message||'erreur')+(e.filename?' ('+e.filename.split('/').pop()+':'+e.lineno+')':''));});
+    w.addEventListener('unhandledrejection',function(e){errs.push('Promesse rejetée : '+(e.reason&&e.reason.message||e.reason));});}catch(e){}}
+  var poll=setInterval(hook,5);
+  function done(st,d){if(fin)return;fin=true;clearInterval(poll);setTimeout(function(){fr.remove();},50);res({st:st,l:md[0],d:d});}
+  fr.addEventListener('load',function(){hook();setTimeout(function(){
+    try{var w=fr.contentWindow,doc=fr.contentDocument,txt=(doc.body&&doc.body.innerText||'').trim();
+      var ms=(Date.now()-t0)+' ms';
+      if(/Reconnexion/.test(doc.title))return done('ko','Page introuvable (repli hors ligne) · '+ms);
+      var g=md[2]?!!w[md[2]]:true;
+      var st=errs.length?'ko':(!g||txt.length<30)?'warn':'ok';
+      done(st,ms+(g?'':' · moteur '+md[2]+' absent')+(txt.length<30?' · page presque vide':'')+(errs.length?'\n'+errs.slice(0,4).join('\n'):' · aucune erreur'));
+    }catch(e){done('ko',String(e));}},2500);});
+  setTimeout(function(){done('ko','Pas chargé en 15 s');},15000);
+  fr.src=md[1];$('frames').appendChild(fr);
+});}
+
+/* ════════ CHECKLIST MANUELLE ════════ */
+var ITEMS=[
+{g:'0 · Préparation',id:'p1',t:'Bonne version chargée',v:'v10.10.96',o:'menu.html',h:'Bas du menu : ligne « Version ».',e:'« v10.10.96 · appli ». Android : Sandbox installé depuis Chrome (tonytonic.github.io/Sandbox/menu.html → Installer) ; l\'appli Play Store, elle, pointe sur la prod.'},
+{g:'0 · Préparation',id:'p2',t:'Copie de sauvegarde de ta vraie prod importée',v:'migration',o:'menu.html#sauvegarde',h:'Prod : Sauvegarde → faire une copie. Sandbox : Sauvegarde → importer ce fichier.',e:'Import accepté ; le résumé par module correspond à ta prod.'},
+{g:'0 · Préparation',id:'p3',t:'Diagnostic sans KO',v:'check',o:'check.html',h:'Onglet Diagnostic → Relancer, puis Tester l\'ouverture des modules.',e:'Aucun KO. Chaque « attention » est compris.'},
+{g:'0 · Préparation',id:'p4',t:'Accès caché au check',v:'v10.10.97',o:'menu.html',h:'Bas du menu : 5 appuis rapides sur la ligne « Version ».',e:'Ce check s\'ouvre dans l\'appli (mode « appli » en haut).'},
+{g:'1 · Affichage',id:'a1',t:'En-têtes sous l\'heure, sans flou',v:'v10.10.96',o:'module7/index.html',h:'Menu (fais défiler), Zenji, M7, outils Préavis, Frais, CDI·CDD·Intérim, Taiko, GrillePaye, M4.',e:'Le titre commence sous l\'heure ; rien de flouté en haut, même en faisant défiler.'},
+{g:'1 · Affichage',id:'a2',t:'Barres du bas au-dessus de la barre d\'accueil',v:'v10.10.96',o:'module6/index.html',h:'Zenji (Bilan, Semaines…), Mizuki, Taiko, M4.',e:'Tous les boutons du bas sont visibles et cliquables.'},
+{g:'1 · Affichage',id:'a3',t:'Pas de zoom quand on touche un champ',v:'v10.10.90',o:'outils/module-preavis.html',h:'Touche un champ : Préavis (ancienneté), Zenji (saisie), Taiko, Mizuki.',e:'iPhone : pas de zoom automatique. Android : n/a.'},
+{g:'1 · Affichage',id:'a4',t:'Pas de flash au démarrage',v:'v10.10.69',o:'GrillePaye/index.html',h:'Ouvre GrillePaye, Mizuki, Fox, Heures depuis le menu.',e:'La page s\'affiche directement, sans écran vide ni saut.'},
+{g:'1 · Affichage',id:'a5',t:'Popups Sauvegarde et Rappels bien cadrés',v:'v10.10.61',o:'menu.html',h:'Menu : Sauvegarde puis Rappels.',e:'La fenêtre tient dans l\'écran.'},
+{g:'1 · Affichage',id:'a6',t:'Taiko : long texte',v:'v10.10.85',o:'taiko.html',h:'Écris un très long texte sur un jour du calendrier.',e:'7 colonnes égales, texte coupé par « … ».'},
+{g:'1 · Affichage',id:'a7',t:'Préavis : référence en lien',v:'v10.10.93',o:'outils/module-preavis.html',h:'Carte « Référence », change aussi le motif.',e:'« Art. L… CT » cliquable, jamais de code « <a class… ».'},
+{g:'1 · Affichage',id:'a8',t:'Mode paysage',v:'général',o:'menu.html',h:'Tourne le téléphone sur le menu et un module.',e:'Rien de coupé ni de superposé (ou l\'appli reste en portrait).'},
+{g:'2 · Menu et paramètres',id:'m1',t:'Prénom',v:'v10.10.87',o:'menu.html',h:'Paramètres → Ton prénom, puis Fox, Mizuki, Zenji.',e:'Le prénom est utilisé quand le module n\'en a pas.'},
+{g:'2 · Menu et paramètres',id:'m2',t:'Convention collective',v:'v10.10.87',o:'menu.html',h:'Paramètres → Ma convention collective → choisir → Appliquer.',e:'Libellé et badge à jour.'},
+{g:'2 · Menu et paramètres',id:'m3',t:'GrillePaye sur ta CCN',v:'v10.10.87',o:'GrillePaye/index.html',h:'Ouvre GrillePaye.',e:'Fiche de ta CCN ouverte ; ← Retour = liste.'},
+{g:'2 · Menu et paramètres',id:'m4',t:'Saisir aujourd\'hui',v:'v10.10.79',o:'menu.html',h:'Menu → Saisir aujourd\'hui (pour chaque module configuré).',e:'Exercice et période d\'aujourd\'hui, saisie du jour ouverte.'},
+{g:'2 · Menu et paramètres',id:'m5',t:'Rappel de sauvegarde mensuel',v:'v10.10.70',o:'menu.html',h:'Clôture une période dans un module, puis ouvre-en d\'autres.',e:'Un seul rappel pour toute l\'appli dans le mois.'},
+{g:'2 · Menu et paramètres',id:'m6',t:'Rappels calendrier (.ics)',v:'v10.10.40–43',o:'menu.html',h:'Menu → Rappels → ajouter au calendrier.',e:'Le calendrier propose d\'ajouter les rappels.'},
+{g:'3 · Compteur annuel',id:'h1',t:'Ouverture sur l\'exercice en cours',v:'v10.10.77–82',o:'heures/index.html',h:'Choisis une autre année, quitte et reviens.',e:'Retour sur l\'exercice et la période d\'aujourd\'hui.'},
+{g:'3 · Compteur annuel',id:'h2',t:'Swipe et liste des périodes',v:'v10.10.77',o:'heures/index.html',h:'Swipe dans les deux sens jusqu\'aux bouts.',e:'Arrêt aux bornes ; la liste suit.'},
+{g:'3 · Compteur annuel',id:'h3',t:'Contingent limité à l\'exercice',v:'v10.10.77',o:'heures/index.html',h:'Heures après la clôture annuelle.',e:'Pas comptées dans l\'exercice terminé.'},
+{g:'3 · Compteur annuel',id:'h4',t:'Fériés et absences',v:'v10.10.80',o:'heures/index.html',h:'Heures dans une semaine avec férié.',e:'Bilan : saisies / comptées + explication de l\'écart.'},
+{g:'3 · Compteur annuel',id:'h5',t:'Exercice suivant à la main',v:'v10.10.77',o:'heures/index.html',h:'Crée l\'exercice suivant.',e:'Choix : clôtures automatiques ou manuelles.'},
+{g:'3 · Compteur annuel',id:'h6',t:'PDF',v:'v10.10.74',o:'heures/index.html',h:'Exporte les PDF (clôture en milieu de semaine).',e:'Mêmes totaux qu\'à l\'écran ; le PDF s\'ouvre ou se partage.'},
+{g:'3 · Compteur annuel',id:'h7',t:'Bilan + reste dû + image',v:'v10.10.73 / .88',o:'heures/index.html',h:'Bandeau de fin d\'exercice → bilan → Enregistrer en image.',e:'Encadré orange + 3 ans ; image partagée ou téléchargée.'},
+{g:'4 · Heures mensualisées',id:'q1',t:'Ouverture sur l\'année d\'aujourd\'hui',v:'v10.10.75–83',o:'paye/index.html',h:'Consulte une autre année, rouvre M2.',e:'Retour sur aujourd\'hui.'},
+{g:'4 · Heures mensualisées',id:'q2',t:'Fin décembre dans la période de janvier',v:'v10.10.75',o:'paye/index.html',h:'Clôture de décembre avant le 31, saisis le 30/12.',e:'Heures dans la période de janvier.'},
+{g:'4 · Heures mensualisées',id:'q3',t:'Clôtures manuelles selon la CCN',v:'v10.10.76',o:'paye/index.html',h:'Clôtures → saisie manuelle.',e:'Jours de clôture = jour de fin de semaine de ta CCN.'},
+{g:'4 · Heures mensualisées',id:'q4',t:'Nouvel exercice le lendemain de la clôture',v:'v10.10.76',o:'paye/index.html',h:'Après la dernière clôture de décembre.',e:'Bandeau → bilan → choix des clôtures.'},
+{g:'4 · Heures mensualisées',id:'q5',t:'Reste non payé : reporter',v:'v10.10.88',o:'paye/index.html',h:'Démo : bandeau « 8h non payées » → Reporter.',e:'Janvier : 8h « ↪ reporté de l\'exercice 2025 ».'},
+{g:'4 · Heures mensualisées',id:'q6',t:'Reste non payé : ne pas reporter',v:'v10.10.88',o:'paye/index.html',h:'Démo rechargée → Ne pas reporter.',e:'Bandeau disparu, janvier sans les 8h.'},
+{g:'4 · Heures mensualisées',id:'q7',t:'Bilan avec encadré + PDF',v:'v10.10.88',o:'paye/index.html',h:'Bilan 2025, puis PDF annuel.',e:'« Reste à payer » + encadré ; PDF lisible.'},
+{g:'5 · Mizuki',id:'z1',t:'Accueil et assistant',v:'v10.10.70–72',o:'module5/index.html',h:'Nouveau contrat de bout en bout.',e:'Durée semaine/mois/an, question 2e contrat, prénom et CCN préremplis.'},
+{g:'5 · Mizuki',id:'z2',t:'⚙️ Mon contrat',v:'v10.10.72',o:'module5/index.html',h:'Change l\'unité de durée.',e:'Mêmes choix que l\'assistant.'},
+{g:'5 · Mizuki',id:'z3',t:'CCN du menu reprise',v:'v10.10.87',o:'module5/index.html',h:'Contrat 1 en droit commun + CCN au menu.',e:'Message de reprise ; un retour manuel au droit commun est respecté.'},
+{g:'5 · Mizuki',id:'z4',t:'Multi-contrat',v:'v10.10.48–53',o:'module5/index.html',h:'Bascule entre contrats, vue d\'ensemble.',e:'Chaque contrat garde ses données ; totaux et repère 48 h.'},
+{g:'5 · Mizuki',id:'z5',t:'Santé sur le cumul',v:'v10.10.89',o:'module5/index.html',h:'Stats → santé sur chaque contrat.',e:'« Cumul de tes N contrats », mêmes scores partout.'},
+{g:'5 · Mizuki',id:'z6',t:'Alertes 48 h / 44 h / 10 h',v:'v10.10.73 / .89',o:'module5/index.html',h:'Semaine chargée sur deux contrats.',e:'Alertes rouges affichées.'},
+{g:'5 · Mizuki',id:'z7',t:'Congés sur tous les contrats',v:'v10.10.89',o:'module5/index.html',h:'Bouton « Je suis en congés sur mes N contrats », puis re-clic.',e:'Marqué puis retiré partout.'},
+{g:'5 · Mizuki',id:'z8',t:'Paiements des heures complémentaires',v:'v10.10.68',o:'module5/index.html',h:'Coche des heures payées (+10 %, +25 %).',e:'Le solde baisse ; il reste juste après rechargement.'},
+{g:'5 · Mizuki',id:'z9',t:'Bilan de fin d\'exercice',v:'v10.10.88',o:'module5/index.html',h:'Bandeau → bilan.',e:'HC payées, reste à payer, encadré + 3 ans.'},
+{g:'5 · Mizuki',id:'z10',t:'PDF',v:'général',o:'module5/index.html',h:'Export PDF.',e:'S\'ouvre ou se partage, chiffres = écran.'},
+{g:'6 · Zenji',id:'c1',t:'Exercice en cours',v:'v10.10.78–83',o:'module6/index.html',h:'Exercice juin → mai.',e:'Exercice qui contient aujourd\'hui, calendrier borné.'},
+{g:'6 · Zenji',id:'c2',t:'Migration de tes données prod',v:'v10.10.86',o:'module6/index.html',h:'Après import de la sauvegarde prod.',e:'Janvier–mai visibles ; pas de bandeau en retard ; Diagnostic : 0 saisie hors exercice.'},
+{g:'6 · Zenji',id:'c3',t:'Nouvel exercice + bilan',v:'v10.10.76 / .88',o:'module6/index.html',h:'Bandeau → bilan → dates.',e:'Encadré ; dates un an plus tard ou à saisir.'},
+{g:'6 · Zenji',id:'c4',t:'Assistant prérempli',v:'v10.10.87',o:'module6/index.html',h:'⚙️ Contrat.',e:'Prénom et CCN préremplis, rien d\'écrasé.'},
+{g:'6 · Zenji',id:'c5',t:'Saisie et PDF',v:'général',o:'module6/index.html',h:'Saisis une semaine, exporte le PDF.',e:'Totaux cohérents, PDF lisible.'},
+{g:'7 · Fox, M4, M7, GrillePaye',id:'f1',t:'Fox : chiffres officiels',v:'v10.10.82–84',o:'fox/index.html',h:'Données, vue pro, rapport.',e:'Même total que le contingent M1 ou M2.'},
+{g:'7 · Fox, M4, M7, GrillePaye',id:'f2',t:'M4 : heatmaps',v:'v10.10.81',o:'module4/index.html',h:'Jumeau numérique → heatmaps.',e:'Limitées à l\'exercice affiché.'},
+{g:'7 · Fox, M4, M7, GrillePaye',id:'f3',t:'M7 nuit, astreinte, primes',v:'général',o:'module7/index.html',h:'Saisis une nuit et une astreinte.',e:'Montants calculés, en-tête propre.'},
+{g:'8 · Hors ligne et système',id:'o1',t:'Hors ligne',v:'SW',o:'menu.html',h:'Mode avion, ouvre l\'appli, puis Heures, M2, Mizuki, un outil.',e:'Tout s\'ouvre sans réseau.'},
+{g:'8 · Hors ligne et système',id:'o2',t:'Mise à jour de l\'appli',v:'SW',o:'menu.html',h:'Après une nouvelle version : ferme et rouvre.',e:'La nouvelle version arrive sans réinstaller, données intactes.'},
+{g:'8 · Hors ligne et système',id:'o3',t:'Retour Android',v:'Android',o:'menu.html',h:'Geste ou bouton retour dans un module.',e:'Retour au menu, l\'appli ne se ferme pas brutalement. iPhone : n/a.'},
+{g:'9 · Sauvegarde',id:'b1',t:'Export puis réimport',v:'v10.10.62',o:'menu.html#sauvegarde',h:'Copie de sauvegarde puis réimport.',e:'Résumé correct, tout revient.'},
+{g:'9 · Sauvegarde',id:'b2',t:'Ancienne sauvegarde prod',v:'migration',o:'menu.html#sauvegarde',h:'Importe une sauvegarde faite avant ces changements.',e:'Import accepté ; Zenji re-range ses jours à l\'ouverture.'}
+];
+var ORD=['todo','ok','ko','na'],LB={todo:'à faire',ok:'✅ OK',ko:'❌ KO',na:'n/a'},filtre='tous';
+function gs(id,d){return ((ck.s[id]||{})[d])||'todo';}
+$('devSel').value=ck.dev;$('devSel').addEventListener('change',function(){ck.dev=this.value;save();renderList();});
+function renderList(){
+  var dev=ck.dev,other=dev==='ios'?'android':'ios';
+  var sum='';[['ios','iPhone'],['android','Android']].forEach(function(dv){var c={todo:0,ok:0,ko:0,na:0};ITEMS.forEach(function(it){c[gs(it.id,dv[0])]++;});var n=ITEMS.length,w=function(k){return (c[k]/n*100).toFixed(1)+'%';};
+    sum+='<div class="sumc"><b>'+dv[1]+(dv[0]===dev?' · cet appareil':'')+'</b><div class="bar"><i style="width:'+w('ok')+';background:var(--ok)"></i><i style="width:'+w('ko')+';background:var(--ko)"></i><i style="width:'+w('na')+';background:var(--na)"></i></div><div class="nums"><span>✅ '+c.ok+'</span><span>❌ '+c.ko+'</span><span>à faire '+c.todo+'</span><span>n/a '+c.na+'</span></div></div>';});
+  $('sum').innerHTML=sum;
+  var h='',g=null;
+  ITEMS.forEach(function(it){
+    var a=gs(it.id,'ios'),b=gs(it.id,'android'),me=gs(it.id,dev);
+    if(filtre==='todo'&&me!=='todo')return;if(filtre==='ko'&&a!=='ko'&&b!=='ko')return;if(filtre==='notes'&&!ck.n[it.id])return;
+    if(it.g!==g){h+='<h2>'+esc(it.g)+'</h2>';g=it.g;}
+    var cls=(a==='ko'||b==='ko')?' ko':(me==='ok'?' ok':'');
+    var btn=function(d,lbl){var s=gs(it.id,d),mine=d===dev;return '<button type="button" class="s-'+s+'" '+(mine?'data-id="'+it.id+'"':'disabled title="Colonne de l\'autre appareil (via le rapport)"')+'>'+LB[s]+'<small>'+lbl+'</small></button>';};
+    h+='<div class="item'+cls+'"><div class="it-top"><div><div class="it-t">'+esc(it.t)+'</div><div class="it-v">'+esc(it.v)+'</div></div><div class="st">'+btn('ios','iPhone')+btn('android','Android')+'</div></div>'
+      +'<p class="it-h">'+esc(it.h)+'</p><p class="it-e"><b>Attendu :</b> '+esc(it.e)+'</p>'
+      +'<div class="it-foot"><input id="n_'+it.id+'" data-n="'+it.id+'" placeholder="Note" value="'+esc(ck.n[it.id]||'')+'"><a href="'+esc(it.o)+'">Ouvrir</a></div></div>';
+  });
+  $('listOut').innerHTML=h||'<p style="color:var(--muted)">Rien dans ce filtre.</p>';
+}
+document.addEventListener('click',function(e){
+  var f=e.target.closest&&e.target.closest('[data-f]');if(f){filtre=f.dataset.f;document.querySelectorAll('[data-f]').forEach(function(x){x.setAttribute('aria-pressed',x===f?'true':'false');});renderList();return;}
+  var b=e.target.closest&&e.target.closest('.st button[data-id]');if(!b)return;
+  var id=b.dataset.id,cur=gs(id,ck.dev),nx=ORD[(ORD.indexOf(cur)+1)%ORD.length];ck.s[id]=ck.s[id]||{};ck.s[id][ck.dev]=nx;save();
+  var y=scrollY;renderList();scrollTo(0,y);
+});
+document.addEventListener('change',function(e){var n=e.target.dataset&&e.target.dataset.n;if(!n)return;var v=e.target.value.trim();if(v)ck.n[n]=v;else delete ck.n[n];save();});
+
+/* ════════ RAPPORT ════════ */
+function report(){
+  var L=[],dv=ck.dev==='ios'?'iPhone':'Android';
+  L.push('RAPPORT CHECK SANDBOX — '+new Date().toLocaleString('fr-FR'));
+  L.push('Appareil : '+(IS_IOS?'iPhone':IS_AND?'Android':'Ordinateur')+' · '+(STANDALONE?'appli':'navigateur')+' · version '+(window.__ckVer||'?')+' · colonne cochée : '+dv);
+  L.push('');L.push('— DIAGNOSTIC '+(ck.auto&&ck.auto.t?'('+ck.auto.t.slice(0,16).replace('T',' ')+')':'(pas encore lancé)'));
+  var R=(RES.length?RES:(ck.auto&&ck.auto.res)||[]).filter(function(r){return r.st!=='run';});
+  var sec=null;R.forEach(function(r){if(r.sec!==sec){L.push('['+r.sec+']');sec=r.sec;}L.push((r.st==='ok'?'  OK   ':r.st==='ko'?'  KO   ':r.st==='warn'?'  !!   ':'  info ')+r.l+(r.d?' — '+r.d.replace(/\n/g,' | '):''));});
+  L.push('');L.push('— CHECKLIST (iPhone / Android)');
+  var g=null;ITEMS.forEach(function(it){if(it.g!==g){L.push('['+it.g+']');g=it.g;}var a=gs(it.id,'ios'),b=gs(it.id,'android');
+    L.push('  '+it.id+' '+it.t+' : '+LB[a].replace(/[✅❌] /,'')+' / '+LB[b].replace(/[✅❌] /,'')+(ck.n[it.id]?'  « '+ck.n[it.id]+' »':''));});
+  L.push('');L.push('— DONNÉES DE FUSION (ne pas modifier)');
+  L.push('CKJSON:'+JSON.stringify({dev:ck.dev,s:ck.s,n:ck.n}));
+  return L.join('\n');
+}
+function renderReport(){$('repOut').value=report();}
+$('refRep').addEventListener('click',renderReport);
+$('copyRep').addEventListener('click',function(){var t=report();$('repOut').value=t;
+  var fb=function(){var ta=$('repOut');ta.focus();ta.select();try{document.execCommand('copy');toast('Rapport copié');}catch(e){toast('Sélectionne le texte et copie-le');}};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast('Rapport copié');},fb);else fb();});
+$('impBtn').addEventListener('click',function(){
+  var m=($('impIn').value||'').match(/CKJSON:(\{[\s\S]*\})\s*$/m);if(!m){toast('Rapport non reconnu : colle le rapport complet');return;}
+  try{var o=JSON.parse(m[1]);if(o.dev===ck.dev){toast('Ce rapport vient du même type d\'appareil');return;}
+    Object.keys(o.s||{}).forEach(function(id){var v=(o.s[id]||{})[o.dev];if(v){ck.s[id]=ck.s[id]||{};ck.s[id][o.dev]=v;}});
+    Object.keys(o.n||{}).forEach(function(id){if(!ck.n[id])ck.n[id]=o.n[id];else if(ck.n[id].indexOf(o.n[id])<0)ck.n[id]+=' · '+o.n[id];});
+    save();renderList();renderReport();$('impIn').value='';toast('Coches '+(o.dev==='ios'?'iPhone':'Android')+' fusionnées');}catch(e){toast('Rapport illisible');}});
+
+/* ════════ OUTILS ════════ */
+$('swUpd').addEventListener('click',async function(){try{var r=await navigator.serviceWorker.getRegistration();if(!r){toast('Pas de service worker');return;}await r.update();toast(r.installing||r.waiting?'Nouvelle version en cours : ferme et rouvre l\'appli':'Déjà à jour');}catch(e){toast('Vérification impossible (hors ligne ?)');}});
+$('swClear').addEventListener('click',function(){confirmer('Vider le cache de l\'appli ? Tes données restent intactes ; les fichiers seront rechargés depuis internet.',async function(){
+  try{var ks=await caches.keys();await Promise.all(ks.map(function(k){return caches.delete(k);}));var rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(function(r){return r.unregister();}));}catch(e){}
+  location.reload();});});
+$('resetCk').addEventListener('click',function(){confirmer('Remettre toute la checklist à zéro (coches et notes des deux appareils) ?',function(){ck.s={};ck.n={};save();renderList();renderReport();toast('Checklist remise à zéro');});});
+function confirmer(txt,ok){var box=$('resetConfirm');box.innerHTML='<div class="note-box">'+esc(txt)+'<div class="btns"><button type="button" class="btn danger" id="cfYes">Oui</button><button type="button" class="btn" id="cfNo">Annuler</button></div></div>';
+  $('cfYes').onclick=function(){box.innerHTML='';ok();};$('cfNo').onclick=function(){box.innerHTML='';};}
+
+/* ── Démarrage ── */
+$('runAuto').addEventListener('click',runAuto);$('runMods').addEventListener('click',runMods);
+renderList();
+try{var tb=sessionStorage.getItem('ck-tab');if(tb&&tb!=='auto')document.querySelector('[data-tab="'+tb+'"]').click();}catch(e){}
+runAuto();
+})();
+</script>
+</body>
+</html>
