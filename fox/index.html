@@ -1512,14 +1512,14 @@ function _getTodayOT() {
     const baseJr = 7;
 
     // M1 : { "YYYY-MM-DD": { extra, recup, absent } }
-    const rawM1 = _foxDonnees(year).m1;
+    const rawM1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + year) || '{}');
     if (rawM1[todayKey] && Number(rawM1[todayKey].extra || 0) > 0) {
       const extra = Math.round(Number(rawM1[todayKey].extra) * 100) / 100;
       return { extra, total: Math.round((baseJr + extra) * 100) / 100, base: baseJr };
     }
 
     // M2 : { "YYYY-MM": { days: { "DD": heures } } }
-    const rawM2 = _foxDonnees(year).m2;
+    const rawM2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + year) || '{}');
     const monthKey = yyyy + '-' + mm;
     const mv = rawM2[monthKey];
     if (mv && mv.days && !mv.closed) {
@@ -2476,8 +2476,8 @@ function _analyzeLegalSituation() {
     }
 
     // Source unifiée M1 + M2
-    const rawM1 = _foxDonnees(year).m1;
-    const rawM2 = _foxDonnees(year).m2;
+    const rawM1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + year) || '{}');
+    const rawM2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + year) || '{}');
 
     // Normaliser M2 : { "YYYY-MM": { days: { "15": 2.5 } } } → jours ISO
     const m2Days = {};
@@ -2905,7 +2905,7 @@ function _generateDynamicMessage(situation, deltaH, burnoutScore) {
       const _isPrev = !!(s.weekly && s.weekly.isPrevWeek);
       return {
         titre: _isPrev
-          ? `Sem. passée — ${_fmtH(cwTotal)} (${_fmtH(cwHS)} de HS)`
+          ? `Sem. passee — ${_fmtH(cwTotal)} (${_fmtH(cwHS)} de HS)`
           : `${jourNow} — semaine à ${_fmtH(cwTotal)}`,
         message: _isPrev
           ? `${pr_pr}la semaine passée totalisait ${_fmtH(cwTotal)} (base ${_fmtH(s.baseHebdo || 35)} + ${_fmtH(cwHS)} de HS). ${hs50 > 0 ? `Majorations : ${_fmtH(hs25)} à +25% et ${_fmtH(hs50)} à +50%` : `Majoration : ${_fmtH(hs25)} à +25%`} (Art. L3121-36). Vérifie ton prochain bulletin.`
@@ -3771,8 +3771,8 @@ function _generateDynamicMessage(situation, deltaH, burnoutScore) {
         let _wkOT = 0;
         try {
           const _yr2 = _monStr.slice(0,4);
-          const _rawM1ci = _foxDonnees(_yr2).m1;
-          const _rawM2ci = _foxDonnees(_yr2).m2;
+          const _rawM1ci = JSON.parse(localStorage.getItem('DATA_REPORT_' + _yr2) || '{}');
+          const _rawM2ci = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + _yr2) || '{}');
           for (let _dd = 0; _dd < 7; _dd++) {
             const _dt = new Date(_monCi); _dt.setDate(_monCi.getDate() + _dd);
             const _dk = _fmtCi(_dt);
@@ -3799,10 +3799,10 @@ function _generateDynamicMessage(situation, deltaH, burnoutScore) {
           if (!_feriesSet[e.date]) return false;
           try {
             const _yr3 = e.date.slice(0,4);
-            const _v = (_foxDonnees(_yr3).m1||{})[e.date];
+            const _v = (JSON.parse(localStorage.getItem('DATA_REPORT_'+_yr3)||'{}')||{})[e.date];
             if (_v && (_v.extra||0) > 0) return false;
             const _mk2 = e.date.slice(0,7);
-            const _mv2 = ((_foxDonnees(_yr3).m2||{})[_mk2]);
+            const _mv2 = ((JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_'+_yr3)||'{}')||{})[_mk2]);
             if (_mv2 && _mv2.days && parseFloat(_mv2.days[String(parseInt(e.date.slice(8)))]||0) > 0) return false;
           } catch(_) {}
           return true;
@@ -4301,46 +4301,6 @@ function _getDailyVisitIdx(todayExtraVal) {
 //         si burn-out critique → slot 0 ou 1 selon gravité
 //         sinon → résumé journée en slot 0
 // ══════════════════════════════════════════════════════════════════════
-// ── 27/09/2026 : UNE seule source (M1 ou M2) par semaine dans toutes les analyses de Fox ──
-// Avant : chaque jour prenait M1 s'il avait une saisie, sinon M2. Quand on remplit les deux
-// modules, une même semaine additionnait des jours de M1 et des jours de M2 (ex. M1 8h + M2 8h
-// la même semaine → Fox affichait 10h). Désormais, pour une semaine saisie dans les deux modules,
-// les analyses ne gardent que la source principale de Fox (choix manuel, sinon automatique) ;
-// une semaine saisie dans un seul module garde ce module. Lecture seule : rien n'est modifié.
-function _foxDonnees(y) {
-  y = parseInt(y, 10);
-  const lire = k => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
-  const pad = x => String(x).padStart(2, '0');
-  const wkOf = dk => { const d = new Date(dk + 'T12:00:00'), dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow);
-    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
-  const reJ = /^\d{4}-\d{2}-\d{2}$/, reM = /^\d{4}-\d{2}$/;
-  const m1 = lire('DATA_REPORT_' + y), m2 = lire('CA_HS_TRACKER_V1_DATA_' + y);
-  const w1 = {}, w2 = {};
-  [y - 1, y, y + 1].forEach(yy => {   // années voisines : semaines à cheval sur deux années
-    const a = yy === y ? m1 : lire('DATA_REPORT_' + yy), b = yy === y ? m2 : lire('CA_HS_TRACKER_V1_DATA_' + yy);
-    Object.entries(a).forEach(([dk, v]) => { if (reJ.test(dk) && v && typeof v === 'object' && (Number(v.extra) || 0) > 0) w1[wkOf(dk)] = 1; });
-    Object.entries(b).forEach(([mk, mv]) => { if (!reM.test(mk) || !mv || !mv.days) return;
-      Object.entries(mv.days).forEach(([d, h]) => { const n = parseInt(d, 10); if (n >= 1 && n <= 31 && (parseFloat(h) || 0) > 0) w2[wkOf(mk + '-' + pad(n))] = 1; }); });
-  });
-  const deux = Object.keys(w1).filter(k => w2[k]);
-  if (!deux.length) return { m1: m1, m2: m2 };
-  const D = {}; deux.forEach(k => { D[k] = 1; });
-  let prim = 'M1';
-  try { if (typeof moduleReader !== 'undefined' && moduleReader && moduleReader.selectPrimaryModule) prim = moduleReader.selectPrimaryModule() || 'M1'; } catch (e) {}
-  if (prim === 'M2') {
-    const o = {};
-    Object.entries(m1).forEach(([dk, v]) => { if (reJ.test(dk) && D[wkOf(dk)] && v && typeof v === 'object' && (Number(v.extra) || 0) > 0) return; o[dk] = v; });
-    return { m1: o, m2: m2 };
-  }
-  const o2 = {};
-  Object.entries(m2).forEach(([mk, mv]) => {
-    if (!reM.test(mk) || !mv || !mv.days) { o2[mk] = mv; return; }
-    const days = {};
-    Object.entries(mv.days).forEach(([d, h]) => { const n = parseInt(d, 10); if (n >= 1 && n <= 31 && D[wkOf(mk + '-' + pad(n))]) return; days[d] = h; });
-    o2[mk] = Object.assign({}, mv, { days: days });
-  });
-  return { m1: m1, m2: o2 };
-}
 function _fmtH(dec) {
   // Convertit des heures décimales en format lisible : 0.25 → "0h15", 1.5 → "1h30"
   // Pas d'arrondi intermédiaire — travail direct sur la valeur brute
@@ -4361,8 +4321,8 @@ function _injectCurrentWeekContext(s) {
     try {
       const _now_cw = new Date();
       const _yr_cw  = _now_cw.getFullYear().toString();
-      const _rawM1_cw = _foxDonnees(_yr_cw).m1;
-      const _rawM2_cw = _foxDonnees(_yr_cw).m2;
+      const _rawM1_cw = JSON.parse(localStorage.getItem('DATA_REPORT_' + _yr_cw) || '{}');
+      const _rawM2_cw = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + _yr_cw) || '{}');
       const _baseHebdo_cw = (typeof _kitsuneGetCCN === 'function') ? _kitsuneGetCCN().seuil : 35;
       const _baseJ_cw = _baseHebdo_cw / 5;
       const _dow_cw = (_now_cw.getDay() + 6) % 7; // 0=lun, 6=dim
@@ -4673,8 +4633,8 @@ function kitsuneNarrateOvertime(deltaH, source) {
     let _weekHSKey = 0;
     try {
       const _yr_k = new Date().getFullYear().toString();
-      const _m2k = _foxDonnees(_yr_k).m2;
-      const _m1k = _foxDonnees(_yr_k).m1;
+      const _m2k = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + _yr_k) || '{}');
+      const _m1k = JSON.parse(localStorage.getItem('DATA_REPORT_' + _yr_k) || '{}');
       const _nowK = new Date(); const _dowK = (_nowK.getDay()+6)%7;
       for (let _dk2 = 0; _dk2 <= _dowK && _dk2 < 7; _dk2++) {
         const _dtK = new Date(_nowK); _dtK.setDate(_nowK.getDate()-_dowK+_dk2);
@@ -8405,8 +8365,8 @@ function refreshKitsunePopup() {
     } else {
       // Vérifier si M1 ou M2 ont des données avant de dire "pas de données"
       const year = new Date().getFullYear();
-      const rawM1 = _foxDonnees(year).m1;
-      const rawM2 = _foxDonnees(year).m2;
+      const rawM1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + year) || '{}');
+      const rawM2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + year) || '{}');
       const hasM1 = Object.keys(rawM1).some(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && (rawM1[k].extra||0) > 0);
       const hasM2 = Object.values(rawM2).some(mv => {
       if (!mv || !mv.days || mv.closed) return false;
@@ -8466,8 +8426,8 @@ function refreshKitsunePopup() {
   const lastNarr = localStorage.getItem('FOX_LAST_NARRATION');
   if (!lastNarr) {
     const year = new Date().getFullYear();
-    const rawM1 = _foxDonnees(year).m1;
-    const rawM2 = _foxDonnees(year).m2;
+    const rawM1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + year) || '{}');
+    const rawM2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + year) || '{}');
     const hasM1 = Object.keys(rawM1).some(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && (rawM1[k].extra||0) > 0);
     const hasM2 = Object.values(rawM2).some(mv => {
       if (!mv || !mv.days || mv.closed) return false;
@@ -8790,7 +8750,7 @@ function showMonthlySummary(forceMonth) {
   let totalHS = 0, violations = 0, burnoutScore = 0;
   try {
     // M1
-    const m1 = _foxDonnees(y).m1;
+    const m1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + y) || '{}');
     const daysM1 = new Set();
     Object.entries(m1).forEach(([date, v]) => {
       if (date.startsWith(y + '-' + m)) {
@@ -8800,7 +8760,7 @@ function showMonthlySummary(forceMonth) {
       }
     });
     // M2 (sans doublon M1)
-    const m2 = _foxDonnees(y).m2;
+    const m2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + y) || '{}');
     const monthData = m2[y + '-' + m];
     if (monthData && monthData.days) {
       Object.entries(monthData.days).forEach(([ds, hrs]) => {
@@ -8991,7 +8951,7 @@ function _loadAllDays(weeksBack) {
   const allDays = {}; // { 'YYYY-MM-DD': totalExtra }
   years.forEach(yr => {
     try {
-      const rawM1 = _foxDonnees(yr).m1;
+      const rawM1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + yr) || '{}');
       Object.entries(rawM1).forEach(([dk, v]) => {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return;
         if (new Date(dk) < cutoff) return;
@@ -9001,7 +8961,7 @@ function _loadAllDays(weeksBack) {
       });
     } catch(e) {}
     try {
-      const rawM2 = _foxDonnees(yr).m2;
+      const rawM2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + yr) || '{}');
       Object.entries(rawM2).forEach(([mk, mv]) => {
         if (!/^\d{4}-\d{2}$/.test(mk) || !mv || !mv.days) return;
         Object.entries(mv.days).forEach(([ds, hrs]) => {
@@ -9029,8 +8989,8 @@ function _isInRecoveryPhase() {
     const _curWk  = _curMon.toISOString().slice(0,10);
     // Cutoff : 3 semaines passées
     const cutoff  = new Date(_curMon); cutoff.setDate(_curMon.getDate() - 21);
-    const rawM1   = _foxDonnees(yr).m1;
-    const rawM2   = _foxDonnees(yr).m2;
+    const rawM1   = JSON.parse(localStorage.getItem('DATA_REPORT_' + yr) || '{}');
+    const rawM2   = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + yr) || '{}');
     const vac     = JSON.parse(localStorage.getItem('DTE_VACANCES_' + yr) || '{}');
     const byWeek  = {};
     const m1Days  = new Set();
@@ -9436,11 +9396,11 @@ function _buildMonthData() {
     const mk = y + '-' + m;
     let total = 0;
     try {
-      const m1 = _foxDonnees(y).m1;
+      const m1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + y) || '{}');
       Object.entries(m1).forEach(([dk, v]) => {
         if (dk.startsWith(mk)) total += (Number(v.extra) || 0);
       });
-      const m2 = _foxDonnees(y).m2;
+      const m2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + y) || '{}');
       if (m2[mk] && m2[mk].days) {
         const m1Keys = Object.keys(m1).filter(k => k.startsWith(mk));
         Object.entries(m2[mk].days).forEach(([ds, hrs]) => {
@@ -14923,7 +14883,7 @@ function _getYearData(year) {
 
   // M1
   try {
-    const m1 = _foxDonnees(y).m1;
+    const m1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + y) || '{}');
     Object.entries(m1).forEach(([dk, v]) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return;
       const extra = Number(v.extra) || 0;
@@ -14937,8 +14897,8 @@ function _getYearData(year) {
 
   // M2 (sans doublon M1)
   try {
-    const m1raw = _foxDonnees(y).m1;
-    const m2 = _foxDonnees(y).m2;
+    const m1raw = JSON.parse(localStorage.getItem('DATA_REPORT_' + y) || '{}');
+    const m2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + y) || '{}');
     Object.entries(m2).forEach(([mk, mv]) => {
       if (!mv || !mv.days) return;
       Object.entries(mv.days).forEach(([ds, hrs]) => {
@@ -15523,12 +15483,12 @@ function renderHeatmap(year) {
   // Charger les données
   const dayData = {}; // 'YYYY-MM-DD' → { extra, hasData }
   try {
-    const m1 = _foxDonnees(year).m1;
+    const m1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + year) || '{}');
     Object.entries(m1).forEach(([dk, v]) => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dk)) return;
       dayData[dk] = { extra: Number(v.extra)||0, hasData: true };
     });
-    const m2 = _foxDonnees(year).m2;
+    const m2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + year) || '{}');
     Object.entries(m2).forEach(([mk, mv]) => {
       if (!mv?.days) return;
       Object.entries(mv.days).forEach(([ds, hrs]) => {
@@ -15789,13 +15749,13 @@ function buildBadgeStats() {
             { if (_yrs.indexOf(m[0]) < 0) _yrs.push(m[0]); }
         });
         _yrs.forEach(function(yr) {
-          var r1 = _foxDonnees(yr).m1;
+          var r1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + yr) || '{}');
           Object.keys(r1).forEach(function(dk) {
             var dv = r1[dk];
             if (!/^\d{4}-\d{2}-\d{2}$/.test(dk) || (dv.extra || 0) <= 0) return;
             if (dv.hasNight || dv.nightHours) _nh += (dv.nightHours || dv.extra || 0);
           });
-          var r2 = _foxDonnees(yr).m2;
+          var r2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + yr) || '{}');
           Object.keys(r2).forEach(function(mk) {
             var mv = r2[mk]; if (!mv || !mv.days || !mv.nightDays) return;
             mv.nightDays.forEach(function(d) { _nh += (mv.days[d] || 0); });
@@ -15821,14 +15781,14 @@ function buildBadgeStats() {
             { if (_yrs.indexOf(m[0]) < 0) _yrs.push(m[0]); }
         });
         _yrs.forEach(function(yr) {
-          var r1 = _foxDonnees(yr).m1;
+          var r1 = JSON.parse(localStorage.getItem('DATA_REPORT_' + yr) || '{}');
           Object.keys(r1).forEach(function(dk) {
             var dv = r1[dk];
             if (!/^\d{4}-\d{2}-\d{2}$/.test(dk) || (dv.extra || 0) <= 0) return;
             var _dow = new Date(dk + 'T12:00:00').getDay();
             if (_dow === 0 || _dow === 6) _wh += dv.extra;
           });
-          var r2 = _foxDonnees(yr).m2;
+          var r2 = JSON.parse(localStorage.getItem('CA_HS_TRACKER_V1_DATA_' + yr) || '{}');
           Object.keys(r2).forEach(function(mk) {
             var mv = r2[mk]; if (!mv || !mv.days) return;
             var _p = mk.split('-'); var _my = parseInt(_p[0]); var _mm = parseInt(_p[1]);
