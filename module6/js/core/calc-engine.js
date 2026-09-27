@@ -67,14 +67,15 @@ global.M6_exoAnnee = M6_exoAnnee;
 
 const M6_Periode = {
   _iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); },
-  bornes(contract, year) {
+  bornes(contract, year, regime) {
     year = parseInt(year, 10);
     let c = contract;
-    if (!c) { try { c = global.M6_Storage && M6_Storage.getContract(localStorage.getItem('M6_REGIME')); } catch (_) {} }
+    const RG = regime || localStorage.getItem('M6_REGIME') || '';
+    if (!c) { try { c = global.M6_Storage && M6_Storage.getContract(RG); } catch (_) {} }
     c = c || {};
     // Réglages propres à cet exercice (27/09/2026) : leurs dates priment
     try {
-      const rg = localStorage.getItem('M6_REGIME') || '';
+      const rg = RG;
       const sn = JSON.parse(localStorage.getItem('M6_' + rg + '_' + year + '_CONTRACT') || 'null');
       const re0 = /^\d{4}-\d{2}-\d{2}$/;
       if (sn) {
@@ -85,7 +86,7 @@ const M6_Periode = {
     } catch (_) {}
     // Exercices déjà clos : leurs vraies dates, gardées à l'ouverture du suivant (26/09/2026)
     try {
-      const h = JSON.parse(localStorage.getItem('M6_EXERCICES_' + (localStorage.getItem('M6_REGIME') || '')) || '{}') || {};
+      const h = JSON.parse(localStorage.getItem('M6_EXERCICES_' + RG) || '{}') || {};
       const e = h[String(year)];
       if (e && e.deb && e.fin && e.fin >= e.deb) return { year, deb: e.deb, fin: e.fin, calendaire: e.deb === year + '-01-01' && e.fin === year + '-12-31' };
     } catch (_) {}
@@ -134,13 +135,15 @@ const M6_ForfaitJours = {
     // Fériés de toutes les années couvertes (exercice à cheval, 26/09/2026)
     const feries = (function(){ const s=new Set(),a=dateArrivee?parseInt(dateArrivee,10):year,z=dateDepart?parseInt(dateDepart,10):year;
       for(let y=Math.min(a,z);y<=Math.max(a,z);y++) M6_Feries.getSet(y).forEach(x=>s.add(x)); return s; })();
-    const debut  = dateArrivee ? new Date(dateArrivee+'T12:00:00') : new Date(year,0,1);
-    const fin    = dateDepart  ? new Date(dateDepart+'T12:00:00')  : new Date(year,11,31);
+    // 27/09/2026 : midi heure locale + date locale. Avant, minuit + toISOString décalait
+    // chaque jour d'un cran en France (UTC+1/+2) : fériés mal repérés, RTT faussés en année civile.
+    const debut  = dateArrivee ? new Date(dateArrivee+'T12:00:00') : new Date(year,0,1,12);
+    const fin    = dateDepart  ? new Date(dateDepart+'T12:00:00')  : new Date(year,11,31,12);
     const joursCalendaires = isLeap(year)?366:365;
     let WE=0,feriesOuvres=0,joursEffPeriode=0;
     const cur=new Date(debut);
     while(cur<=fin){
-      const dk=cur.toISOString().slice(0,10),dow=cur.getDay();
+      const dk=cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0'),dow=cur.getDay();
       joursEffPeriode++;
       if(dow===0||dow===6) WE++;
       else if(feries.has(dk)) feriesOuvres++;

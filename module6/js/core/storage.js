@@ -118,8 +118,86 @@ const M6_Storage = {
     // L'exercice en cours met aussi à jour la copie globale ; un exercice passé ou préparé, non
     const aucun = !localStorage.getItem(`${NS}_${regime}_CONTRACT`);
     if (y === cur || aucun) localStorage.setItem(`${NS}_${regime}_CONTRACT`, JSON.stringify(obj));
+    // 27/09/2026 : exercices voisins recalés et jours re-rangés selon les nouvelles dates
+    try {
+      const nv = this.aligner(regime, y, obj && obj.dateDebutExercice, obj && obj.dateFinExercice);
+      const nj = this.rangerJours(regime);
+      if ((nv || nj) && window.M6_toast) setTimeout(() => M6_toast((nv ? 'Exercices voisins recalés' : '') + (nv && nj ? ' · ' : '') + (nj ? nj + ' jour(s) rangé(s) dans leur exercice' : '')), 700);
+    } catch (_) {}
     this._log(regime, y, 'CONTRACT', 'Configuration de l\'exercice ' + y + ' mise à jour');
   },
+  /* 27/09/2026 — COHÉRENCE DES EXERCICES.
+     aligner : l'exercice suivant commence le lendemain de la fin de celui-ci, le précédent
+     finit la veille de son début (sinon deux exercices se chevauchent, ou des jours ne
+     sont dans aucun). Seuls les exercices voisins qui ont leurs propres réglages sont touchés.
+     rangerJours : chaque jour saisi est rangé dans l'exercice qui le contient (un exercice
+     à cheval sur deux années lit ainsi décembre ET janvier). Jamais d'écrasement. */
+  aligner(regime, y, D, F) {
+    const re = /^\d{4}-\d{2}-\d{2}$/; y = parseInt(y);
+    if (!re.test(D || '')) D = y + '-01-01';
+    if (!re.test(F || '')) F = y + '-12-31';
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const plus = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return iso(d); };
+    const unAn = (s, n) => { const d = new Date(s + 'T12:00:00'), m = d.getMonth(); d.setFullYear(d.getFullYear() + n); if (d.getMonth() !== m) d.setDate(0); return iso(d); };
+    const nom = (a, b) => global.M6_exoAnnee(a, b);
+    const cur = this.currentExoYear(regime), hk = 'M6_EXERCICES_' + regime, h = this._json(hk, {}) || {};
+    let hBouge = false, n = 0;
+    const regler = (a, deb, fin) => {  // a = année voisine ; renvoie les nouvelles dates ou null
+      if (!re.test(deb) || !re.test(fin) || fin < deb || nom(deb, fin) !== a) return;
+      const k = `${NS}_${regime}_${a}_CONTRACT`, sn = this._json(k, null);
+      if (sn && typeof sn === 'object') {
+        const civ = deb === a + '-01-01' && fin === a + '-12-31';
+        const d0 = sn.dateDebutExercice || (a + '-01-01'), f0 = sn.dateFinExercice || (a + '-12-31');
+        if (d0 !== deb || f0 !== fin) {
+          sn.dateDebutExercice = civ ? null : deb; sn.dateFinExercice = civ ? null : fin;
+          localStorage.setItem(k, JSON.stringify(sn)); n++;
+          if (a === cur) localStorage.setItem(`${NS}_${regime}_CONTRACT`, JSON.stringify(sn));
+        }
+      }
+      if (h[String(a)] && (h[String(a)].deb !== deb || h[String(a)].fin !== fin)) { h[String(a)] = { deb, fin }; hBouge = true; }
+    };
+    const aSes = a => !!localStorage.getItem(`${NS}_${regime}_${a}_CONTRACT`) || !!h[String(a)];
+    try {
+      if (aSes(y + 1)) {  // suivant : commence le lendemain
+        const b = global.M6_Periode.bornes(this.getContract(regime, y + 1), y + 1, regime), nd = plus(F, 1);
+        if (b.deb !== nd) regler(y + 1, nd, unAn(F, 1));  // même rythme que cet exercice
+      }
+      if (aSes(y - 1)) {  // précédent : finit la veille
+        const b = global.M6_Periode.bornes(this.getContract(regime, y - 1), y - 1, regime), nf = plus(D, -1);
+        if (b.fin !== nf) { let nd = b.deb; if (!(nf > nd) || nom(nd, nf) !== y - 1) nd = unAn(D, -1); regler(y - 1, nd, nf); }
+      }
+    } catch (_) {}
+    if (hBouge) localStorage.setItem(hk, JSON.stringify(h));
+    return n;
+  },
+  rangerJours(regime) {
+    const re = /^\d{4}-\d{2}-\d{2}$/, wk = /^(\d{4})-W(\d{2})$/;
+    const existe = a => !!localStorage.getItem(`${NS}_${regime}_${a}_DATA`) || !!localStorage.getItem(`${NS}_${regime}_${a}_CONTRACT`) || a === this.currentExoYear(regime);
+    const cache = {}, B = a => cache[a] || (cache[a] = global.M6_Periode.bornes(this.getContract(regime, a), a, regime));
+    let n = 0;
+    ['DATA', 'MOODS', 'DEPLACEMENT'].forEach(suf => {
+      const annees = [];
+      for (let i = 0; i < localStorage.length; i++) { const m = new RegExp(`^${NS}_${regime}_(\\d{4})_${suf}$`).exec(localStorage.key(i) || ''); if (m) annees.push(+m[1]); }
+      const tables = {}, modif = new Set();
+      annees.forEach(y => { tables[y] = this._json(`${NS}_${regime}_${y}_${suf}`, null); });
+      annees.forEach(y => {
+        const t = tables[y]; if (!t || typeof t !== 'object' || Array.isArray(t)) return;
+        Object.keys(t).forEach(k => {
+          if (!re.test(k) && !wk.test(k)) return;
+          if (global.M6_Periode.inclut(k, B(y))) return;               // déjà dans son exercice
+          const yk = parseInt(k, 10);
+          const a = [yk, yk + 1, yk - 1].find(x => x !== y && existe(x) && global.M6_Periode.inclut(k, B(x)));
+          if (a === undefined) return;                                 // dans aucun exercice : on n'y touche pas
+          if (!tables[a]) tables[a] = this._json(`${NS}_${regime}_${a}_${suf}`, {}) || {};
+          if (Object.prototype.hasOwnProperty.call(tables[a], k)) return;  // doublon : on ne touche à rien
+          tables[a][k] = t[k]; delete t[k]; modif.add(a); modif.add(y); n++;
+        });
+      });
+      modif.forEach(y => localStorage.setItem(`${NS}_${regime}_${y}_${suf}`, JSON.stringify(tables[y])));
+    });
+    return n;
+  },
+
   /* Réglages de l'exercice en cours seulement (passage d'exercice) */
   setContractGlobal(regime, obj) { localStorage.setItem(`${NS}_${regime}_CONTRACT`, JSON.stringify(obj)); },
 
@@ -550,6 +628,26 @@ global.M6_PhaseAlert = M6_PhaseAlert;
       if (bouge) try { localStorage.removeItem(`M6_${r}_ACTIVE_YEAR`); } catch (_) {}
     });
     localStorage.setItem('M6_EXO_NOM_V2', new Date().toISOString().slice(0, 10));
+  } catch (_) { /* best-effort */ }
+})();
+
+/* Migration unique (27/09/2026, M6_EXO_ALIGN_V3) : exercices voisins recalés sur l'exercice
+   en cours (plus de chevauchement ni de trou), puis chaque jour rangé dans l'exercice qui le
+   contient (décembre d'un exercice à cheval enfin compté). */
+(function alignerExercices() {
+  try {
+    if (localStorage.getItem('M6_EXO_ALIGN_V3') || !global.M6_Periode) return;
+    const regimes = new Set();
+    for (let i = 0; i < localStorage.length; i++) { const m = /^M6_(.+)_CONTRACT$/.exec(localStorage.key(i) || ''); if (m && !/_\d{4}$/.test(m[1])) regimes.add(m[1]); }
+    regimes.forEach(r => {
+      try {
+        const g = M6_Storage.getContractGlobal(r) || {}, C = M6_Storage.currentExoYear(r);
+        const sn = M6_Storage.hasYearContract(r, C) ? M6_Storage.getContract(r, C) : g;
+        M6_Storage.aligner(r, C, sn.dateDebutExercice, sn.dateFinExercice);
+        M6_Storage.rangerJours(r);
+      } catch (_) {}
+    });
+    localStorage.setItem('M6_EXO_ALIGN_V3', new Date().toISOString().slice(0, 10));
   } catch (_) { /* best-effort */ }
 })();
 
