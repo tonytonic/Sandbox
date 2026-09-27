@@ -4659,10 +4659,10 @@ function hasConsent(){
     var h='';
     h+='<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);'
       +'border-left:3px solid '+ech(couleur)+';border-radius:12px;padding:12px 14px;'
-      +'touch-action:pan-y;user-select:none;-webkit-user-select:none">';
+      +'touch-action:pan-y;user-select:none;-webkit-user-select:none;overflow:hidden;min-width:0">'; /* 27/09/2026 : un long texte ne déborde plus */
 
     h+='<div style="display:flex;align-items:center;gap:8px;justify-content:space-between">';
-    h+='<div style="font-weight:700;font-size:13px;color:#fff;line-height:1.3">'+ech(titre)+'</div>';
+    h+='<div style="font-weight:700;font-size:13px;color:#fff;line-height:1.3;min-width:0;overflow-wrap:anywhere">'+ech(titre)+'</div>';
     /* Deux chevrons discrets : sans eux, rien n'indiquerait que l'encart se
        balaie. Ils servent aussi de repli quand le geste passe mal. */
     h+='<div style="display:flex;gap:4px;flex-shrink:0">'
@@ -4675,7 +4675,7 @@ function hasConsent(){
     h+='</div>';
 
     if(offset===0 && mode==='full' && data.ctx){
-      h+='<div style="font-size:11.5px;opacity:.72;color:#fff;margin-top:5px;font-style:italic">'
+      h+='<div style="font-size:11.5px;opacity:.72;color:#fff;margin-top:5px;font-style:italic;overflow-wrap:anywhere">'
         +ech(data.ctx)+'</div>';
     }
 
@@ -4684,7 +4684,7 @@ function hasConsent(){
       items.slice(0,4).forEach(function(it){
         h+='<div style="font-size:12px;color:#fff;opacity:.9;display:flex;gap:7px">'
           +(it.h?'<span style="opacity:.6;font-variant-numeric:tabular-nums;flex-shrink:0">'+ech(it.h)+'</span>':'')
-          +'<span>'+ech(it.t)+'</span></div>';
+          +'<span style="min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+ech(it.t)+'</span></div>';
       });
       if(items.length>4){
         h+='<div style="font-size:11px;opacity:.6;color:#fff">+ '+(items.length-4)+' autre(s)</div>';

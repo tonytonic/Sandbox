@@ -1,2 +1,5 @@
 include:
   - .well-known
+  # Fichiers commençant par « _ » : ignorés par défaut par GitHub Pages (Jekyll)
+  - _reference-loi.html
+  - outils/_reference-loi.html
