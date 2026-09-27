@@ -187,7 +187,11 @@ async function runAuto(){
   var S='Appli et appareil';
   // Version chargée vs en ligne
   var loaded='',online='',files=[];
-  try{var ks=await caches.keys();loaded=(ks.filter(function(k){return /^heuressup-cache-v/.test(k);}).sort().pop()||'').replace('heuressup-cache-','');}catch(e){}
+  // 27/09/2026 : version du service worker qui sert la page (repli : plus grand numéro de cache, tri numérique)
+  try{loaded=await new Promise(function(res){var sw=navigator.serviceWorker;if(!sw||!sw.controller||!window.MessageChannel)return res('');var ch=new MessageChannel(),to=setTimeout(function(){res('');},1500);
+    ch.port1.onmessage=function(ev){clearTimeout(to);res((ev.data&&ev.data.version)||'');};try{sw.controller.postMessage({type:'SH_VERSION'},[ch.port2]);}catch(x){res('');}});}catch(e){}
+  if(!loaded){try{var ks=await caches.keys(),num=function(x){return (x.match(/\d+/g)||[]).map(Number);};
+    var l=ks.filter(function(k){return /^heuressup-cache-v/.test(k);}).map(function(k){return k.replace('heuressup-cache-','');}).sort(function(a,b){a=num(a);b=num(b);for(var i=0;i<Math.max(a.length,b.length);i++){var d=(a[i]||0)-(b[i]||0);if(d)return d;}return 0;});loaded=l.pop()||'';}catch(e){}}
   try{var r=await fetch('sw.js',{cache:'no-store'});var t=await r.text();var m=t.match(/CACHE_NAME\s*=\s*"heuressup-cache-([^"]+)"/);online=m?m[1]:'';files=swList(t);}catch(e){}
   window.__ckVer=loaded||online;
   if(!loaded)add(S,'warn','Version chargée inconnue','Aucun cache de l\'appli sur cet appareil (première visite, ou navigateur sans service worker). En ligne : '+(online||'?'));

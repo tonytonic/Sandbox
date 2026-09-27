@@ -5114,7 +5114,24 @@ function hasConsent(){
 </script>
 <!-- 27/09/2026 : version réellement chargée par le téléphone (cache du service worker) -->
 <div id="shVersion" style="text-align:center;font-size:11px;color:rgba(255,255,255,0.45);padding:14px 0 calc(18px + env(safe-area-inset-bottom,0px));"></div>
-<script>(function(){try{if(!window.caches)return;caches.keys().then(function(k){var v=(k.filter(function(x){return /^heuressup-cache-v/.test(x);}).sort().pop()||'').replace('heuressup-cache-','');var m=(navigator.standalone||window.matchMedia('(display-mode: standalone)').matches)?'appli':'navigateur';var e=document.getElementById('shVersion');if(e&&v)e.textContent='Version '+v+' · '+m;});}catch(e){}
+<script>(function(){try{
+/* 27/09/2026 : version du service worker QUI SERT la page (message SH_VERSION). Avant : le plus
+   « grand » nom de cache, trié comme du texte (v10.10.99 passait après v10.10.112) et lu même
+   pendant l'installation d'une nouvelle version pas encore active. */
+var m=(navigator.standalone||window.matchMedia('(display-mode: standalone)').matches)?'appli':'navigateur',e=document.getElementById('shVersion');
+function num(x){return (x.match(/\d+/g)||[]).map(Number);}
+function cmp(a,b){a=num(a);b=num(b);for(var i=0;i<Math.max(a.length,b.length);i++){var d=(a[i]||0)-(b[i]||0);if(d)return d;}return 0;}
+function afficher(v,att){if(e&&v)e.textContent='Version '+v+' · '+m+(att?' · mise à jour '+att+' prête, rouvre l\'appli':'');}
+function parCaches(att){if(!window.caches)return;caches.keys().then(function(k){var l=k.filter(function(x){return /^heuressup-cache-v/.test(x);}).map(function(x){return x.replace('heuressup-cache-','');}).sort(cmp);afficher(l.pop(),att);});}
+var sw=navigator.serviceWorker;
+if(sw&&sw.controller&&window.MessageChannel){var ch=new MessageChannel(),fait=false;
+  ch.port1.onmessage=function(ev){if(ev.data&&ev.data.type==='SH_VERSION'){fait=true;
+    sw.getRegistration().then(function(r){var w=r&&(r.waiting||r.installing);if(!w){afficher(ev.data.version);return;}
+      caches.keys().then(function(k){var l=k.filter(function(x){return /^heuressup-cache-v/.test(x);}).map(function(x){return x.replace('heuressup-cache-','');}).sort(cmp),nv=l.pop();afficher(ev.data.version,nv&&nv!==ev.data.version?nv:'');});}).catch(function(){afficher(ev.data.version);});}};
+  try{sw.controller.postMessage({type:'SH_VERSION'},[ch.port2]);}catch(x){}
+  setTimeout(function(){if(!fait)parCaches();},1500);}
+else parCaches();
+}catch(e){}
 /* Accès caché au module de vérification : 5 appuis rapides sur cette ligne */
 try{var el=document.getElementById('shVersion'),n=0,t=0;el.addEventListener('click',function(){var now=Date.now();n=(now-t<700)?n+1:1;t=now;if(n>=5){n=0;location.href='check.html';}});}catch(e){}})();</script>
 </body>
