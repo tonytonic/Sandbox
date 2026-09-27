@@ -66,8 +66,12 @@ const M5_Wellbeing = {
     const ecartType = Math.sqrt(variance);
 
     // Score stabilité : 100 si ecartType=0, 0 si ecartType >= seuil critique
+    /* 27/09/2026 : barème aligné sur les messages (avant : 0 dès 4 h, « très variables » pour
+       3,7 h alors que le message disait « dans les limites raisonnables »).
+       < 2 h : très stable (100 → 80) · 2 à 4 h : raisonnable (80 → 40) · ≥ 4 h : critique (40 → 0 à 8 h) */
+    const _S = HIGGINS_VARIANCE_SEUIL, e = ecartType;
     const scoreStabilite = Math.max(0, Math.round(
-      100 * (1 - Math.min(ecartType / HIGGINS_VARIANCE_SEUIL, 1))
+      e <= _S / 2 ? 100 - 20 * e / (_S / 2) : e <= _S ? 80 - 40 * (e - _S / 2) / (_S / 2) : 40 - 40 * Math.min(1, (e - _S) / _S)
     ));
 
     // ── 2. SCORE INTENSITÉ (Karasek 1979) ────────────────────────
@@ -145,8 +149,11 @@ const M5_Wellbeing = {
     }
     const ratioVariations = n > 1 ? nbVariationsSoudaines / (n-1) : 0;
     // Minimum 3 semaines pour Janssen (il faut au moins 2 transitions)
+    // 27/09/2026 : barème aligné sur les messages — ≤ 10 % : protecteur (100 → 80) ·
+    // 10 à 30 % : à surveiller (80 → 40) · ≥ 30 % : stress aigu (40 → 0 à 60 %)
+    const _J = JANSSEN_DELAI_SEUIL, rv = ratioVariations;
     const scorePrevisibilite = n < 3 ? 50 : Math.max(0, Math.round(
-      100 * (1 - Math.min(ratioVariations / JANSSEN_DELAI_SEUIL, 1))
+      rv <= 0.10 ? 100 - 200 * rv : rv <= _J ? 80 - 40 * (rv - 0.10) / (_J - 0.10) : 40 - 40 * Math.min(1, (rv - _J) / _J)
     ));
 
     // ── 5b. PENCAVEL 2014 — Courbe de productivité décroissante ──

@@ -233,6 +233,8 @@ function semainesCumul(annees,sd){
   });
   return Object.keys(b).sort().map(function(m){var x=b[m];x.worked=Math.round(x.worked*100)/100;return x;});
 }
+/* Débuts de semaine en congé pour UN contrat (27/09/2026) */
+function congesContrat(n,annees,sd){var vu={};annees.forEach(function(y){var v=jlist(keyFor(n,'M5_VACANCES_')+y);Object.keys(v).forEach(function(dk){if(v[dk]&&/^\d{4}-\d{2}-\d{2}$/.test(dk))vu[debutSem(dk,sd)]=1;});});return vu;}
 /* Débuts de semaine où l'on est en congé sur TOUS les contrats (repos réel) */
 function congesCommuns(annees,sd){
   var ex=existing(),cpt={};
@@ -276,5 +278,5 @@ function congesTousActif(debut,annee){
 global.M5_key=key;
 global.M5_rpPct=rpPct;global.M5_rpTexte=rpTexte;
 global.M5_Contrats={active:ACTIVE,key:key,keyFor:keyFor,exists:exists,nom:nom,list:list,existing:existing,switchTo:switchTo,add:add,
-  semainesCumul:semainesCumul,congesCommuns:congesCommuns,contratCumul:contratCumul,congesTous:congesTous,congesTousActif:congesTousActif};
+  semainesCumul:semainesCumul,congesCommuns:congesCommuns,congesContrat:congesContrat,contratCumul:contratCumul,congesTous:congesTous,congesTousActif:congesTousActif};
 })(window);

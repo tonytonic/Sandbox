@@ -141,6 +141,11 @@ function runAnalysis() {
         let all=M5_Contrats.semainesCumul(ans,sd).filter(w=>w.monday<=todayStr);
         // Fenêtre où tous les contrats sont suivis (sinon un contrat pas encore saisi fausse la charge)
         const ex=M5_Contrats.existing(), premiers=ex.map(n=>{const w=all.find(x=>x.parContrat[n]>0);return w?w.monday:null;});
+        /* 27/09/2026 : dernières semaines pas encore saisies pour tous les contrats (ex. seul le
+           ménage saisi cette semaine) → écartées, au lieu de compter comme des semaines légères
+           (elles faussaient stabilité, récupération et variations soudaines). */
+        try{const vac={};ex.forEach(n=>{vac[n]=M5_Contrats.congesContrat(n,ans,sd);});
+          while(all.length>2){const w=all[all.length-1];if(ex.every(n=>w.parContrat[n]>0||vac[n][w.monday]))break;all.pop();}}catch(e){}
         if(cc&&premiers.every(Boolean)){
           const depuis=premiers.sort().pop(), fen=all.filter(w=>w.monday>=depuis);
           if(fen.length>=2) all=fen;
@@ -1513,7 +1518,9 @@ function renderStats() {
   // ── HEATMAP COMMUNE (27/09/2026) : toutes les heures de la semaine, tous contrats ──
   try{ if(window.M5_Contrats&&M5_Contrats.existing().length>1){
     const ex=M5_Contrats.existing(), cc=M5_Contrats.contratCumul(), baseT=cc?cc.hoursBase:0;
-    const cw=M5_Contrats.semainesCumul([String(year)],contract.weekStartDay||0).filter(w=>String(w.monday).slice(0,4)===String(year)&&w.worked>0);
+    // 27/09/2026 : semaines de l'EXERCICE (la semaine du 29/12/2025 appartient à 2026), pas de l'année civile
+    const _bx=window.M5_exoBornes&&M5_exoBornes(year),_y0=parseInt(year,10);
+    const cw=M5_Contrats.semainesCumul([String(_y0-1),String(year),String(_y0+1)],contract.weekStartDay||0).filter(w=>(_bx?(w.monday>=_bx.deb&&w.monday<=_bx.fin):String(w.monday).slice(0,4)===String(year))&&w.worked>0);
     if(cw.length){
       html+=`<div class="m5-card" style="margin:0 0 12px;"><div class="m5-card-header"><span class="m5-card-title">🗓️ Heatmap ${year} · tous mes contrats</span></div><div class="m5-card-body" style="padding:12px;"><div class="m5-heatmap-wrap"><div style="display:flex;flex-wrap:wrap;gap:3px;">`;
       cw.forEach(w=>{const wh=w.worked;let bg,border,txt='#fff';
@@ -1781,7 +1788,8 @@ function launchPDFContrat(n){
     const year=M5_DataStore.getYear(),y0=parseInt(year,10),periode=document.getElementById('pdf-periode')?.value||'ANNUEL';
     const cum=M5_Contrats.semainesCumul([String(y0-1),String(y0),String(y0+1)],M5_Contract.get().weekStartDay||0)
       .filter(w=>w.parContrat[n]>0).map(w=>({monday:w.monday,worked:w.parContrat[n]}));
-    const weeks=filterWeeksByPeriode(periode==='ANNUEL'?cum.filter(w=>String(w.monday).slice(0,4)===String(year)):cum,periode,year);
+    const _bx=window.M5_exoBornes&&M5_exoBornes(year),_inExo=w=>_bx?(w.monday>=_bx.deb&&w.monday<=_bx.fin):String(w.monday).slice(0,4)===String(year);
+    const weeks=filterWeeksByPeriode(periode==='ANNUEL'?cum.filter(_inExo):cum,periode,year);
     const stats=_m5StatsSemaines(c,weeks);
     const periodeLabel=periode==='MENSUEL'?['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'][parseInt(document.getElementById('pdf-mois')?.value||'1')-1]+' '+year
       :periode==='CUSTOM'?(document.getElementById('pdf-date-debut')?.value||'')+' → '+(document.getElementById('pdf-date-fin')?.value||'')
@@ -1855,7 +1863,8 @@ function launchPDFCommun(){
     if(!window.M5_Contrats||M5_Contrats.existing().length<2){toast('Un seul contrat : utilise le PDF habituel','info');return;}
     const year=M5_DataStore.getYear(),y0=parseInt(year,10),periode=document.getElementById('pdf-periode')?.value||'ANNUEL';
     const sd=M5_Contract.get().weekStartDay||0;
-    const all=M5_Contrats.semainesCumul([String(y0-1),String(y0),String(y0+1)],sd).filter(w=>String(w.monday).slice(0,4)===String(year)||periode!=='ANNUEL');
+    const _bx=window.M5_exoBornes&&M5_exoBornes(year);
+    const all=M5_Contrats.semainesCumul([String(y0-1),String(y0),String(y0+1)],sd).filter(w=>periode!=='ANNUEL'||(_bx?(w.monday>=_bx.deb&&w.monday<=_bx.fin):String(w.monday).slice(0,4)===String(year)));
     const sem=filterWeeksByPeriode(all,periode,year).filter(w=>w.worked>0);
     const contrats=M5_Contrats.existing().map(n=>{
       let c={};try{c=JSON.parse(localStorage.getItem(M5_Contrats.keyFor(n,'M5_CONTRACT'))||'{}')||{};}catch(e){}
