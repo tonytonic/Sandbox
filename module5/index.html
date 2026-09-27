@@ -87,6 +87,11 @@ if(c&&c.hoursBase>0){var h=document.documentElement;h.classList.add('m5-attente'
      de la page (#m5-pret) : plus d'écran sombre intermédiaire pendant le chargement des scripts. -->
 <style>html.m5-attente body{visibility:hidden}</style>
 <link rel="expect" href="#m5-pret" blocking="render">
+<script>/* 27/09/2026 : la transition entre pages ne sert qu'au changement de contrat (Mizuki → Mizuki).
+   Vers le menu ou un autre module, elle est annulée ici : sinon la page d'arrivée, qui ne l'utilise pas,
+   l'interrompt et le téléphone le signale comme une erreur (« Transition was aborted… »). */
+addEventListener('pageswap',function(e){try{if(!e.viewTransition)return;var u=e.activation&&e.activation.entry&&e.activation.entry.url;
+  if(!u||new URL(u).pathname!==location.pathname)e.viewTransition.skipTransition();}catch(x){}});</script>
 </head>
 <body>
 <script>
