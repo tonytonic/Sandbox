@@ -63,7 +63,7 @@ const VCD = {
       if(t==='rtt')    { rttPris++; continue; }
       if(t==='repos')  continue;
       if(t==='demi')   { jTravailles+=0.5; demis++; }
-      else if(t==='travail') jTravailles++;
+      else if(t==='travail'||t==='teletravail') jTravailles++;
       if(v.deplacement) deplacements++;
       if(v.debut&&v.fin) {
         const amp=(new Date(`${dk}T${v.fin}:00`)-new Date(`${dk}T${v.debut}:00`))/3600000;

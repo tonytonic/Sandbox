@@ -320,7 +320,7 @@ const M6_BioEngine = {
       semaines[wk].push({ dk, ...v });
 
       const t = v.type || 'travail';
-      if (t === 'travail')    joursTotal++;
+      if (t === 'travail' || t === 'teletravail') joursTotal++;
       if (t === 'rachat')     { joursTotal++; rachetes++; }
       if (t === 'rtt')        { rttPris++; cumulSurcharge = Math.max(0, cumulSurcharge - 0.25); }
       if (t === 'cp')         { cpPris++;  cumulSurcharge = Math.max(0, cumulSurcharge - 0.35); }
@@ -349,7 +349,7 @@ const M6_BioEngine = {
     const nbSemaines = wkKeys.length || 1;
 
     for (const wk of wkKeys) {
-      const jT = semaines[wk].filter(j => ['travail','rachat','demi'].includes(j.type||'travail')).length;
+      const jT = semaines[wk].filter(j => ['travail','rachat','demi','teletravail'].includes(j.type||'travail')).length;
       if (jT >= 5) {
         semSurcharge++;
         cumulSurcharge += Math.min(2, jT - 4); // max 2 unités/semaine
@@ -390,7 +390,7 @@ const M6_BioEngine = {
       const a = _age(dk); if (a < 0 || a >= FEN) continue;
       const t = v.type || 'travail', wk = this._isoWeek(new Date(dk + 'T12:00:00'));
       if (!semR[wk]) semR[wk] = 0;
-      if (t === 'travail' || t === 'rachat') { joursR++; semR[wk]++; }
+      if (t === 'travail' || t === 'rachat' || t === 'teletravail') { joursR++; semR[wk]++; }
       else if (t === 'demi') { joursR += 0.5; semR[wk] += 0.5; }
       else if (t === 'rtt') rttEff += Math.max(0, 1 - a / FADE);
       else if (t === 'cp')  cpEff  += Math.max(0, 1 - a / FADE);

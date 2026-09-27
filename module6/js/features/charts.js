@@ -489,7 +489,7 @@ const M6_Charts = {
     <!-- Tableau bio chiffres par mois -->
     <div class="m6-card" style="margin-bottom:14px;overflow:hidden">
       <div class="m6-card-header"><div class="m6-card-icon">🧬</div>
-        <div><div class="m6-card-label">Indicateurs biologiques</div><div class="m6-card-title">Scores mensuels cumulés</div></div></div>
+        <div><div class="m6-card-label">Indicateurs biologiques</div><div class="m6-card-title">État en fin de mois</div></div></div>
       <div class="m6-card-body" style="padding:8px 4px">
         <div style="overflow-x:auto">
           <table style="width:100%;border-collapse:collapse;font-size:0.74rem;text-align:center">
@@ -520,7 +520,7 @@ const M6_Charts = {
             </tbody>
           </table>
         </div>
-        <div style="font-size:0.65rem;color:var(--pierre);margin-top:6px;text-align:center">Scores calculés cumulativement — 0=optimal · 100=critique</div>
+        <div style="font-size:0.65rem;color:var(--pierre);margin-top:6px;text-align:center">État des 8 dernières semaines à la fin de chaque mois (RTT et CP récupèrent, effet estompé en 3 semaines). Fatigue et stress : 0 = optimal, 100 = critique ; récupération et performance : 100 = optimal.</div>
       </div>
     </div>
     </div>`;

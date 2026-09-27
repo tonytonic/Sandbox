@@ -218,7 +218,7 @@ const M6_ForfaitJours = {
         else demis_am++;
         demis++;
       }
-      else if(t==='travail') travailles++;
+      else if(t==='travail'||t==='teletravail') travailles++; // 27/09/2026 : le télétravail est un jour travaillé
       else if(t==='rachat'){travailles++;rachetes++;}
       else if(t==='rtt')   rttPris++;
       else if(t==='cp')    cpPris++;
@@ -228,7 +228,7 @@ const M6_ForfaitJours = {
       entrees.push({dk,...v});
     }
     // Amplitude + repos quotidien
-    const joursTrack=entrees.filter(e=>['travail','rachat'].includes(e.type||'travail'));
+    const joursTrack=entrees.filter(e=>['travail','rachat','teletravail'].includes(e.type||'travail'));
     const amplitudeViolations=[];
     for(let i=1;i<joursTrack.length;i++){
       const prev=joursTrack[i-1],curr=joursTrack[i];
