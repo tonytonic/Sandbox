@@ -168,7 +168,9 @@ async function run(){
   var I='Installation';
   try{var mr=await fetch('manifest.json',{cache:'no-store'});var mf=await mr.json(),base=new URL('manifest.json',location.href);
     var su=new URL(mf.start_url||'',base),sc=new URL(mf.scope||'./',base),okO=su.origin===location.origin&&sc.origin===location.origin;
-    add(I,okO?'ok':'ko',okO?'Fiche d\'installation correcte':'Fiche d\'installation incohérente',okO?'L\'icône de l\'écran d\'accueil ouvre bien cette appli.':'L\'icône pourrait ouvrir une autre adresse : réinstalle l\'appli ou écris-nous.');
+    /* 27/09/2026 : la prod déclare son adresse officielle en entier ; ouverte depuis une autre adresse, ce n'est pas une panne
+       mais les données ne sont pas partagées entre les deux : simple information */
+    add(I,okO?'ok':(STANDALONE?'warn':'info'),okO?'Fiche d\'installation correcte':'Ouverte depuis une autre adresse que l\'appli installée',okO?'L\'icône de l\'écran d\'accueil ouvre bien cette appli.':'Tes données ne sont pas partagées entre cette adresse et l\'appli installée sur l\'écran d\'accueil : utilise toujours la même pour retrouver tes saisies.');
     add(I,mf.display==='standalone'?'ok':'warn','Affichage plein écran',mf.display==='standalone'?'L\'appli s\'ouvre sans la barre du navigateur une fois installée.':'Mode : '+(mf.display||'?'));
     var ic=(mf.icons||[]).length;add(I,ic?'ok':'warn','Icônes de l\'appli',ic+' taille'+(ic>1?'s':'')+' disponible'+(ic>1?'s':''));
   }catch(e){add(I,navigator.onLine?'warn':'info','Fiche d\'installation non lue',navigator.onLine?'Réessaie dans un instant.':'Pas de réseau.');}
