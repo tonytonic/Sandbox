@@ -122,8 +122,11 @@ const M5_Wellbeing = {
     } catch(_) {}
     const ratioRecup = Math.min(1, (semainesLegeres + vacSemaines) / Math.max(1, n + vacSemaines));
     // Minimum 4 semaines pour que la récupération soit mesurable
+    // 27/09/2026 : barème aligné sur le message (avant : 19 % de semaines légères = « Correct » en vert
+    // alors que le message avertissait). ≥ 30 % : bien (80 → 100) · 15 à 30 % : à surveiller (40 → 80) · < 15 % : fragile
+    const _R = SONNENTAG_RECOVERY_MIN, rr = ratioRecup;
     const scoreRecup = n < 4 ? 50 : Math.min(100, Math.round(
-      (ratioRecup / SONNENTAG_RECOVERY_MIN) * 100
+      rr >= _R ? 80 + 20 * Math.min(1, (rr - _R) / _R) : rr >= _R / 2 ? 40 + 40 * (rr - _R / 2) / (_R / 2) : 40 * rr / (_R / 2)
     ));
 
     // ── 4. SCORE CHOIX (Voydanoff 2005) ──────────────────────────
