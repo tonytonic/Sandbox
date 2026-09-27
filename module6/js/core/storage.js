@@ -33,7 +33,7 @@ const M6_Storage = {
     if (!raw) {
       // Exercice à cheval sur deux années (ex. juin → mai) : il reste rangé
       // sous l'année de son début jusqu'à sa fin.
-      return enCours ? parseInt(exo.dateDebutExercice.slice(0, 4)) : annee;
+      return enCours ? global.M6_exoAnnee(exo.dateDebutExercice, exo.dateFinExercice) : annee;
     }
     const y = parseInt(raw);
     const choisiLe = String(raw).split('|')[1] || '';
@@ -88,10 +88,31 @@ const M6_Storage = {
   /* Année de l'exercice en cours (celui des réglages « globaux ») */
   currentExoYear(regime) {
     const g = this.getContractGlobal(regime) || {}, re = /^\d{4}-\d{2}-\d{2}$/;
-    return (re.test(g.dateDebutExercice || '') && re.test(g.dateFinExercice || '')) ? parseInt(g.dateDebutExercice) : new Date().getFullYear();
+    return (re.test(g.dateDebutExercice || '') && re.test(g.dateFinExercice || '')) ? global.M6_exoAnnee(g.dateDebutExercice, g.dateFinExercice) : new Date().getFullYear();
+  },
+  /* Déplace un exercice (toutes ses clés M6_<régime>_<année>_*) vers une autre année.
+     Refusé si l'année cible a déjà des saisies (un autre exercice). */
+  moveYear(regime, from, to) {
+    from = parseInt(from); to = parseInt(to); if (from === to) return true;
+    const pre = `${NS}_${regime}_${from}_`, cible = `${NS}_${regime}_${to}_`;
+    const d = this._json(`${cible}DATA`, {}); if (d && Object.keys(d).length) return false;
+    const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(pre) === 0) ks.push(k); }
+    ks.forEach(k => { localStorage.setItem(cible + k.slice(pre.length), localStorage.getItem(k)); localStorage.removeItem(k); });
+    try { const hk = 'M6_EXERCICES_' + regime, h = this._json(hk, {}); if (h[String(from)]) { h[String(to)] = h[String(from)]; delete h[String(from)]; localStorage.setItem(hk, JSON.stringify(h)); } } catch (_) {}
+    try { if (localStorage.getItem('M6_EXO_OUVERT_' + regime) === String(from)) localStorage.setItem('M6_EXO_OUVERT_' + regime, String(to)); } catch (_) {}
+    return true;
   },
   setContract(regime, obj, year) {
-    const y = (year === undefined || year === null) ? this.getActiveYear(regime) : parseInt(year);
+    let y = (year === undefined || year === null) ? this.getActiveYear(regime) : parseInt(year);
+    // 27/09/2026 : nouvelles dates → l'exercice prend le nom de l'année où il a le plus de jours
+    try {
+      const L = global.M6_exoAnnee && global.M6_exoAnnee(obj && obj.dateDebutExercice, obj && obj.dateFinExercice);
+      if (L && L !== y && this.moveYear(regime, y, L)) {
+        const cur0 = this.currentExoYear(regime);
+        if (cur0 === y) localStorage.setItem(`${NS}_${regime}_CONTRACT`, JSON.stringify(obj));
+        y = L; this.setActiveYear(regime, L);
+      }
+    } catch (_) {}
     const cur = this.currentExoYear(regime);
     localStorage.setItem(`${NS}_${regime}_${y}_CONTRACT`, JSON.stringify(obj));
     // L'exercice en cours met aussi à jour la copie globale ; un exercice passé ou préparé, non
@@ -429,10 +450,10 @@ global.M6_PhaseAlert = M6_PhaseAlert;
       const calendaire = !date || (deb.slice(5) === '01-01' && fin.slice(5) === '12-31');
       // 1. Re-rangement des jours (exercice non calendaire uniquement)
       if (!calendaire) {
-        const ecart = parseInt(fin, 10) - parseInt(deb, 10);
-        const exo = k => { // année de début de l'exercice qui contient le jour k
+        const ecart = parseInt(fin, 10) - parseInt(deb, 10), off = (global.M6_exoAnnee ? global.M6_exoAnnee(deb, fin) : parseInt(deb, 10)) - parseInt(deb, 10);
+        const exo = k => { // nom (année) de l'exercice qui contient le jour k
           const j = re.test(k) ? k : lundi(k), y = parseInt(j, 10);
-          for (const a of [y - 1, y]) { const d = a + deb.slice(4), f = (a + ecart) + fin.slice(4); if (j >= d && j <= f) return a; }
+          for (const a of [y - 1, y, y + 1]) { const d = (a - off) + deb.slice(4), f = (a - off + ecart) + fin.slice(4); if (j >= d && j <= f) return a; }
           return null;
         };
         ['DATA', 'MOODS', 'DEPLACEMENT'].forEach(suf => {
@@ -459,10 +480,11 @@ global.M6_PhaseAlert = M6_PhaseAlert;
         if (auj > limite(fin)) {
           const hk = 'M6_EXERCICES_' + regime, h = lire(hk) || {};
           let d = deb, f = fin, n = 0;
-          while (f < auj && n < 50) { if (!h[String(parseInt(d, 10))]) h[String(parseInt(d, 10))] = { deb: d, fin: f }; n++; d = unAn(deb, n); f = unAn(fin, n); }
+          const nom = (a, b) => String(global.M6_exoAnnee ? global.M6_exoAnnee(a, b) : parseInt(a, 10));
+          while (f < auj && n < 50) { if (!h[nom(d, f)]) h[nom(d, f)] = { deb: d, fin: f }; n++; d = unAn(deb, n); f = unAn(fin, n); }
           localStorage.setItem(hk, JSON.stringify(h));
           localStorage.setItem(`M6_${regime}_CONTRACT`, JSON.stringify(Object.assign({}, c, { dateDebutExercice: d, dateFinExercice: f })));
-          localStorage.setItem('M6_EXO_OUVERT_' + regime, String(parseInt(d, 10) - 1));
+          localStorage.setItem('M6_EXO_OUVERT_' + regime, String(parseInt(nom(d, f), 10) - 1));
         }
       } else {
         const prec = new Date().getFullYear() - 1;
@@ -493,11 +515,41 @@ global.M6_PhaseAlert = M6_PhaseAlert;
         const k = `M6_${r}_${y}_CONTRACT`; if (localStorage.getItem(k)) return;
         const c = Object.assign({}, g);
         if (hist[String(y)] && hist[String(y)].deb) { c.dateDebutExercice = hist[String(y)].deb; c.dateFinExercice = hist[String(y)].fin; }
-        else if (date) { const ec = parseInt(fin, 10) - parseInt(deb, 10); c.dateDebutExercice = y + deb.slice(4); c.dateFinExercice = (y + ec) + fin.slice(4); }
+        else if (date) { const ec = parseInt(fin, 10) - parseInt(deb, 10), off = (global.M6_exoAnnee ? global.M6_exoAnnee(deb, fin) : parseInt(deb, 10)) - parseInt(deb, 10); c.dateDebutExercice = (y - off) + deb.slice(4); c.dateFinExercice = (y - off + ec) + fin.slice(4); }
         localStorage.setItem(k, JSON.stringify(c));
       });
     });
     localStorage.setItem('M6_EXO_CONTRATS_V1', new Date().toISOString().slice(0, 10));
+  } catch (_) { /* best-effort */ }
+})();
+
+/* Migration unique (27/09/2026, M6_EXO_NOM_V2) : un exercice rangé sous son année de DÉBUT
+   passe sous l'année où il a le plus de jours (17/11/2025 → 16/11/2026 : 2025 → 2026).
+   Du plus récent au plus ancien, pour ne rien écraser ; un exercice dont l'année cible a déjà
+   des saisies reste où il est. */
+(function migrerNomsExercices() {
+  try {
+    if (localStorage.getItem('M6_EXO_NOM_V2') || !global.M6_exoAnnee) return;
+    const re = /^\d{4}-\d{2}-\d{2}$/;
+    const lire = k => { try { const o = JSON.parse(localStorage.getItem(k) || 'null'); return o && typeof o === 'object' ? o : null; } catch (_) { return null; } };
+    const regimes = new Set();
+    for (let i = 0; i < localStorage.length; i++) { const m = /^M6_(.+)_CONTRACT$/.exec(localStorage.key(i) || ''); if (m && !/_\d{4}$/.test(m[1])) regimes.add(m[1]); }
+    regimes.forEach(r => {
+      const g = lire(`M6_${r}_CONTRACT`) || {}, hist = lire('M6_EXERCICES_' + r) || {};
+      const ys = new Set();
+      for (let i = 0; i < localStorage.length; i++) { const m = new RegExp(`^M6_${r}_(\\d{4})_(DATA|CONTRACT)$`).exec(localStorage.key(i) || ''); if (m) ys.add(+m[1]); }
+      let bouge = false;
+      Array.from(ys).sort((a, b) => b - a).forEach(y => {
+        const sn = lire(`M6_${r}_${y}_CONTRACT`); let d = null, f = null;
+        if (sn && re.test(sn.dateDebutExercice || '') && re.test(sn.dateFinExercice || '')) { d = sn.dateDebutExercice; f = sn.dateFinExercice; }
+        else if (hist[String(y)] && hist[String(y)].deb) { d = hist[String(y)].deb; f = hist[String(y)].fin; }
+        if (!d || parseInt(d, 10) !== y) return;               // déjà sous son nom, ou année civile
+        const L = global.M6_exoAnnee(d, f);
+        if (L !== y && M6_Storage.moveYear(r, y, L)) bouge = true;
+      });
+      if (bouge) try { localStorage.removeItem(`M6_${r}_ACTIVE_YEAR`); } catch (_) {}
+    });
+    localStorage.setItem('M6_EXO_NOM_V2', new Date().toISOString().slice(0, 10));
   } catch (_) { /* best-effort */ }
 })();
 

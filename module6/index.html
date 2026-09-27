@@ -102,7 +102,7 @@
     var c=(M6_Storage.getContractGlobal?M6_Storage.getContractGlobal(regime):M6_Storage.getContract(regime))||{},auj=iso(new Date()),x;
     if(re.test(c.dateDebutExercice||'')&&re.test(c.dateFinExercice||'')){
       // Exercice daté (ex. juin → mai) : fini quand la date de fin est passée
-      x={regime:regime,c:c,prec:parseInt(c.dateDebutExercice,10),deb:c.dateDebutExercice,fin:c.dateFinExercice,date:true};
+      x={regime:regime,c:c,prec:M6_exoAnnee(c.dateDebutExercice,c.dateFinExercice),deb:c.dateDebutExercice,fin:c.dateFinExercice,date:true};
     }else{
       // Sans dates : année civile, déjà passée seule au 1er janvier
       var cur=M6_Storage.getActiveYear(regime),prec=cur-1,data=M6_Storage.getData(regime,prec)||{};
@@ -147,7 +147,7 @@
       h[String(x.prec)]={deb:x.deb,fin:x.fin};localStorage.setItem(hk,JSON.stringify(h));
       // 27/09/2026 : l'exercice qui se termine garde SES réglages ; le suivant part d'une
       // copie (ou de ceux préparés à l'avance), puis chacun vit sa vie
-      var ny=parseInt(deb,10),old=Object.assign({},x.c||{});
+      var ny=M6_exoAnnee(deb,fin),old=Object.assign({},x.c||{});
       if(M6_Storage.hasYearContract&&!M6_Storage.hasYearContract(x.regime,x.prec)){old.dateDebutExercice=x.date?x.deb:(old.dateDebutExercice||null);old.dateFinExercice=x.date?x.fin:(old.dateFinExercice||null);localStorage.setItem('M6_'+x.regime+'_'+x.prec+'_CONTRACT',JSON.stringify(old));}
       var base=(M6_Storage.hasYearContract&&M6_Storage.hasYearContract(x.regime,ny))?M6_Storage.getContract(x.regime,ny):Object.assign({},x.c||{});
       var c=Object.assign({},base);
@@ -155,8 +155,8 @@
       localStorage.setItem('M6_'+x.regime+'_'+ny+'_CONTRACT',JSON.stringify(c));
       if(M6_Storage.setContractGlobal)M6_Storage.setContractGlobal(x.regime,c);else M6_Storage.setContract(x.regime,c);
       localStorage.setItem('M6_EXO_OUVERT_'+x.regime,String(x.prec));
-      M6_Storage.setActiveYear(x.regime,parseInt(deb,10));
-      M6_Storage.createYear(x.regime,parseInt(deb,10));
+      M6_Storage.setActiveYear(x.regime,ny);
+      M6_Storage.createYear(x.regime,ny);
     }catch(e){if(window.M6_toast)M6_toast('Espace de stockage insuffisant : rien n\'a été modifié.');return;}
     location.reload();
   }
@@ -224,9 +224,9 @@
     var ny=parseInt(ndeb,10);
     function creer(deb,fin){
       var c=Object.assign({},cL);if(!bL.calendaire||deb!==(ny+'-01-01')||fin!==(ny+'-12-31')){c.dateDebutExercice=deb;c.dateFinExercice=fin;}else{c.dateDebutExercice=null;c.dateFinExercice=null;}
-      try{localStorage.setItem('M6_'+r+'_'+parseInt(deb,10)+'_CONTRACT',JSON.stringify(c));M6_Storage.createYear(r,parseInt(deb,10));
+      var yN=M6_exoAnnee(deb,fin);try{localStorage.setItem('M6_'+r+'_'+yN+'_CONTRACT',JSON.stringify(c));M6_Storage.createYear(r,yN);
         var auj=iso(new Date());if(auj>=deb&&auj<=fin&&M6_Storage.setContractGlobal)M6_Storage.setContractGlobal(r,c);
-        M6_Storage.setActiveYear(r,parseInt(deb,10));try{sessionStorage.setItem('M6_VOIR_ANNEE',String(parseInt(deb,10)));}catch(e){}}catch(e){if(window.M6_toast)M6_toast('Espace de stockage insuffisant');return;}
+        M6_Storage.setActiveYear(r,yN);try{sessionStorage.setItem('M6_VOIR_ANNEE',String(yN));}catch(e){}}catch(e){if(window.M6_toast)M6_toast('Espace de stockage insuffisant');return;}
       location.reload();
     }
     var x={regime:r,c:cL,prec:L,deb:bL.deb,fin:bL.fin,ndeb:ndeb,nfin:nfin,date:!bL.calendaire};
@@ -318,7 +318,7 @@ if ('serviceWorker' in navigator) {
     if(reg&&window.M6_Storage&&window.M6_Periode){
       var t=new Date(),auj=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
       var c=(M6_Storage.getContractGlobal?M6_Storage.getContractGlobal(reg):M6_Storage.getContract(reg))||{},bon=t.getFullYear();
-      [t.getFullYear()-1,t.getFullYear()].forEach(function(y){var b=M6_Periode.bornes(c,y);if(auj>=b.deb&&auj<=b.fin)bon=y;});
+      [t.getFullYear()-1,t.getFullYear(),t.getFullYear()+1].forEach(function(y){var b=M6_Periode.bornes(c,y);if(auj>=b.deb&&auj<=b.fin)bon=y;});
       // 27/09/2026 : exercice qu'on vient de créer → on l'ouvre (une fois)
       var voir=null;try{voir=sessionStorage.getItem('M6_VOIR_ANNEE');sessionStorage.removeItem('M6_VOIR_ANNEE');}catch(e){}
       if(voir&&/^\d{4}$/.test(voir))bon=parseInt(voir,10);

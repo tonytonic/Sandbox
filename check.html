@@ -257,6 +257,8 @@ async function runAuto(){
   renderAuto();$('runAuto').disabled=false;
 }
 
+/* Année d'un exercice = celle où il a le plus de jours (même règle que Zenji) */
+function nomExo(deb,fin){var y1=parseInt(deb,10),y2=parseInt(fin,10),b=y1,bj=-1;for(var y=y1;y<=y2;y++){var a=Math.max(Date.parse(deb+'T12:00:00'),Date.parse(y+'-01-01T12:00:00')),z=Math.min(Date.parse(fin+'T12:00:00'),Date.parse(y+'-12-31T12:00:00')),j=Math.round((z-a)/864e5)+1;if(j>bj){bj=j;b=y;}}return b;}
 function dataChecks(){
   var S='Tes données';
   // Sauvegarde
@@ -309,7 +311,7 @@ function dataChecks(){
         if(sn&&re.test(sn.dateDebutExercice||'')&&re.test(sn.dateFinExercice||''))return [sn.dateDebutExercice,sn.dateFinExercice];
         if(sn&&!sn.dateDebutExercice&&!sn.dateFinExercice)return [y+'-01-01',y+'-12-31'];
         var h=(jget('M6_EXERCICES_'+r)||{})[y];if(h&&h.deb)return [h.deb,h.fin];
-        if(dat){var ec=parseInt(fin,10)-parseInt(deb,10);return [y+deb.slice(4),(y+ec)+fin.slice(4)];}
+        if(dat){var ec=parseInt(fin,10)-parseInt(deb,10),off=(window.M6_exoAnnee?M6_exoAnnee(deb,fin):nomExo(deb,fin))-parseInt(deb,10);return [(y-off)+deb.slice(4),(y-off+ec)+fin.slice(4)];}
         return [y+'-01-01',y+'-12-31'];}
       yrs.forEach(function(y){var bb=bornes(y),mY=0,d=jget('M6_'+r+'_'+y+'_DATA')||{};Object.keys(d).forEach(function(k){var dk=k;var w=/^(\d{4})-W(\d{2})$/.exec(k);
           if(w){var j4=new Date(+w[1],0,4,12),l=new Date(j4);l.setDate(j4.getDate()-((j4.getDay()+6)%7)+(+w[2]-1)*7);dk=iso(l);}

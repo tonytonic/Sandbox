@@ -45,6 +45,26 @@ const M6_Feries = {
 //  « la date commence par l'année » et ces jours étaient ignorés.
 //  Exercice du 1er janvier au 31 décembre : filtre strictement identique à avant.
 // ══════════════════════════════════════════════════════════════════
+/* 27/09/2026 : nom (année) d'un exercice = l'année où il a le plus de jours ; égalité →
+   année de début. 29/12/2025 → 27/12/2026 : 2026 ; 01/06/2025 → 31/05/2026 : 2025.
+   Même règle que le compteur annuel. */
+function M6_exoAnnee(deb, fin) {
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  if (!re.test(deb || '')) return null;
+  const y1 = parseInt(deb, 10);
+  if (!re.test(fin || '') || fin < deb) return y1;
+  const y2 = parseInt(fin, 10);
+  let best = y1, bj = -1;
+  for (let y = y1; y <= y2; y++) {
+    const a = new Date(Math.max(Date.parse(deb + 'T12:00:00'), Date.parse(y + '-01-01T12:00:00')));
+    const b = new Date(Math.min(Date.parse(fin + 'T12:00:00'), Date.parse(y + '-12-31T12:00:00')));
+    const j = Math.round((b - a) / 864e5) + 1;
+    if (j > bj) { bj = j; best = y; }
+  }
+  return best;
+}
+global.M6_exoAnnee = M6_exoAnnee;
+
 const M6_Periode = {
   _iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); },
   bornes(contract, year) {
@@ -58,7 +78,7 @@ const M6_Periode = {
       const sn = JSON.parse(localStorage.getItem('M6_' + rg + '_' + year + '_CONTRACT') || 'null');
       const re0 = /^\d{4}-\d{2}-\d{2}$/;
       if (sn) {
-        if (re0.test(sn.dateDebutExercice || '') && re0.test(sn.dateFinExercice || '') && sn.dateFinExercice >= sn.dateDebutExercice && parseInt(sn.dateDebutExercice) === year)
+        if (re0.test(sn.dateDebutExercice || '') && re0.test(sn.dateFinExercice || '') && sn.dateFinExercice >= sn.dateDebutExercice && M6_exoAnnee(sn.dateDebutExercice, sn.dateFinExercice) === year)
           return { year, deb: sn.dateDebutExercice, fin: sn.dateFinExercice, calendaire: sn.dateDebutExercice === year + '-01-01' && sn.dateFinExercice === year + '-12-31' };
         if (!sn.dateDebutExercice && !sn.dateFinExercice) return { year, deb: year + '-01-01', fin: year + '-12-31', calendaire: true };
       }
@@ -71,9 +91,12 @@ const M6_Periode = {
     } catch (_) {}
     const deb = c.dateDebutExercice, fin = c.dateFinExercice, re = /^\d{4}-\d{2}-\d{2}$/;
     if (deb && re.test(deb) && !(deb.slice(5) === '01-01' && (!fin || fin.slice(5) === '12-31'))) {
-      const d = year + '-' + deb.slice(5);
+      // L'exercice nommé « year » commence l'année (year - décalage) : 17/11 → 16/11 est nommé
+      // d'après l'année de sa fin, 01/06 → 31/05 d'après celle de son début
+      const off = (fin && re.test(fin)) ? (M6_exoAnnee(deb, fin) - parseInt(deb, 10)) : 0;
+      const d = (year - off) + '-' + deb.slice(5);
       let f;
-      if (fin && re.test(fin)) f = (year + parseInt(fin.slice(0, 4), 10) - parseInt(deb.slice(0, 4), 10)) + '-' + fin.slice(5);
+      if (fin && re.test(fin)) f = (year - off + parseInt(fin.slice(0, 4), 10) - parseInt(deb.slice(0, 4), 10)) + '-' + fin.slice(5);
       else { const x = new Date(d + 'T12:00:00'); x.setFullYear(x.getFullYear() + 1); x.setDate(x.getDate() - 1); f = this._iso(x); }
       if (f >= d) return { year, deb: d, fin: f, calendaire: false };
     }
