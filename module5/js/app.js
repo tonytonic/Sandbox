@@ -1774,7 +1774,12 @@ function filterWeeksByPeriode(allWeeks, periode, year) {
 /* 27/09/2026 : PDF d'un contrat choisi dans la fenêtre (sans changer de contrat affiché) */
 function _m5StatsSemaines(c,weeks){
   const base=c.hoursBase||0,thr=base*(c.threshold||0.10);let t=0,tc=0,t1=0,t2=0,wc=0,mx=0;
-  weeks.forEach(w=>{const h=w.worked||0;t+=h;if(h>mx)mx=h;const d=Math.max(0,h-base);if(d>0){wc++;tc+=d;t1+=Math.min(d,thr);t2+=Math.max(0,d-thr);}});
+  // 27/09/2026 : même moteur que la carte Solde et le paiement (fériés chômés neutralisés).
+  // Chaque semaine reçoit hc10/hc25 : le tableau du PDF affiche exactement ces chiffres.
+  weeks.forEach(w=>{const h=w.worked||0;t+=h;if(h>mx)mx=h;
+    let a1,a2;const R=window.M5_hcSemaine?M5_hcSemaine(c,w.monday,h):null;
+    if(R){a1=R.c1;a2=R.c2;w.hc10=a1;w.hc25=a2;w.hcFerie=R.ferie;}else{const d=Math.max(0,h-base);a1=Math.min(d,thr);a2=Math.max(0,d-thr);}
+    const d=a1+a2;if(d>0.001){wc++;tc+=d;t1+=a1;t2+=a2;}});
   const n=weeks.length||1,r=x=>Math.round(x*100)/100;
   return {totalWeeks:weeks.length,weeksWithComp:wc,pctOverContract:Math.round(wc/n*100),totalComp:r(tc),totalComp1:r(t1),totalComp2:r(t2),avgWorked:r(t/n),maxWorked:r(mx),totalWorked:r(t)};
 }
@@ -1817,7 +1822,7 @@ function launchPDF() {
     const periode=document.getElementById('pdf-periode')?.value||'ANNUEL';
     const allWeeks=M5_DataStore.getWeeksSorted(year);
     const weeks=filterWeeksByPeriode(allWeeks, periode, year);
-    const stats=M5_DataStore.getAnnualStats(year,contract.hoursBase,contract);
+    const stats=Object.assign({},M5_DataStore.getAnnualStats(year,contract.hoursBase,contract),_m5StatsSemaines(contract,weeks));
     const analysis=currentAnalysis||runAnalysis();
     const userName=(localStorage.getItem('M5_USER_NAME')||localStorage.getItem('SH_PRENOM')||'');
     const periodeLabel=periode==='MENSUEL'
@@ -2958,6 +2963,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   function _weeksEntre(deb,fin){ var seen={},all=[];
     for(var y=parseInt(deb,10)-1;y<=parseInt(fin,10)+1;y++){ try{ (M5_DataStore.getWeeksSorted(String(y))||[]).forEach(function(w){ if(!seen[w.monday]){ seen[w.monday]=1; all.push(w); } }); }catch(e){} }
     all.sort(function(a,b){ return a.monday<b.monday?-1:1; }); return all; }
+  /* 27/09/2026 : heures complémentaires d'UNE semaine, moteur de la carte Solde (fériés chômés
+     neutralisés, jours travaillés). Utilisé par le PDF pour que bilan, tableau et paiement concordent. */
+  window.M5_hcSemaine=function(c,monday,worked){
+    try{ if(!(worked>0)||!c||!c.hoursBase) return {c1:0,c2:0,ferie:false};
+      const r=CalcEngine.calcWeek(c.hoursBase,worked,c,0,_weekOpts(c,monday));
+      const seuilBase=Math.max(0,worked-c.hoursBase);
+      return {c1:r.compH1||0,c2:r.compH2||0,ferie:((r.compH1||0)+(r.compH2||0))>seuilBase+0.001};
+    }catch(e){ return null; }
+  };
   window.M5_hcExercice=function(c,deb,fin,paidKey){
     var o={d10:0,d25:0,p10:0,p25:0,r10:0,r25:0,sem:0};
     try{

@@ -181,17 +181,20 @@ const M5_PdfReport = {
       doc.rect(M,y-4,PW,7,'F');
       doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...VIOLET);
       ['Semaine','Travaillées','Comp.',`+${Math.round((contract.rate1||0.10)*100)}%`,`+${Math.round((contract.rate2||0.25)*100)}%`,'Montant','OK'].forEach((h,i)=>doc.text(h,cols[i],y));
-      doc.setTextColor(0,0,0); y+=4;
+      doc.setTextColor(0,0,0); y+=7;   // 27/09/2026 : la 1re ligne ne chevauche plus le bandeau d'en-tête
       doc.setFontSize(8); doc.setFont('helvetica','normal');
-      let alt=false;
+      let alt=false, auFerie=false;
       weeks.forEach(w=>{
         if(w.worked===null||w.worked===undefined) return;
         checkPage(6);
         const wh=w.worked||0;
-        const diff=Math.max(0,wh-contract.hoursBase);
         const thr=contract.hoursBase*(contract.threshold||0.10);
-        const c1=Math.min(diff,thr);
-        const c2=Math.max(0,diff-thr);
+        // Chiffres du moteur (fériés neutralisés) quand l'appelant les fournit : identiques au bilan et au paiement
+        const _eng=(w.hc10!=null);
+        const c1=_eng?w.hc10:Math.min(Math.max(0,wh-contract.hoursBase),thr);
+        const c2=_eng?w.hc25:Math.max(0,Math.max(0,wh-contract.hoursBase)-thr);
+        const diff=Math.round((c1+c2)*100)/100;
+        if(w.hcFerie) auFerie=true;
         const d=new Date(w.monday+'T12:00:00');
         const fn=new Date(w.monday+'T12:00:00'); fn.setDate(fn.getDate()+6);
         const lbl=`${d.getDate()}/${d.getMonth()+1} au ${fn.getDate()}/${fn.getMonth()+1}/${fn.getFullYear()}`;
@@ -202,7 +205,7 @@ const M5_PdfReport = {
         if(diff>0){
           const montant=contract.hourlyRate>0?c1*contract.hourlyRate*(1+(contract.rate1||0.10))+c2*contract.hourlyRate*(1+(contract.rate2||0.25)):0;
           doc.setTextColor(...VIOLET);
-          doc.text(`+${diff.toFixed(1)}h`,cols[2],y);
+          doc.text(`+${diff.toFixed(1)}h${w.hcFerie?'*':''}`,cols[2],y);
           doc.text(c1>0?`${c1.toFixed(1)}h`:'--',cols[3],y);
           doc.text(c2>0?`${c2.toFixed(1)}h`:'--',cols[4],y);
           doc.text(montant>0?`${montant.toFixed(2)}€`:'--',cols[5],y);
@@ -216,6 +219,9 @@ const M5_PdfReport = {
         }
         y+=5.5;
       });
+      if(auFerie){ checkPage(8); doc.setFontSize(7.5); doc.setTextColor(110,110,110);
+        doc.text('* Semaine avec un jour férié chômé : le seuil des heures complémentaires est abaissé d\'autant (férié assimilé à du travail, art. L3133-3).',M+2,y+1);
+        doc.setTextColor(0,0,0); y+=4; }
       y+=6;
     }
 
