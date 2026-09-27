@@ -242,7 +242,7 @@ const VFJ = {
     if (ypHdr && ypHdr !== yp) ypHdr.addEventListener('change', () => { this._year=parseInt(ypHdr.value); M6_Storage.setActiveYear(this._regime, this._year); this._load(); this.render(); });
     const _goYearFJ = (yr) => {
       const exist = M6_Storage.getAllYears(this._regime);
-      if (!exist.includes(yr)) M6_Storage.createYear(this._regime, yr);
+      if (!exist.includes(yr)) { if (yr > Math.max(...exist) && window.M6_nouvelExercice) { M6_nouvelExercice(); } else { M6_toast('Pas d\'exercice '+yr); } return; } /* 27/09/2026 : plus de création silencieuse */
       this._year = yr; M6_Storage.setActiveYear(this._regime, yr); this._load(); this.render();
     };
     const fjPrev = document.querySelector('#vfj-yr-prev');
@@ -569,6 +569,7 @@ const VFJ = {
   },
 
   _openNewYear() {
+    if (window.M6_nouvelExercice) return M6_nouvelExercice(); // 27/09/2026 : mêmes choix de dates que le bandeau
     const y = prompt(`Créer un exercice (ex : ${this._year+1})`, this._year+1);
     if (!y||isNaN(y)) return;
     const yr = parseInt(y);

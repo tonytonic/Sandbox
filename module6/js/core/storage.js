@@ -26,7 +26,7 @@ const M6_Storage = {
     // cède la place à la nouvelle année, un choix fait après (consulter une
     // année passée) est respecté.
     let exo = null;
-    try { exo = regime ? this.getContract(regime) : null; } catch (_) {}
+    try { exo = regime ? this.getContractGlobal(regime) : null; } catch (_) {}
     const auj = now.toISOString().slice(0, 10);
     const enCours = exo && exo.dateDebutExercice && exo.dateFinExercice &&
       auj >= exo.dateDebutExercice && auj <= exo.dateFinExercice;
@@ -45,6 +45,8 @@ const M6_Storage = {
     if (typeof regime === 'number') { year = regime; regime = null; }
     const key = regime ? `${NS}_${regime}_ACTIVE_YEAR` : `${NS}_ACTIVE_YEAR`;
     localStorage.setItem(key, parseInt(year) + '|' + new Date().toISOString().slice(0, 10));
+    // 27/09/2026 : le bandeau d'exercice suit l'exercice affiché
+    try { if (window.M6_rafraichirBandeau) setTimeout(window.M6_rafraichirBandeau, 50); } catch (_) {}
   },
   getAllYears(regime) {
     const years = new Set();
@@ -67,11 +69,38 @@ const M6_Storage = {
   },
 
   // ── Contrat ────────────────────────────────────────────────────
-  getContract(regime)      { return this._json(`${NS}_${regime}_CONTRACT`); },
-  setContract(regime, obj) {
-    localStorage.setItem(`${NS}_${regime}_CONTRACT`, JSON.stringify(obj));
-    this._log(regime, null, 'CONTRACT', 'Configuration contrat mise à jour');
+  /* 27/09/2026 — RÉGLAGES PAR EXERCICE. Chaque exercice garde ses propres réglages
+     (dates, plafond, taux, CCN…) dans M6_<régime>_<année>_CONTRACT. Modifier un exercice
+     ne touche plus les autres. M6_<régime>_CONTRACT reste la copie de l'exercice EN COURS
+     (lue par les anciennes versions et par le passage d'exercice).
+     getContract(régime)         → réglages de l'exercice affiché (année active)
+     getContract(régime, année)  → réglages de cet exercice
+     getContractGlobal(régime)   → réglages de l'exercice en cours */
+  getContractGlobal(regime) { return this._json(`${NS}_${regime}_CONTRACT`); },
+  hasYearContract(regime, year) { return !!localStorage.getItem(`${NS}_${regime}_${parseInt(year)}_CONTRACT`); },
+  getContract(regime, year) {
+    if (!regime) return this._json(`${NS}_${regime}_CONTRACT`);
+    const y = (year === undefined || year === null) ? this.getActiveYear(regime) : parseInt(year);
+    const raw = localStorage.getItem(`${NS}_${regime}_${y}_CONTRACT`);
+    if (raw) { try { return JSON.parse(raw) || {}; } catch (_) {} }
+    return this.getContractGlobal(regime);
   },
+  /* Année de l'exercice en cours (celui des réglages « globaux ») */
+  currentExoYear(regime) {
+    const g = this.getContractGlobal(regime) || {}, re = /^\d{4}-\d{2}-\d{2}$/;
+    return (re.test(g.dateDebutExercice || '') && re.test(g.dateFinExercice || '')) ? parseInt(g.dateDebutExercice) : new Date().getFullYear();
+  },
+  setContract(regime, obj, year) {
+    const y = (year === undefined || year === null) ? this.getActiveYear(regime) : parseInt(year);
+    const cur = this.currentExoYear(regime);
+    localStorage.setItem(`${NS}_${regime}_${y}_CONTRACT`, JSON.stringify(obj));
+    // L'exercice en cours met aussi à jour la copie globale ; un exercice passé ou préparé, non
+    const aucun = !localStorage.getItem(`${NS}_${regime}_CONTRACT`);
+    if (y === cur || aucun) localStorage.setItem(`${NS}_${regime}_CONTRACT`, JSON.stringify(obj));
+    this._log(regime, y, 'CONTRACT', 'Configuration de l\'exercice ' + y + ' mise à jour');
+  },
+  /* Réglages de l'exercice en cours seulement (passage d'exercice) */
+  setContractGlobal(regime, obj) { localStorage.setItem(`${NS}_${regime}_CONTRACT`, JSON.stringify(obj)); },
 
   // ── Données journalières / hebdomadaires ─────────────────────
   getData(regime, year)   { return this._json(`${NS}_${regime}_${year}_DATA`); },
@@ -392,7 +421,7 @@ global.M6_PhaseAlert = M6_PhaseAlert;
     const lire = k => { try { const o = JSON.parse(localStorage.getItem(k) || 'null'); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; } catch (_) { return null; } };
     const auj = iso(new Date());
     const regimes = new Set();
-    for (let i = 0; i < localStorage.length; i++) { const m = /^M6_(.+)_CONTRACT$/.exec(localStorage.key(i) || ''); if (m) regimes.add(m[1]); }
+    for (let i = 0; i < localStorage.length; i++) { const m = /^M6_(.+)_CONTRACT$/.exec(localStorage.key(i) || ''); if (m && !/_\d{4}$/.test(m[1])) regimes.add(m[1]); }
     regimes.forEach(regime => {
       const c = lire(`M6_${regime}_CONTRACT`) || {};
       const deb = c.dateDebutExercice, fin = c.dateFinExercice;
@@ -442,6 +471,34 @@ global.M6_PhaseAlert = M6_PhaseAlert;
     });
     localStorage.setItem('M6_MIGR_EXO_V1', auj);
   } catch (_) { /* best-effort : en cas d'échec, l'appli fonctionne comme avant */ }
+})();
+
+/* Migration unique (27/09/2026, M6_EXO_CONTRATS_V1) : chaque exercice déjà saisi reçoit
+   sa copie des réglages actuels, avec ses vraies dates (historique M6_EXERCICES_, sinon
+   même période décalée d'années). Ensuite, modifier un exercice ne touche plus les autres. */
+(function migrerReglagesParExercice() {
+  try {
+    if (localStorage.getItem('M6_EXO_CONTRATS_V1')) return;
+    const re = /^\d{4}-\d{2}-\d{2}$/;
+    const lire = k => { try { const o = JSON.parse(localStorage.getItem(k) || 'null'); return o && typeof o === 'object' ? o : null; } catch (_) { return null; } };
+    const regimes = new Set();
+    for (let i = 0; i < localStorage.length; i++) { const m = /^M6_(.+)_CONTRACT$/.exec(localStorage.key(i) || ''); if (m && !/_\d{4}$/.test(m[1])) regimes.add(m[1]); }
+    regimes.forEach(r => {
+      const g = lire(`M6_${r}_CONTRACT`); if (!g) return;
+      const hist = lire('M6_EXERCICES_' + r) || {};
+      const deb = g.dateDebutExercice, fin = g.dateFinExercice, date = re.test(deb || '') && re.test(fin || '');
+      const annees = new Set();
+      for (let i = 0; i < localStorage.length; i++) { const m = new RegExp(`^M6_${r}_(\\d{4})_DATA$`).exec(localStorage.key(i) || ''); if (m) annees.add(+m[1]); }
+      annees.forEach(y => {
+        const k = `M6_${r}_${y}_CONTRACT`; if (localStorage.getItem(k)) return;
+        const c = Object.assign({}, g);
+        if (hist[String(y)] && hist[String(y)].deb) { c.dateDebutExercice = hist[String(y)].deb; c.dateFinExercice = hist[String(y)].fin; }
+        else if (date) { const ec = parseInt(fin, 10) - parseInt(deb, 10); c.dateDebutExercice = y + deb.slice(4); c.dateFinExercice = (y + ec) + fin.slice(4); }
+        localStorage.setItem(k, JSON.stringify(c));
+      });
+    });
+    localStorage.setItem('M6_EXO_CONTRATS_V1', new Date().toISOString().slice(0, 10));
+  } catch (_) { /* best-effort */ }
 })();
 
 })(window);

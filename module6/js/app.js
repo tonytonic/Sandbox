@@ -249,8 +249,9 @@ const M6_Router = {
           <div style="font-family:var(--font-display);font-size:1.5rem;font-weight:600;color:var(--charbon);margin-bottom:8px">Votre exercice</div>
           <p style="font-size:0.82rem;color:var(--pierre);margin-bottom:20px">Définissez la période de suivi (peut chevaucher deux années civiles).</p>
           <div class="m6-card"><div class="m6-card-body">
-            <div class="m6-field"><label>Début de l'exercice <small style="color:var(--pierre);font-weight:400">(laisser vide = 1er janvier)</small></label><input type="date" id="wiz-debut" value="${existing.dateDebutExercice||''}" placeholder="${new Date().getFullYear()}-01-01" style="font-size:16px"></div>
-            <div class="m6-field"><label>Fin de l'exercice <small style="color:var(--pierre);font-weight:400">(laisser vide = 31 décembre)</small></label><input type="date" id="wiz-fin" value="${existing.dateFinExercice||''}" placeholder="${new Date().getFullYear()}-12-31" style="font-size:16px"></div>
+            <div class="m6-field"><label>Début de l'exercice <small style="color:var(--pierre);font-weight:400">(laisser vide = 1er janvier)</small></label><input type="date" id="wiz-debut" value="${this._wizData?.datesSaisies?(this._wizData.debut||''):(existing.dateDebutExercice||'')}" placeholder="${new Date().getFullYear()}-01-01" style="font-size:16px"></div>
+            <div class="m6-field"><label>Fin de l'exercice <small style="color:var(--pierre);font-weight:400">(laisser vide = 31 décembre)</small></label><input type="date" id="wiz-fin" value="${this._wizData?.datesSaisies?(this._wizData.fin||''):(existing.dateFinExercice||'')}" placeholder="${new Date().getFullYear()}-12-31" style="font-size:16px"></div>
+            <button type="button" id="wiz-dates-reset" class="m6-btn m6-btn-ghost" style="width:100%;font-size:0.78rem;margin:-4px 0 12px">↺ Réinitialiser les dates (année civile, 1er janvier → 31 décembre)</button>
             <div class="m6-field"><label>Votre nom (pour les exports PDF)</label><input type="text" id="wiz-nom" value="${((existing.nomCadre||existing.nom)||(()=>{try{return localStorage.getItem('SH_PRENOM')||'';}catch(_){return '';}})()).replace(/"/g,'&quot;')}" placeholder="Prénom NOM" style="font-size:16px"></div>
           </div></div>
           <button class="m6-btn m6-btn-gold" id="wiz-next" style="width:100%">Continuer →</button>
@@ -323,9 +324,11 @@ const M6_Router = {
           const debut = this._root.querySelector('#wiz-debut')?.value;
           const fin   = this._root.querySelector('#wiz-fin')?.value;
           if (debut && fin && debut > fin) { M6_toast('La date de fin doit être après le début'); return; }
+          // 27/09/2026 : cases vides = année civile (on n'y remet plus les anciennes dates)
+          if ((debut && !fin) || (!debut && fin)) { M6_toast('Indique les deux dates, ou laisse les deux vides (année civile)'); return; }
           this._wizData = {
             ...this._wizData,
-            debut, fin,
+            debut: debut || '', fin: fin || '', datesSaisies: true,
             nom: this._root.querySelector('#wiz-nom')?.value.trim(),
             // dateArrivee absente du wizard → à configurer dans ⚙️ si arrivée en cours d'année
           };
@@ -390,6 +393,11 @@ const M6_Router = {
         }
       }
       this._root.querySelector('#wiz-prev')?.addEventListener('click', () => { step--; render(); });
+      this._root.querySelector('#wiz-dates-reset')?.addEventListener('click', () => {
+        const d = this._root.querySelector('#wiz-debut'), f = this._root.querySelector('#wiz-fin');
+        if (d) d.value = ''; if (f) f.value = '';
+        M6_toast('Dates effacées : exercice sur l\'année civile');
+      });
       this._root.querySelector('#wiz-back')?.addEventListener('click', () => { this._regime = null; localStorage.removeItem('M6_REGIME'); M6_Header.reset(); this._showSelector(); });
       this._root.querySelector('#wiz-finish')?.addEventListener('click', () => {
         // PRÉSERVATION : on garde tous les champs du contrat existant et on n'écrase
@@ -398,8 +406,8 @@ const M6_Router = {
           ...existing,
           nomCadre:           this._wizData?.nom || existing.nomCadre || existing.nom || '',
           emailManager:       this._root.querySelector('#wiz-email-mgr')?.value.trim() || existing.emailManager || '',
-          dateDebutExercice:  this._wizData?.debut || existing.dateDebutExercice || null,
-          dateFinExercice:    this._wizData?.fin   || existing.dateFinExercice   || null,
+          dateDebutExercice:  this._wizData?.datesSaisies ? (this._wizData.debut || null) : (existing.dateDebutExercice || null),
+          dateFinExercice:    this._wizData?.datesSaisies ? (this._wizData.fin   || null) : (existing.dateFinExercice   || null),
           dateArrivee:        this._wizData?.arrivee || existing.dateArrivee || null,
         };
         if (regime === 'forfait_jours') {

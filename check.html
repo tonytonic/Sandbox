@@ -298,18 +298,25 @@ function dataChecks(){
   var S6='Zenji (cadres)',reg=localStorage.getItem('M6_REGIME');
   if(!reg)add(S6,'info','Pas encore configuré','');
   else{
+    add(S6,localStorage.getItem('M6_EXO_CONTRATS_V1')?'ok':'warn','Réglages par exercice',localStorage.getItem('M6_EXO_CONTRATS_V1')?'En place depuis le '+localStorage.getItem('M6_EXO_CONTRATS_V1'):'Pas encore : ouvre Zenji une fois.');
     add(S6,localStorage.getItem('M6_MIGR_EXO_V1')?'ok':'warn','Migration des exercices',localStorage.getItem('M6_MIGR_EXO_V1')?'Faite le '+localStorage.getItem('M6_MIGR_EXO_V1'):'Pas encore faite : ouvre Zenji une fois.');
     ['forfait_jours','forfait_heures','cadre_dirigeant'].forEach(function(r){var c=jget('M6_'+r+'_CONTRACT');if(c===undefined){add(S6,'ko',r+' : contrat illisible','');return;}if(!c)return;
       var deb=c.dateDebutExercice,fin=c.dateFinExercice,re=/^\d{4}-\d{2}-\d{2}$/,dat=re.test(deb||'')&&re.test(fin||'');
       var yrs=[];for(var i=0;i<localStorage.length;i++){var m=new RegExp('^M6_'+r+'_(\\d{4})_DATA$').exec(localStorage.key(i));if(m)yrs.push(+m[1]);}
-      var mal=0,tot=0;
-      if(dat&&!(deb.slice(5)==='01-01'&&fin.slice(5)==='12-31')){var ec=parseInt(fin,10)-parseInt(deb,10);
-        yrs.forEach(function(y){var d=jget('M6_'+r+'_'+y+'_DATA')||{};Object.keys(d).forEach(function(k){var dk=k;var w=/^(\d{4})-W(\d{2})$/.exec(k);
+      var mal=0,tot=0,det=[];
+      /* 27/09/2026 : bornes de CHAQUE exercice (ses propres réglages, sinon historique, sinon réglages actuels) */
+      function bornes(y){var sn=jget('M6_'+r+'_'+y+'_CONTRACT');
+        if(sn&&re.test(sn.dateDebutExercice||'')&&re.test(sn.dateFinExercice||''))return [sn.dateDebutExercice,sn.dateFinExercice];
+        if(sn&&!sn.dateDebutExercice&&!sn.dateFinExercice)return [y+'-01-01',y+'-12-31'];
+        var h=(jget('M6_EXERCICES_'+r)||{})[y];if(h&&h.deb)return [h.deb,h.fin];
+        if(dat){var ec=parseInt(fin,10)-parseInt(deb,10);return [y+deb.slice(4),(y+ec)+fin.slice(4)];}
+        return [y+'-01-01',y+'-12-31'];}
+      yrs.forEach(function(y){var bb=bornes(y),mY=0,d=jget('M6_'+r+'_'+y+'_DATA')||{};Object.keys(d).forEach(function(k){var dk=k;var w=/^(\d{4})-W(\d{2})$/.exec(k);
           if(w){var j4=new Date(+w[1],0,4,12),l=new Date(j4);l.setDate(j4.getDate()-((j4.getDay()+6)%7)+(+w[2]-1)*7);dk=iso(l);}
-          if(!re.test(dk))return;tot++;var h=(jget('M6_EXERCICES_'+r)||{})[y],b=h?h.deb:y+deb.slice(4),e=h?h.fin:(y+ec)+fin.slice(4);if(dk<b||dk>e)mal++;});});}
-      else yrs.forEach(function(y){tot+=Object.keys(jget('M6_'+r+'_'+y+'_DATA')||{}).length;});
+          if(!re.test(dk))return;tot++;if(dk<bb[0]||dk>bb[1]){mal++;mY++;}});
+        det.push(y+' : '+bb[0]+' → '+bb[1]+(jget('M6_'+r+'_'+y+'_CONTRACT')?' (réglages propres)':'')+(mY?' · '+mY+' hors exercice':''));});
       var aj=iso(new Date()),perime=dat&&fin<aj;
-      add(S6,mal?'warn':(r===reg?'ok':'info'),r.replace('_',' ')+(r===reg?' (régime actif)':''),(dat?'exercice '+deb+' → '+fin:'année civile')+' · '+tot+' saisies · années '+(yrs.sort().join(', ')||'aucune')+(mal?'\n'+mal+' saisie(s) rangée(s) hors de leur exercice (doublons gardés par la migration)':'')+(perime?'\nExercice terminé : le bandeau « nouvel exercice » doit s\'afficher dans Zenji.':''));});
+      add(S6,mal?'warn':(r===reg?'ok':'info'),r.replace('_',' ')+(r===reg?' (régime actif)':''),(dat?'exercice '+deb+' → '+fin:'année civile')+' · '+tot+' saisies · années '+(yrs.sort().join(', ')||'aucune')+(det.length?'\n'+det.join('\n'):'')+(mal?'\n'+mal+' saisie(s) hors de leur exercice : vérifie les dates de ces exercices (⚙️ Contrat, bouton Réinitialiser pour revenir à l\'année civile).':'')+(perime?'\nExercice terminé : le bandeau « nouvel exercice » doit s\'afficher dans Zenji.':''));});
   }
   // Taiko, Fox, frais
   var tk=jget('TAIKO_V1');add('Autres modules',tk===undefined?'ko':'ok','Taiko',tk===undefined?'Données illisibles':tk?'données présentes':'pas encore utilisé');
@@ -390,6 +397,7 @@ var ITEMS=[
 {g:'4 · Heures mensualisées',id:'q5',t:'Reste non payé : reporter',v:'v10.10.88',o:'paye/index.html',h:'Démo : bandeau « 8h non payées » → Reporter.',e:'Janvier : 8h « ↪ reporté de l\'exercice 2025 ».'},
 {g:'4 · Heures mensualisées',id:'q6',t:'Reste non payé : ne pas reporter',v:'v10.10.88',o:'paye/index.html',h:'Démo rechargée → Ne pas reporter.',e:'Bandeau disparu, janvier sans les 8h.'},
 {g:'4 · Heures mensualisées',id:'q7',t:'Bilan avec encadré + PDF',v:'v10.10.88',o:'paye/index.html',h:'Bilan 2025, puis PDF annuel.',e:'« Reste à payer » + encadré ; PDF lisible.'},
+{g:'4 · Heures mensualisées',id:'q8',t:'Autre année : bonne période + fin décembre',v:'v10.10.99',o:'paye/index.html',h:'📅 Exercice → année suivante puis précédente. Dans janvier, touche un jour de fin décembre (bordure jaune).',e:'Année future : janvier ; année passée : décembre. Les jours de fin décembre de la période de janvier s\'affichent et se modifient.'},
 {g:'5 · Mizuki',id:'z1',t:'Accueil et assistant',v:'v10.10.70–72',o:'module5/index.html',h:'Nouveau contrat de bout en bout.',e:'Durée semaine/mois/an, question 2e contrat, prénom et CCN préremplis.'},
 {g:'5 · Mizuki',id:'z2',t:'⚙️ Mon contrat',v:'v10.10.72',o:'module5/index.html',h:'Change l\'unité de durée.',e:'Mêmes choix que l\'assistant.'},
 {g:'5 · Mizuki',id:'z3',t:'CCN du menu reprise',v:'v10.10.87',o:'module5/index.html',h:'Contrat 1 en droit commun + CCN au menu.',e:'Message de reprise ; un retour manuel au droit commun est respecté.'},
@@ -400,11 +408,18 @@ var ITEMS=[
 {g:'5 · Mizuki',id:'z8',t:'Paiements des heures complémentaires',v:'v10.10.68',o:'module5/index.html',h:'Coche des heures payées (+10 %, +25 %).',e:'Le solde baisse ; il reste juste après rechargement.'},
 {g:'5 · Mizuki',id:'z9',t:'Bilan de fin d\'exercice',v:'v10.10.88',o:'module5/index.html',h:'Bandeau → bilan.',e:'HC payées, reste à payer, encadré + 3 ans.'},
 {g:'5 · Mizuki',id:'z10',t:'PDF',v:'général',o:'module5/index.html',h:'Export PDF.',e:'S\'ouvre ou se partage, chiffres = écran.'},
+{g:'5 · Mizuki',id:'z11',t:'Exercice passé consulté',v:'v10.10.99',o:'module5/index.html',h:'Change d\'année vers l\'exercice précédent.',e:'Bandeau « Tu consultes l\'exercice terminé » + Bilan + Aller à l\'exercice en cours.'},
+{g:'5 · Mizuki',id:'z12',t:'Reste dû de l\'exercice précédent',v:'v10.10.99',o:'module5/index.html',h:'Dans l\'exercice en cours : bandeau « heures non payées sur ton exercice précédent » → Choisir.',e:'Reporter : le solde garde ces heures ; Ne pas reporter : le solde repart de zéro. Le bandeau disparaît.'},
+{g:'5 · Mizuki',id:'z13',t:'Exercice suivant créé à l\'avance',v:'v10.10.99',o:'module5/index.html',h:'Années → Créer l\'année suivante avant la fin de l\'exercice.',e:'Question clôtures automatiques ou manuelles ; appliquée le jour du passage.'},
+{g:'5 · Mizuki',id:'z14',t:'PDF par contrat + PDF commun + heatmap commune',v:'v10.10.99',o:'module5/index.html',h:'Stats : heatmaps ; PDF d\'un contrat puis « PDF commun ».',e:'PDF contrat : section Paiement (dues, payées, reste). PDF commun : tous les contrats, 48 h / 44 h, heatmap. Stats : heatmap tous contrats.'},
 {g:'6 · Zenji',id:'c1',t:'Exercice en cours',v:'v10.10.78–83',o:'module6/index.html',h:'Exercice juin → mai.',e:'Exercice qui contient aujourd\'hui, calendrier borné.'},
 {g:'6 · Zenji',id:'c2',t:'Migration de tes données prod',v:'v10.10.86',o:'module6/index.html',h:'Après import de la sauvegarde prod.',e:'Janvier–mai visibles ; pas de bandeau en retard ; Diagnostic : 0 saisie hors exercice.'},
 {g:'6 · Zenji',id:'c3',t:'Nouvel exercice + bilan',v:'v10.10.76 / .88',o:'module6/index.html',h:'Bandeau → bilan → dates.',e:'Encadré ; dates un an plus tard ou à saisir.'},
 {g:'6 · Zenji',id:'c4',t:'Assistant prérempli',v:'v10.10.87',o:'module6/index.html',h:'⚙️ Contrat.',e:'Prénom et CCN préremplis, rien d\'écrasé.'},
 {g:'6 · Zenji',id:'c5',t:'Saisie et PDF',v:'général',o:'module6/index.html',h:'Saisis une semaine, exporte le PDF.',e:'Totaux cohérents, PDF lisible.'},
+{g:'6 · Zenji',id:'c6',t:'Réinitialiser les dates',v:'v10.10.99',o:'module6/index.html',h:'⚙️ Contrat → étape Exercice → Réinitialiser → terminer.',e:'Cases vides acceptées = année civile ; plus besoin de mettre une date.'},
+{g:'6 · Zenji',id:'c7',t:'Réglages propres à chaque exercice',v:'v10.10.99',o:'module6/index.html',h:'Flèche vers l\'exercice précédent, change un réglage (plafond…), reviens.',e:'Bandeau « exercice terminé » ; l\'exercice en cours n\'a pas changé.'},
+{g:'6 · Zenji',id:'c8',t:'Nouvel exercice',v:'v10.10.99',o:'module6/index.html',h:'Flèche suivante après le dernier exercice (ou 📅 Nouvel exercice).',e:'Choix des dates ; réglages copiés du précédent ; l\'exercice s\'ouvre avec le bandeau « à venir ».'},
 {g:'7 · Fox, M4, M7, GrillePaye',id:'f1',t:'Fox : chiffres officiels',v:'v10.10.82–84',o:'fox/index.html',h:'Données, vue pro, rapport.',e:'Même total que le contingent M1 ou M2.'},
 {g:'7 · Fox, M4, M7, GrillePaye',id:'f2',t:'M4 : heatmaps',v:'v10.10.81',o:'module4/index.html',h:'Jumeau numérique → heatmaps.',e:'Limitées à l\'exercice affiché.'},
 {g:'7 · Fox, M4, M7, GrillePaye',id:'f3',t:'M7 nuit, astreinte, primes',v:'général',o:'module7/index.html',h:'Saisis une nuit et une astreinte.',e:'Montants calculés, en-tête propre.'},

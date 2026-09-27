@@ -52,6 +52,17 @@ const M6_Periode = {
     let c = contract;
     if (!c) { try { c = global.M6_Storage && M6_Storage.getContract(localStorage.getItem('M6_REGIME')); } catch (_) {} }
     c = c || {};
+    // Réglages propres à cet exercice (27/09/2026) : leurs dates priment
+    try {
+      const rg = localStorage.getItem('M6_REGIME') || '';
+      const sn = JSON.parse(localStorage.getItem('M6_' + rg + '_' + year + '_CONTRACT') || 'null');
+      const re0 = /^\d{4}-\d{2}-\d{2}$/;
+      if (sn) {
+        if (re0.test(sn.dateDebutExercice || '') && re0.test(sn.dateFinExercice || '') && sn.dateFinExercice >= sn.dateDebutExercice && parseInt(sn.dateDebutExercice) === year)
+          return { year, deb: sn.dateDebutExercice, fin: sn.dateFinExercice, calendaire: sn.dateDebutExercice === year + '-01-01' && sn.dateFinExercice === year + '-12-31' };
+        if (!sn.dateDebutExercice && !sn.dateFinExercice) return { year, deb: year + '-01-01', fin: year + '-12-31', calendaire: true };
+      }
+    } catch (_) {}
     // Exercices déjà clos : leurs vraies dates, gardées à l'ouverture du suivant (26/09/2026)
     try {
       const h = JSON.parse(localStorage.getItem('M6_EXERCICES_' + (localStorage.getItem('M6_REGIME') || '')) || '{}') || {};

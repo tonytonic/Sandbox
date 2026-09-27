@@ -244,7 +244,7 @@ const VCD = {
     if(yp) yp.addEventListener('change',()=>{this._year=parseInt(yp.value);M6_Storage.setActiveYear(REGIME, this._year);this._load();this.render();});
     const _goYear = (yr) => {
       const exist = M6_Storage.getAllYears(REGIME);
-      if (!exist.includes(yr)) M6_Storage.createYear(REGIME, yr);
+      if (!exist.includes(yr)) { if (yr > Math.max(...exist) && window.M6_nouvelExercice) { M6_nouvelExercice(); } else { M6_toast('Pas d\'exercice '+yr); } return; } /* 27/09/2026 : plus de création silencieuse */
       this._year = yr; M6_Storage.setActiveYear(REGIME, yr); this._load(); this.render();
     };
     this._c.querySelector('#cd-yr-prev')?.addEventListener('click',()=>_goYear(this._year-1));
@@ -355,7 +355,7 @@ const VCD = {
     });
     this._c.querySelector('#cd-saisir')?.addEventListener('click',()=>{this._section='calendrier';this.render();});
     this._c.querySelector('#cd-bio-card')?.addEventListener('click',()=>{this._section='sante';this.render();});
-    this._c.querySelector('#cd-newyr')?.addEventListener('click',()=>{const y=prompt(`Exercice (ex: ${this._year+1})`,this._year+1);if(!y||isNaN(y))return;const yr=parseInt(y);M6_Storage.createYear(REGIME,yr);this._year=yr;M6_Storage.setActiveYear(REGIME, yr);this._load();this.render();M6_toast(`Exercice ${yr} créé`);});
+    this._c.querySelector('#cd-newyr')?.addEventListener('click',()=>{ if(window.M6_nouvelExercice) return M6_nouvelExercice(); });
     this._c.querySelector('#cd-reset')?.addEventListener('click',()=>{
       // Ouvre le wizard pré-rempli — l'utilisateur modifie ce qu'il veut et enregistre, ou annule.
       this._c.innerHTML=this._tplSetup();

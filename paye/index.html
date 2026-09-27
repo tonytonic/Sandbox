@@ -42,6 +42,7 @@ input[type="date"],input[type="month"]{overflow:hidden;min-width:0;-webkit-appea
 .day.today{border:2px solid #4FB3C2 !important;opacity:1 !important;background:#0d2630;box-shadow:0 0 0 2px rgba(79,179,194,0.4);transform:scale(1.03);z-index:2}
 .day.locked{opacity:.4;cursor:not-allowed}
 .day.after-closing{border:1px dashed #4FB3C2;opacity:0.75}
+.day.prev-year{border:1px dashed #f0c040;background:rgba(240,192,64,0.10)}
 .day.after-closing.today{opacity:1 !important;border-style:solid}
 .closures-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
 .closure-row{display:flex;flex-direction:column;gap:4px}
@@ -723,7 +724,9 @@ function switchYear(y){
   if(!ALL_DATA[currentYear]) ALL_DATA[currentYear] = loadYearData(currentYear);
   DATA = ALL_DATA[currentYear];
   // 26/09/2026 : une année passée s'ouvre sur décembre (sa dernière période)
-  const m = Number(currentYear)<new Date().getFullYear() ? "12" : String(new Date().getMonth()+1).padStart(2,"0");
+  // 27/09/2026 : une année future s'ouvre sur janvier (sa première période)
+  const _ya=new Date().getFullYear();
+  const m = Number(currentYear)<_ya ? "12" : Number(currentYear)>_ya ? "01" : String(new Date().getMonth()+1).padStart(2,"0");
   monthPicker.value = currentYear + "-" + m;
   closeYearsPopup();
   loadMonth();
@@ -1002,10 +1005,15 @@ function getLastClosingDay(year, monthIndex) {
 function getPeriodBounds(monthKey){
   if(!monthKey||typeof monthKey!=="string"){const now=new Date();return{start:new Date(now.getFullYear(),now.getMonth(),1),end:new Date(now.getFullYear(),now.getMonth()+1,0)}}
   const[y,m]=monthKey.split("-").map(Number);if(!y||!m)return{start:new Date(y||1970,(m||1)-1,1),end:new Date(y||1970,m||1,0)};
-  const yd=ALL_DATA[String(y)],cm=yd?.[monthKey];if(!cm)return{start:new Date(y,m-1,1),end:new Date(y,m,0)};
+  /* 27/09/2026 : un mois pas encore ouvert suit ses clôtures automatiques (dernier jour de
+     fin de semaine du mois), comme le mois précédent s'il n'existe pas : la période de
+     janvier commence le lendemain de la clôture automatique de décembre, même si décembre
+     n'a jamais été ouvert. Les mois enregistrés gardent leur clôture. */
+  const yd=ALL_DATA[String(y)],cm=(yd&&yd[monthKey])||{};
   const pmd=new Date(y,m-2,1),pk=pmd.getFullYear()+"-"+String(pmd.getMonth()+1).padStart(2,"0");
   const pyd=ALL_DATA[String(pmd.getFullYear())]||{},pm=pyd[pk];
-  let start=pm&&typeof pm.closing==="number"?new Date(pmd.getFullYear(),pmd.getMonth(),pm.closing+1):new Date(y,m-1,1);
+  let pcl=pm&&typeof pm.closing==="number"&&new Date(pmd.getFullYear(),pmd.getMonth(),pm.closing).getDay()===getClosingDow()?pm.closing:getLastClosingDay(pmd.getFullYear(),pmd.getMonth());
+  let start=new Date(pmd.getFullYear(),pmd.getMonth(),pcl+1);
   let closing=cm.closing;if(typeof closing!=="number"||new Date(y,m-1,closing).getDay()!==getClosingDow())closing=getLastClosingDay(y,m-1);
   return{start,end:new Date(y,m-1,closing)};
 }
@@ -1084,7 +1092,24 @@ function renderCalendar(){
   let firstDay = ((asMonBase - ds + 7) % 7) + 1; // 1..7
   if(firstDay > 7) firstDay = 1;
   const dim=new Date(y,m,0).getDate(),{start,end}=getPeriodBounds(currentKey),isLocked=DATA[currentKey].locked;
-  for(let i=1;i<firstDay;i++)cal.appendChild(document.createElement("div"));
+  /* 27/09/2026 : en janvier, les jours de fin décembre qui appartiennent à la période
+     (après la clôture de décembre) s'affichent avant le 1er et se modifient ici :
+     l'année précédente n'est pas accessible par glissement. */
+  const _prev=[];
+  if(m===1){const py=String(y-1),pk=py+"-12";if(!ALL_DATA[py]){const l=loadYearData(py);if(l&&Object.keys(l).length)ALL_DATA[py]=l;}
+    for(let d=new Date(start);d<new Date(y,0,1);d.setDate(d.getDate()+1))_prev.push(new Date(d));}
+  const _lead=firstDay-1,_n=_prev.length,_blank=_n<=_lead?_lead-_n:(7-((_n-_lead)%7))%7;
+  for(let i=0;i<_blank;i++)cal.appendChild(document.createElement("div"));
+  _prev.forEach(date=>{
+    const py=String(date.getFullYear()),pk=py+"-12",dd=date.getDate(),div=document.createElement("div");
+    div.className="day prev-year";const lk=isDateLocked(date);if(lk)div.classList.add("locked");
+    const v=((ALL_DATA[py]||{})[pk]||{days:{}}).days[dd];
+    div.innerHTML=`<b style="font-size:12px">${dd}<span style="font-size:9px;opacity:.75"> déc</span></b><br><span style="color:#fff;font-weight:600;font-size:11px;display:block;line-height:1.2">${v?fmtH(v):""}</span>`;
+    div.title="Fin décembre "+py+" : compté dans la période de janvier";
+    div.onclick=()=>{if(lk){toast("🔒 Période verrouillée","warn");return}openHoursRef(py,pk,dd)};
+    cal.appendChild(div);
+  });
+
   for(let d=1;d<=dim;d++){
     const div=document.createElement("div");div.className="day";
     const date=new Date(y,m-1,d);
@@ -1100,32 +1125,43 @@ function renderCalendar(){
 }
 
 /* POPUP HEURES */
-function openHours(d){currentDay=d;const c=document.getElementById("hoursChoices");c.innerHTML="";[0.25,0.5,0.75,1,1.25,1.5,2].forEach(v=>{const b=document.createElement("button");b.textContent="+"+fmtH(v);b.onclick=()=>applyHours(v);c.appendChild(b)});setM2SaisieMode(_m2SaisieMode);document.getElementById("hoursModal").classList.add("open");lockBodyScroll()}
+/* 27/09/2026 : jour à modifier rangé dans un autre mois que celui affiché
+   (fin décembre de l'année précédente, visible dans la grille de janvier).
+   null = le mois affiché (currentKey). */
+let _m2DayRef=null;
+function _m2Mois(){if(_m2DayRef){const yd=ALL_DATA[_m2DayRef.y]||(ALL_DATA[_m2DayRef.y]=loadYearData(_m2DayRef.y));
+  if(!yd[_m2DayRef.k]){const[a,b]=_m2DayRef.k.split("-").map(Number);yd[_m2DayRef.k]={days:{},paid:0,carry:0,closing:getLastClosingDay(a,b-1),locked:false};}
+  return {k:_m2DayRef.k,m:yd[_m2DayRef.k]};}return {k:currentKey,m:DATA[currentKey]};}
+function openHoursRef(y,k,d){_m2DayRef={y:String(y),k:k};currentDay=d;_openHoursUI();}
+function openHours(d){_m2DayRef=null;currentDay=d;_openHoursUI();}
+function _openHoursUI(){const d=currentDay;const c=document.getElementById("hoursChoices");c.innerHTML="";[0.25,0.5,0.75,1,1.25,1.5,2].forEach(v=>{const b=document.createElement("button");b.textContent="+"+fmtH(v);b.onclick=()=>applyHours(v);c.appendChild(b)});setM2SaisieMode(_m2SaisieMode);document.getElementById("hoursModal").classList.add("open");lockBodyScroll()}
 function closeHours(){document.getElementById("hoursModal").classList.remove("open");unlockBodyScroll()}
 function applyHours(h){
   if(h<=0)return;
-  const[_y,_m]=currentKey.split("-").map(Number);
+  const _M=_m2Mois();
+  const[_y,_m]=_M.k.split("-").map(Number);
   if(isDateLocked(new Date(_y,_m-1,currentDay))){toast("🔒 Période verrouillée","warn");return}
   // Tracker l'incrément pour le popup reliquat (seules les heures NOUVELLEMENT ajoutées)
-  if(hasLaterActivity(currentKey)){
+  if(!_m2DayRef&&hasLaterActivity(currentKey)){
     DATA[currentKey]._reliquatIncrement=(DATA[currentKey]._reliquatIncrement||0)+h;
   }
-  DATA[currentKey].days[currentDay]=(DATA[currentKey].days[currentDay]||0)+h;
+  _M.m.days[currentDay]=(_M.m.days[currentDay]||0)+h;
   save();renderCalendar();recalc();maybeShowReliquatPopup();
-  const _sd=currentDay;closeHours();setTimeout(()=>showSaveFeedback(_sd),50)
+  const _sd=currentDay,_pv=!!_m2DayRef;closeHours();setTimeout(()=>showSaveFeedback(_sd,_pv),50)
 }
 function confirmManual(){const h=window._hmVal("manualHoursH","manualHoursM");if(isNaN(h)||h<=0){toast("⛔ Valeur invalide","error");return}applyHours(h);document.getElementById("manualHoursH").value="";document.getElementById("manualHoursM").value="";}
 function deleteDayHours(){
-  const[_y,_m]=currentKey.split("-").map(Number);
+  const _M=_m2Mois();
+  const[_y,_m]=_M.k.split("-").map(Number);
   if(currentDay&&isDateLocked(new Date(_y,_m-1,currentDay))){toast("🔒 Période verrouillée","warn");return}
-  if(!currentDay||!DATA[currentKey].days[currentDay]){toast("ℹ️ Aucune heure à supprimer","info");return}
-  confirmModal(`Supprimer les heures du ${currentDay} ?`,()=>{
+  if(!currentDay||!_M.m.days[currentDay]){toast("ℹ️ Aucune heure à supprimer","info");return}
+  confirmModal(`Supprimer les heures du ${currentDay}${_m2DayRef?" décembre "+_y:""} ?`,()=>{
     // Réduire l'incrément si on supprime des heures récemment ajoutées
-    if(hasLaterActivity(currentKey)){
+    if(!_m2DayRef&&hasLaterActivity(currentKey)){
       const deleted=DATA[currentKey].days[currentDay]||0;
       DATA[currentKey]._reliquatIncrement=Math.max(0,(DATA[currentKey]._reliquatIncrement||0)-deleted);
     }
-    delete DATA[currentKey].days[currentDay];
+    delete _M.m.days[currentDay];
     currentDay=null;save();renderCalendar();recalc();maybeShowReliquatPopup();closeHours();
   },"Supprimer",true);
   return;currentDay=null;save();renderCalendar();recalc();closeHours()
@@ -2863,9 +2899,9 @@ function resetEuroTimer(){
 }
 
 /* SAVE FEEDBACK */
-function showSaveFeedback(dayNum){
+function showSaveFeedback(dayNum,prevYear){
   try{
-    const cells=document.querySelectorAll(".day");
+    const cells=document.querySelectorAll(prevYear?".day.prev-year":".day:not(.prev-year)");
     let el=null;
     cells.forEach(c=>{const b=c.querySelector("b");if(b&&parseInt(b.textContent)===dayNum)el=c;});
     if(!el)return;

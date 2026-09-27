@@ -99,7 +99,7 @@
     var regime=localStorage.getItem('M6_REGIME');
     if(regime!=='forfait_jours'&&regime!=='forfait_heures')return null;
     if(!window.M6_Storage)return null;
-    var c=M6_Storage.getContract(regime)||{},auj=iso(new Date()),x;
+    var c=(M6_Storage.getContractGlobal?M6_Storage.getContractGlobal(regime):M6_Storage.getContract(regime))||{},auj=iso(new Date()),x;
     if(re.test(c.dateDebutExercice||'')&&re.test(c.dateFinExercice||'')){
       // Exercice daté (ex. juin → mai) : fini quand la date de fin est passée
       x={regime:regime,c:c,prec:parseInt(c.dateDebutExercice,10),deb:c.dateDebutExercice,fin:c.dateFinExercice,date:true};
@@ -119,6 +119,8 @@
   function delaiMin(){return ((window.hsBilanAnnee&&hsBilanAnnee.delai)||'').replace(/^Elles restent/,'elles restent');}
   function lignes(x){
     var data=M6_Storage.getData(x.regime,x.prec)||{};alerte=null;
+    // 27/09/2026 : réglages propres à l'exercice analysé
+    if(M6_Storage.hasYearContract&&M6_Storage.hasYearContract(x.regime,x.prec))x=Object.assign({},x,{c:M6_Storage.getContract(x.regime,x.prec)});
     if(x.regime==='forfait_jours'){
       var a=M6_ForfaitJours.analyze(x.c,data,x.prec);if(!a.joursEffectifs&&!a.rttPris&&!a.cpPris)return null;
       var dep=Math.max(0,(a.joursEffectifs||0)-(a.plafond||218)),nr=Math.max(0,dep-(a.rachetes||0));
@@ -143,11 +145,15 @@
       // Garder les vraies dates de l'exercice qui se termine (utile si la période change)
       var hk='M6_EXERCICES_'+x.regime,h={};try{h=JSON.parse(localStorage.getItem(hk)||'{}')||{};}catch(e){}
       h[String(x.prec)]={deb:x.deb,fin:x.fin};localStorage.setItem(hk,JSON.stringify(h));
-      if(x.date||deb!==x.ndeb||fin!==x.nfin){
-        var c=Object.assign({},M6_Storage.getContract(x.regime)||{});
-        c.dateDebutExercice=deb;c.dateFinExercice=fin;
-        M6_Storage.setContract(x.regime,c);
-      }
+      // 27/09/2026 : l'exercice qui se termine garde SES réglages ; le suivant part d'une
+      // copie (ou de ceux préparés à l'avance), puis chacun vit sa vie
+      var ny=parseInt(deb,10),old=Object.assign({},x.c||{});
+      if(M6_Storage.hasYearContract&&!M6_Storage.hasYearContract(x.regime,x.prec)){old.dateDebutExercice=x.date?x.deb:(old.dateDebutExercice||null);old.dateFinExercice=x.date?x.fin:(old.dateFinExercice||null);localStorage.setItem('M6_'+x.regime+'_'+x.prec+'_CONTRACT',JSON.stringify(old));}
+      var base=(M6_Storage.hasYearContract&&M6_Storage.hasYearContract(x.regime,ny))?M6_Storage.getContract(x.regime,ny):Object.assign({},x.c||{});
+      var c=Object.assign({},base);
+      if(x.date||deb!==x.ndeb||fin!==x.nfin){c.dateDebutExercice=deb;c.dateFinExercice=fin;}
+      localStorage.setItem('M6_'+x.regime+'_'+ny+'_CONTRACT',JSON.stringify(c));
+      if(M6_Storage.setContractGlobal)M6_Storage.setContractGlobal(x.regime,c);else M6_Storage.setContract(x.regime,c);
       localStorage.setItem('M6_EXO_OUVERT_'+x.regime,String(x.prec));
       M6_Storage.setActiveYear(x.regime,parseInt(deb,10));
       M6_Storage.createYear(x.regime,parseInt(deb,10));
@@ -170,7 +176,7 @@
         if(!re.test(db)||!re.test(fn)){er.textContent='Indique les deux dates.';return;}
         if(fn<=db){er.textContent='La fin doit être après le début.';return;}
         if(db<=x.fin){er.textContent='Le nouvel exercice doit commencer après le '+fr(x.fin)+'.';return;}
-        d.remove();appliquer(x,db,fn);}});
+        d.remove();if(x._creer)x._creer(db,fn);else appliquer(x,db,fn);}});
     document.body.appendChild(d);
   }
   function choisir(x){
@@ -189,7 +195,50 @@
     else choisir(x);
   };
   window.M6_exercicePlusTard=function(){var x=contexte();if(x)try{localStorage.setItem('M6_EXO_PLUS_TARD_'+x.regime,iso(new Date()));}catch(e){}var el=document.getElementById('m6ExoSuivant');if(el)el.remove();};
+  /* 27/09/2026 : exercice passé consulté → bandeau (comme les autres modules) */
+  window.M6_allerExerciceEnCours=function(){var r=localStorage.getItem('M6_REGIME');try{M6_Storage.setActiveYear(r,M6_Storage.currentExoYear(r));}catch(e){}location.reload();};
+  window.M6_bilanExercice=function(y){
+    var r=localStorage.getItem('M6_REGIME'),c=M6_Storage.getContract(r,y),b=M6_Periode.bornes(c,y);
+    var x={regime:r,c:c,prec:y,deb:b.deb,fin:b.fin,date:!b.calendaire};var l=null;try{l=lignes(x);}catch(e){}
+    var an=b.deb.slice(0,4)===b.fin.slice(0,4)?b.deb.slice(0,4):b.deb.slice(0,4)+'-'+b.fin.slice(2,4);
+    if(l&&window.hsBilanAnnee)hsBilanAnnee.ouvrir({annee:an,module:'Zenji · '+(r==='forfait_jours'?'forfait jours':'forfait heures'),couleur:'#8a6d2f',image:'images/Cadremenu.PNG',lignes:l,alerte:alerte});
+    else if(window.M6_toast)M6_toast('Pas encore de saisies sur cet exercice');
+  };
+  function bandeauPasse(){
+    var r=localStorage.getItem('M6_REGIME');if(r!=='forfait_jours'&&r!=='forfait_heures')return false;
+    var y=M6_Storage.getActiveYear(r),cur=M6_Storage.currentExoYear?M6_Storage.currentExoYear(r):y;if(y===cur)return false;
+    var b=M6_Periode.bornes(M6_Storage.getContract(r,y),y),passe=y<cur;
+    var d=document.createElement('div');d.id='m6ExoSuivant';
+    d.style.cssText='margin:10px 12px;padding:12px 14px;border-radius:14px;background:#fff8e6;border:1.5px solid #f0c040;font-size:13.5px;line-height:1.45;color:#5a4300';
+    d.innerHTML='📅 <b>Tu consultes l\'exercice '+(passe?'terminé':'à venir')+' du '+fr(b.deb)+' au '+fr(b.fin)+'.</b><br>Ses réglages lui sont propres : les modifier ne change pas les autres exercices.'
+      +'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+(passe?'<button onclick="M6_bilanExercice('+y+')" style="flex:1;padding:10px;border-radius:10px;border:1px solid #d8c48a;background:#fff;color:#5a4300;font-weight:800">📊 Bilan de cet exercice</button>':'')
+      +'<button onclick="M6_allerExerciceEnCours()" style="flex:1;padding:10px;border-radius:10px;border:none;background:#8a6d2f;color:#fff;font-weight:800">Aller à l\'exercice en cours</button></div>';
+    var root=document.getElementById('m6-app-root');if(root&&root.parentNode)root.parentNode.insertBefore(d,root);return true;
+  }
+  /* Exercice suivant créé à la main (avant la fin du précédent) : mêmes choix de dates,
+     ses propres réglages (copie du dernier exercice). Le passage se fera le moment venu. */
+  window.M6_nouvelExercice=function(){
+    var r=localStorage.getItem('M6_REGIME');if(!r)return;
+    var ys=M6_Storage.getAllYears(r),L=Math.max.apply(null,ys.concat([M6_Storage.currentExoYear?M6_Storage.currentExoYear(r):new Date().getFullYear()]));
+    var cL=M6_Storage.getContract(r,L),bL=M6_Periode.bornes(cL,L),ndeb=plus(bL.fin,1),nfin=bL.calendaire?(L+1)+'-12-31':unAn(bL.fin);
+    var ny=parseInt(ndeb,10);
+    function creer(deb,fin){
+      var c=Object.assign({},cL);if(!bL.calendaire||deb!==(ny+'-01-01')||fin!==(ny+'-12-31')){c.dateDebutExercice=deb;c.dateFinExercice=fin;}else{c.dateDebutExercice=null;c.dateFinExercice=null;}
+      try{localStorage.setItem('M6_'+r+'_'+parseInt(deb,10)+'_CONTRACT',JSON.stringify(c));M6_Storage.createYear(r,parseInt(deb,10));
+        var auj=iso(new Date());if(auj>=deb&&auj<=fin&&M6_Storage.setContractGlobal)M6_Storage.setContractGlobal(r,c);
+        M6_Storage.setActiveYear(r,parseInt(deb,10));try{sessionStorage.setItem('M6_VOIR_ANNEE',String(parseInt(deb,10)));}catch(e){}}catch(e){if(window.M6_toast)M6_toast('Espace de stockage insuffisant');return;}
+      location.reload();
+    }
+    var x={regime:r,c:cL,prec:L,deb:bL.deb,fin:bL.fin,ndeb:ndeb,nfin:nfin,date:!bL.calendaire};
+    if(!window.hsNouvelExercice){creer(ndeb,nfin);return;}
+    hsNouvelExercice.demander({titre:'Exercice '+fr(ndeb).replace(/^\d+ /,'')+' → '+fr(nfin).replace(/^\d+ /,''),couleur:'#8a6d2f',
+      question:'Les dates du nouvel exercice :',titreAuto:'Même période, un an plus tard',texteAuto:'Du '+fr(ndeb)+' au '+fr(nfin)+'. Réglages copiés de l\'exercice précédent, modifiables sans le toucher.',
+      texteManuel:'Ton employeur change la période : tu indiques le début et la fin.',
+      auto:function(){creer(ndeb,nfin);},manuel:function(){saisirDates(Object.assign({},x,{_creer:creer}));}});
+  };
   function verifier(){
+    if(document.getElementById('m6ExoSuivant'))return;
+    if(bandeauPasse())return;
     var x=contexte();if(!x)return;
     if(localStorage.getItem('M6_EXO_PLUS_TARD_'+x.regime)===iso(new Date()))return;
     if(document.getElementById('m6ExoSuivant'))return;
@@ -202,6 +251,7 @@
     var root=document.getElementById('m6-app-root');if(root&&root.parentNode)root.parentNode.insertBefore(d,root);
   }
   window.M6_verifierExercice=verifier;
+  window.M6_rafraichirBandeau=function(){var e=document.getElementById('m6ExoSuivant');if(e)e.remove();verifier();};
   if(document.readyState==='complete')setTimeout(verifier,700);else window.addEventListener('load',function(){setTimeout(verifier,700);});
 })();
 </script>
@@ -267,8 +317,11 @@ if ('serviceWorker' in navigator) {
     var reg=localStorage.getItem('M6_REGIME');
     if(reg&&window.M6_Storage&&window.M6_Periode){
       var t=new Date(),auj=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
-      var c=M6_Storage.getContract(reg)||{},bon=t.getFullYear();
+      var c=(M6_Storage.getContractGlobal?M6_Storage.getContractGlobal(reg):M6_Storage.getContract(reg))||{},bon=t.getFullYear();
       [t.getFullYear()-1,t.getFullYear()].forEach(function(y){var b=M6_Periode.bornes(c,y);if(auj>=b.deb&&auj<=b.fin)bon=y;});
+      // 27/09/2026 : exercice qu'on vient de créer → on l'ouvre (une fois)
+      var voir=null;try{voir=sessionStorage.getItem('M6_VOIR_ANNEE');sessionStorage.removeItem('M6_VOIR_ANNEE');}catch(e){}
+      if(voir&&/^\d{4}$/.test(voir))bon=parseInt(voir,10);
       if(M6_Storage.getActiveYear(reg)!==bon)M6_Storage.setActiveYear(reg,bon);
     }
   }catch(e){}
