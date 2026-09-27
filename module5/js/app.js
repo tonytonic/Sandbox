@@ -3546,30 +3546,18 @@ document.addEventListener('DOMContentLoaded',()=>{
   /* Fenêtre de choix : une ligne par exercice, cochée par défaut */
   window.M5_demanderReports=function(items,to,apres){
     if(!items||!items.length){if(apres)apres();return;}
-    var c=M5_Contract.get(),r1=Math.round((c.rate1||0.10)*100),r2=Math.round((c.rate2||0.25)*100);
-    var ov=document.createElement('div');ov.id='m5RepOv';
-    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(20,10,40,.55);display:flex;align-items:flex-end;justify-content:center';
-    var tot=0;items.forEach(function(it){tot+=it.h10+it.h25;});
-    var h='<div style="background:#fff;color:#2a2340;width:100%;max-width:520px;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))">'
-      +'<div style="font-size:12px;font-weight:800;color:#e67e22;letter-spacing:.04em;text-transform:uppercase">Reste à payer</div>'
-      +'<div style="font-size:17px;font-weight:800;margin:4px 0 6px">'+fH(tot)+' d\'heures complémentaires non payées</div>'
-      +'<div style="font-size:13px;line-height:1.45;color:#4a3f66;margin-bottom:10px">Elles restent dues pendant 3 ans (art. L3245-1 du Code du travail). Coche celles à reporter dans l\'exercice qui commence le '+fr(to)+' : elles s\'ajoutent au report de sa première semaine ou période, avec leurs taux. Les autres restent dans le bilan de leur exercice et te seront reproposées à l\'ouverture du suivant.</div>';
-    items.forEach(function(it,i){var det=[];if(it.h10>0.01)det.push(fH(it.h10)+' à +'+r1+' %');if(it.h25>0.01)det.push(fH(it.h25)+' à +'+r2+' %');
-      h+='<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1.5px solid #e8dcc0;border-radius:12px;margin-bottom:8px;background:#fffaf0">'
-        +'<input type="checkbox" data-i="'+i+'" checked style="width:20px;height:20px;margin-top:2px;flex:none">'
-        +'<span style="font-size:13.5px;line-height:1.4"><b>Exercice '+it.an+' : '+fH(it.h10+it.h25)+'</b><br><span style="color:#6b5f86">'+det.join(' + ')+'</span><br>'
-        +'<span style="font-size:12px;color:#8a6d2f">Réclamable : les plus anciennes heures jusqu\'au '+fr(it.limite)+' environ</span></span></label>';});
-    h+='<div style="font-size:11.5px;color:#7a6f92;margin:4px 0 12px">Les 3 ans courent à partir de chaque date de paie : les heures du début de l\'exercice se prescrivent en premier. Date indicative.</div>'
-      +'<button data-ok style="width:100%;padding:13px;border:none;border-radius:12px;background:#e67e22;color:#fff;font-weight:800;font-size:15px">Valider</button>'
-      +'<button data-non style="width:100%;padding:11px;border:none;background:none;color:#6b5f86;font-weight:700;margin-top:6px">Ne rien reporter pour l\'instant</button></div>';
-    ov.innerHTML=h;document.body.appendChild(ov);
-    function fin(coches){enregistrer(to,items,coches);ov.remove();
+    var c=M5_Contract.get(),r1=Math.round((c.rate1||0.10)*100),r2=Math.round((c.rate2||0.25)*100),tot=0;
+    items.forEach(function(it){tot+=it.h10+it.h25;});
+    function fin(coches){enregistrer(to,items,coches);
       var n=0;coches.forEach(function(x,i){if(x)n+=items[i].h10+items[i].h25;});
       if(typeof toast==='function')toast(n>0.01?'↪ '+fH(n)+' reportées dans l\'exercice en cours':'Restes gardés dans le bilan de leur exercice','success');
       if(apres)apres();
       setTimeout(function(){var mc=document.getElementById('modal-contract');if(!mc||!mc.classList.contains('open'))location.reload();},apres?900:700);}
-    ov.querySelector('[data-ok]').onclick=function(){fin(items.map(function(_,i){var b=ov.querySelector('[data-i="'+i+'"]');return !!(b&&b.checked);}));};
-    ov.querySelector('[data-non]').onclick=function(){fin(items.map(function(){return false;}));};
+    if(!window.hsNouvelExercice||!hsNouvelExercice.restes){fin(items.map(function(){return false;}));return;}
+    hsNouvelExercice.restes({total:fH(tot),vers:'l\'exercice qui commence le '+fr(to),couleur:'#e67e22',
+      items:items.map(function(it){var det=[];if(it.h10>0.01)det.push(fH(it.h10)+' à +'+r1+' %');if(it.h25>0.01)det.push(fH(it.h25)+' à +'+r2+' %');
+        return {titre:'Exercice '+it.an+' : '+fH(it.h10+it.h25),detail:det.join(' + '),limite:fr(it.limite)};}),
+      valider:fin});
   };
   /* Compatibilité : ancien appel avec un seul reste */
   window.M5_demanderReport=function(reste,to,apres){

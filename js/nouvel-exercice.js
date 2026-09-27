@@ -67,5 +67,27 @@
     document.body.appendChild(d);
     try{document.body.style.overflow='hidden';}catch(e){}
   }
-  window.hsNouvelExercice={demander:demander,clotures:clotures,dernier:dernier,moisSuivant:moisSuivant,fermer:fermer,jour:function(n){return JOURS[n];}};
+  /* 27/09/2026 — Restes dus (art. L3245-1) : une ligne par exercice, cochée par défaut.
+     o = {total, vers (texte : « l'exercice qui commence le … »), couleur, items:[{titre, detail, limite}], valider(coches[])} */
+  function restes(o){
+    fermer();var d=document.createElement('div');d.id=ID;d.className='hs-restes';
+    d.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(20,10,40,.55);display:flex;align-items:flex-end;justify-content:center';
+    var c=o.couleur||'#e67e22',h='<div style="background:#fff;color:#2a2340;width:100%;max-width:520px;max-height:88vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));font-family:inherit">'
+      +'<div style="font-size:12px;font-weight:800;color:'+c+';letter-spacing:.04em;text-transform:uppercase">Reste à payer</div>'
+      +'<div style="font-size:17px;font-weight:800;margin:4px 0 6px">'+esc(o.total)+' d\'heures non payées</div>'
+      +'<div style="font-size:13px;line-height:1.45;color:#4a3f66;margin-bottom:10px">Elles restent dues pendant 3 ans (art. L3245-1 du Code du travail). Coche celles à reporter dans '+esc(o.vers)+' : elles s\'ajoutent au report de sa première période, avec leurs taux. Les autres restent dans le bilan de leur exercice et te seront reproposées à l\'ouverture du suivant.</div>';
+    (o.items||[]).forEach(function(it,i){
+      h+='<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1.5px solid #e8dcc0;border-radius:12px;margin-bottom:8px;background:#fffaf0">'
+        +'<input type="checkbox" data-i="'+i+'" checked style="width:20px;height:20px;margin-top:2px;flex:none">'
+        +'<span style="font-size:13.5px;line-height:1.4"><b>'+esc(it.titre)+'</b>'+(it.detail?'<br><span style="color:#6b5f86">'+esc(it.detail)+'</span>':'')
+        +(it.limite?'<br><span style="font-size:12px;color:#8a6d2f">Réclamable : les plus anciennes heures jusqu\'au '+esc(it.limite)+' environ</span>':'')+'</span></label>';});
+    h+='<div style="font-size:11.5px;color:#7a6f92;margin:4px 0 12px">Les 3 ans courent à partir de chaque date de paie : les heures du début de l\'exercice se prescrivent en premier. Date indicative.</div>'
+      +'<button type="button" data-ok style="width:100%;padding:13px;border:none;border-radius:12px;background:'+c+';color:#fff;font-weight:800;font-size:15px">Valider</button>'
+      +'<button type="button" data-non style="width:100%;padding:11px;border:none;background:none;color:#6b5f86;font-weight:700;margin-top:6px">Ne rien reporter pour l\'instant</button></div>';
+    d.innerHTML=h;document.body.appendChild(d);try{document.body.style.overflow='hidden';}catch(e){}
+    function fin(coches){fermer();if(o.valider)o.valider(coches);}
+    d.querySelector('[data-ok]').onclick=function(){fin((o.items||[]).map(function(_,i){var b=d.querySelector('[data-i="'+i+'"]');return !!(b&&b.checked);}));};
+    d.querySelector('[data-non]').onclick=function(){fin((o.items||[]).map(function(){return false;}));};
+  }
+  window.hsNouvelExercice={restes:restes,demander:demander,clotures:clotures,dernier:dernier,moisSuivant:moisSuivant,fermer:fermer,jour:function(n){return JOURS[n];}};
 })();

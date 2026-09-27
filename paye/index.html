@@ -1220,8 +1220,18 @@ function m2ReliquatAnnee(an){
     return {from:an,h:h,due1:Number(bd.due1)||0,dueInter:Number(bd.dueInter)||0,due2:Number(bd.due2)||0};
   }catch(e){return null;}
 }
+/* 27/09/2026 : restes sur 3 ans. Un reste gardé (non reporté) peut être reporté plus tard dans un
+   exercice suivant tant que le délai de 3 ans court : M2_RELIQUAT_VERS_<année> = exercice d'arrivée.
+   M2_RELIQUAT_VU_<année> = exercice à l'ouverture duquel on a répondu « ne pas reporter ». */
+function m2ReporteVers(an){an=String(an);if(localStorage.getItem('M2_RELIQUAT_CHOIX_'+an)==='report')return String(parseInt(an,10)+1);return localStorage.getItem('M2_RELIQUAT_VERS_'+an)||null;}
 function m2ReportExercice(y){
-  try{const p=String(parseInt(y,10)-1);if(localStorage.getItem('M2_RELIQUAT_CHOIX_'+p)!=='report')return null;return m2ReliquatAnnee(p);}catch(e){return null;}
+  try{y=parseInt(y,10);let t=null;
+    const add=r=>{if(!r)return;if(!t)t={from:[],h:0,due1:0,dueInter:0,due2:0};t.from.push(r.from);t.h+=r.h;t.due1+=r.due1;t.dueInter+=r.dueInter;t.due2+=r.due2;};
+    const p=String(y-1);if(localStorage.getItem('M2_RELIQUAT_CHOIX_'+p)==='report')add(m2ReliquatAnnee(p));
+    for(let a=y-4;a<=y-2;a++){if(localStorage.getItem('M2_RELIQUAT_VERS_'+a)===String(y))add(m2ReliquatAnnee(String(a)));}
+    if(t)['h','due1','dueInter','due2'].forEach(k=>{t[k]=Math.round(t[k]*100)/100;});
+    return t;
+  }catch(e){return null;}
 }
 function getPreviousCarry(mk){const am=[];const yd=ALL_DATA[currentYear]||{};Object.keys(yd).forEach(k=>{if(/^\d{4}-\d{2}$/.test(k))am.push({key:k,month:yd[k]})});am.sort((a,b)=>a.key.localeCompare(b.key));const _rep=m2ReportExercice(currentYear);let pc=_rep?_rep.h:0;for(const item of am){if(item.key===mk)break;if(item.month.carry!=null)pc=item.month.carry}return pc}
 function recalc(){
@@ -1331,7 +1341,7 @@ function recalc(){
       const _ydL = ALL_DATA[currentYear] || {};
       if(!Object.keys(_ydL).some(k => /^\d{4}-\d{2}$/.test(k) && k < currentKey)){
         const _r = m2ReportExercice(currentYear);
-        if(_r) html += `<br><span style="font-size:11px;font-weight:600;color:#e67e22">↪ reporté de l'exercice ${_r.from}</span>`;
+        if(_r) html += `<br><span style="font-size:11px;font-weight:600;color:#e67e22">↪ reporté ${[].concat(_r.from).length>1?'des exercices '+[].concat(_r.from).sort().join(' et '):'de l\'exercice '+[].concat(_r.from)[0]}</span>`;
       }
       prevCarryEl.innerHTML = html;
     }
@@ -3264,7 +3274,7 @@ function closeTip(){
     if(r.due1>0.01)p.push(fmtH(r.due1)+' à '+R.taux1+' %');
     if(r.dueInter>0.01&&R.taux_inter)p.push(fmtH(r.dueInter)+' à '+R.taux_inter+' %');
     if(r.due2>0.01)p.push(fmtH(r.due2)+' à '+R.taux2+' %');
-    var ch=localStorage.getItem('M2_RELIQUAT_CHOIX_'+yearStr),suite=ch==='report'?' Reportées dans l\'exercice '+(parseInt(yearStr,10)+1)+'.':'';
+    var suite=(yearStr<String(currentYear)&&window.m2StatutReste)?m2StatutReste(yearStr):'';
     return {titre:'⚠️ Exercice '+yearStr+' non soldé : '+fmtH(r.h)+' non payées',
       texte:(p.length>1?'Soit '+p.join(' + ')+'. ':'')+(window.hsBilanAnnee&&hsBilanAnnee.delai||'')+suite};
   }
@@ -3279,16 +3289,42 @@ function closeTip(){
     if(typeof window.m2VerifierAnnee==='function')window.m2VerifierAnnee();
     if(typeof apres==='function')apres();
   };
+  function m2Debut(an){var d=new Date(finDecembre(parseInt(an,10)-1)+'T12:00:00');d.setDate(d.getDate()+1);return iso(d);}
+  function m2Limite(an){var d=new Date(m2Debut(an)+'T12:00:00'),m=d.getMonth();d.setFullYear(d.getFullYear()+3);if(d.getMonth()!==m)d.setDate(0);return iso(d);}
+  /* Restes encore dus à l'ouverture de l'exercice « cur » : non reportés, délai de 3 ans non dépassé.
+     sansVu : ignorer les « ne pas reporter » déjà répondus pour cur. */
+  function m2RestesDus(cur,ref,sansVu){cur=parseInt(cur,10);var out=[];
+    for(var a=cur-1;a>=cur-4;a--){var an=String(a);
+      if(m2Limite(an)<=ref||m2ReporteVers(an))continue;
+      if(!sansVu&&(a===cur-1?localStorage.getItem('M2_RELIQUAT_CHOIX_'+an):localStorage.getItem('M2_RELIQUAT_VU_'+an)===String(cur)))continue;
+      var r=m2ReliquatAnnee(an);if(r&&r.h>0.01)out.push({an:an,r:r,limite:m2Limite(an)});}
+    return out;}
+  window.m2RestesDus=m2RestesDus;
+  function m2Appliquer(y,items,coches){y=parseInt(y,10);var n=0;
+    items.forEach(function(it,i){var a=parseInt(it.an,10),ok=!!coches[i];if(ok)n+=it.r.h;
+      try{if(a===y-1){localStorage.setItem('M2_RELIQUAT_CHOIX_'+it.an,ok?'report':'garder');}
+        else if(ok){localStorage.setItem('M2_RELIQUAT_VERS_'+it.an,String(y));localStorage.removeItem('M2_RELIQUAT_VU_'+it.an);}
+        else localStorage.setItem('M2_RELIQUAT_VU_'+it.an,String(y));}catch(e){}});
+    try{recalc();save();}catch(e){}
+    toast(n>0.01?'↪ '+fmtH(n)+' reportées dans '+y:'Restes gardés dans le bilan de leur exercice','success');
+    if(typeof window.m2VerifierAnnee==='function')window.m2VerifierAnnee();}
+  function m2Dialogue(y,items,apres){
+    if(!items.length||!window.hsNouvelExercice||!hsNouvelExercice.restes){if(apres)apres();return;}
+    var R=getCCNRules(),tot=0;items.forEach(function(it){tot+=it.r.h;});
+    hsNouvelExercice.restes({total:fmtH(tot),vers:'l\'exercice '+y,couleur:'#e67e22',
+      items:items.map(function(it){var p=[];if(it.r.due1>0.01)p.push(fmtH(it.r.due1)+' à '+R.taux1+' %');if(it.r.dueInter>0.01&&R.taux_inter)p.push(fmtH(it.r.dueInter)+' à '+R.taux_inter+' %');if(it.r.due2>0.01)p.push(fmtH(it.r.due2)+' à '+R.taux2+' %');
+        return {titre:'Exercice '+it.an+' : '+fmtH(it.r.h),detail:p.join(' + '),limite:frD(it.limite)};}),
+      valider:function(coches){m2Appliquer(y,items,coches);if(apres)apres();}});
+  }
+  /* À l'ouverture de l'exercice an+1 : le reste de an et les restes plus anciens encore dus */
   window.m2DemanderReliquat=function(an,apres){
-    var r=m2ReliquatAnnee(an),y=String(parseInt(an,10)+1);
-    if(!r||localStorage.getItem('M2_RELIQUAT_CHOIX_'+an)||!window.hsNouvelExercice){if(apres)apres();return;}
-    hsNouvelExercice.demander({surtitre:'Reste à payer',titre:fmtH(r.h)+' non payées en '+an,couleur:'#e67e22',
-      question:'Que faire de ces heures ?',icoAuto:'↪',icoManuel:'📷',
-      titreAuto:'Les reporter dans '+y,texteAuto:'Elles s\'ajoutent au report de ta première période '+y+', avec leurs taux. Tu les coches payées quand ton employeur les règle. Le contingent '+y+' ne change pas.',
-      titreManuel:'Ne pas les reporter',texteManuel:'Elles restent dans le bilan '+an+'. Garde l\'image du bilan : elle montre ce qui t\'est dû.',
-      auto:function(){window.m2ReliquatChoix(an,'report',apres);},
-      manuel:function(){window.m2ReliquatChoix(an,'garder',apres);}});
+    var y=String(parseInt(an,10)+1);m2Dialogue(y,m2RestesDus(y,iso(new Date()),true),apres);
   };
+  window.m2ChoisirRestes=function(){var y=String(currentYear);m2Dialogue(y,m2RestesDus(y,iso(new Date()),false));};
+  window.m2GarderRestes=function(){var y=String(currentYear),it=m2RestesDus(y,iso(new Date()),false);m2Appliquer(y,it,it.map(function(){return false;}));};
+  window.m2StatutReste=function(an){var v=m2ReporteVers(an);if(v)return ' Reportées dans l\'exercice '+v+'.';
+    var l=m2Limite(an);if(l<=iso(new Date()))return ' Non reportées ; le délai de 3 ans est dépassé pour les plus anciennes heures depuis le '+frD(l)+' environ.';
+    return ' Non reportées : elles restent dues, les plus anciennes réclamables jusqu\'au '+frD(l)+' environ ; elles te seront reproposées à l\'ouverture de chaque exercice d\'ici là.';};
   window.m2ChoisirPuisOuvrir=function(){
     var y=String(parseInt(currentYear,10)+1);
     var dejaLa=false;try{dejaLa=Object.keys(loadYearData(y)||{}).length>0;}catch(e){}
@@ -3318,12 +3354,12 @@ function closeTip(){
         '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">L\'exercice '+cur+' reste consultable avec le bouton 📅 Exercice.</div>';
       el.style.display='block';return;
     }
-    /* Reste non payé de l'exercice précédent, pas encore traité (26/09/2026) */
-    var pr=String(cur-1),rel=localStorage.getItem('M2_RELIQUAT_CHOIX_'+pr)?null:m2ReliquatAnnee(pr);
-    if(rel){
-      el.innerHTML='⚠️ <b>'+fmtH(rel.h)+' non payées sur ton exercice '+pr+'.</b> Elles restent dues : 3 ans pour les réclamer (art. L3245-1). Tu peux les reporter dans '+cur+' pour suivre leur paiement.'+
-        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+bouton('Reporter dans '+cur,'m2ReliquatChoix(\''+pr+'\',\'report\')',true)+bouton('Ne pas reporter','m2ReliquatChoix(\''+pr+'\',\'garder\')',false)+'</div>'+
-        '<div style="font-size:11.5px;margin-top:6px;color:#7a6520"><a href="#" onclick="m2VoirBilan(\''+pr+'\');return false" style="color:#7a4a00;font-weight:700">📊 Voir le bilan '+pr+'</a> et garder l\'image comme preuve.</div>';
+    /* Restes non payés des exercices précédents (3 ans), pas encore traités (27/09/2026) */
+    var dus=m2RestesDus(cur,iso(now),false);
+    if(dus.length){var tt=0;dus.forEach(function(x){tt+=x.r.h;});
+      el.innerHTML='⚠️ <b>'+fmtH(tt)+' non payées sur '+(dus.length>1?'tes exercices précédents':'ton exercice '+dus[0].an)+'</b>'+(dus.length>1?' ('+dus.map(function(x){return x.an+' : '+fmtH(x.r.h);}).join(' · ')+')':'')+'. Elles restent dues : 3 ans pour les réclamer (art. L3245-1). Tu peux les reporter dans '+cur+' pour suivre leur paiement.'+
+        '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+bouton(dus.length>1?'Choisir':'Reporter dans '+cur,'m2ChoisirRestes()',true)+bouton('Ne pas reporter','m2GarderRestes()',false)+'</div>'+
+        '<div style="font-size:11.5px;margin-top:6px;color:#7a6520">'+dus.map(function(x){return '<a href="#" onclick="m2VoirBilan(\''+x.an+'\');return false" style="color:#7a4a00;font-weight:700">📊 Bilan '+x.an+'</a>';}).join(' · ')+' : garde l\'image comme preuve.</div>';
       el.style.display='block';return;
     }
     var prec=String(y-1),aDesDonnees=false;

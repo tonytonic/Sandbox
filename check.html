@@ -286,7 +286,7 @@ function dataChecks(){
   ys.sort().forEach(function(y){var d=jget('CA_HS_TRACKER_V1_DATA_'+y);if(d===undefined){add(S2,'ko','Année '+y+' illisible','');return;}
     var mois=Object.keys(d||{}).filter(function(x){return /^\d{4}-\d{2}$/.test(x);}),jours=0,paye=0;mois.forEach(function(mk){jours+=Object.keys((d[mk]||{}).days||{}).length;paye+=Number((d[mk]||{}).paid)||0;});
     var ch=localStorage.getItem('M2_RELIQUAT_CHOIX_'+y),off=jget('SH_HS_OFFICIEL_M2_'+y);
-    add(S2,'ok','Année '+y,mois.length+' mois · '+jours+' jours saisis · '+paye+' h payées'+(off?' · contingent '+(Math.round(off.total*100)/100)+' h':'')+(ch?' · reste de fin d\'année : '+(ch==='report'?'reporté dans '+(+y+1):'non reporté'):''));});
+    add(S2,'ok','Année '+y,mois.length+' mois · '+jours+' jours saisis · '+paye+' h payées'+(off?' · contingent '+(Math.round(off.total*100)/100)+' h':'')+(ch?' · reste de fin d\'année : '+(ch==='report'?'reporté dans '+(+y+1):(localStorage.getItem('M2_RELIQUAT_VERS_'+y)?'reporté plus tard dans '+localStorage.getItem('M2_RELIQUAT_VERS_'+y):'non reporté (reproposé pendant 3 ans)')):''));});
   // M5
   var S5='Mizuki (temps partiel)',nb=0;
   [1,2,3].forEach(function(n){var p=n===1?'M5_':'M5_C'+n+'_',c=jget(p+'CONTRACT');if(c===undefined){add(S5,'ko','Contrat '+n+' illisible','');return;}if(!c||!(c.hoursBase>0))return;nb++;
