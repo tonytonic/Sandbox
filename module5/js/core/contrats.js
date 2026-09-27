@@ -139,6 +139,29 @@ function rpTexte(pct,total){
     +(hors?' : '+(total?'ce total':'ta durée')+' est en dehors de cette fourchette.':'.');
 }
 function contrat(n){try{return JSON.parse(get(keyFor(n,'M5_CONTRACT'))||'null');}catch(e){return null;}}
+/* 27/09/2026 : heures complémentaires de chaque contrat (même moteur que la carte Solde).
+   Semaine : calcul hebdomadaire. Période : somme des semaines (hebdo) ou calcul mensuel. */
+function hcContrat(c,d,wa,pa,pb){
+  var o={w:null,p:null};var CE=global.CalcEngine;if(!c||!c.hoursBase||!CE)return o;
+  var mode=c.modeCalcul||'HEBDO';if(mode==='ANNUEL')return o;
+  function lundis(a,b){var x=new Date(a+'T12:00:00');x.setDate(x.getDate()-((x.getDay()+6)%7));var l=[];while(dk(x)<=b){l.push(dk(x));x.setDate(x.getDate()+7);}return l;}
+  function fin(m){var x=new Date(m+'T12:00:00');x.setDate(x.getDate()+6);return dk(x);}
+  function hw(m,t){if(!(t>0))return 0;var fm=null;try{fm=global.M5_getFeriesYear?M5_getFeriesYear(parseInt(m,10)):null;}catch(e){}
+    var r=CE.calcWeek(c.hoursBase,t,c,0,{feriesMap:fm,neutraliseFeries:c.neutraliseFeries!==false,mondayStr:m,joursOuvresContrat:c.joursOuvresContrat||5});return (r.compH1||0)+(r.compH2||0);}
+  try{
+    if(mode==='MENSUEL'){
+      var ws=lundis(pa,pb).map(function(m){return {worked:sumRange(d,m<pa?pa:m,fin(m)>pb?pb:fin(m))};});
+      var nbJ=Math.round((new Date(pb+'T12:00:00')-new Date(pa+'T12:00:00'))/864e5)+1;
+      var r=CE.calcMonth(c.hoursBase,ws,c,0,nbJ);o.p=(r.compH1||0)+(r.compH2||0);
+    }else{
+      o.w=hw(wa,sumRange(d,wa,fin(wa)));
+      var t=0;lundis(pa,pb).forEach(function(m){if(m>=pa)t+=hw(m,sumRange(d,m,fin(m)));});o.p=t;
+    }
+  }catch(e){}
+  if(o.w!=null)o.w=Math.round(o.w*100)/100;if(o.p!=null)o.p=Math.round(o.p*100)/100;
+  return o;
+}
+function hcTxt(h){return h==null?'':'<div style="font-size:11px;font-weight:600;color:'+(h>0?'#d35400':'#9a8fb5')+'">'+(h>0?'dont '+fmtH(h)+' HC':'0 h HC')+'</div>';}
 function renderOverview(){
   var old=document.getElementById('m5-ensemble');if(old&&old.parentNode)old.parentNode.removeChild(old);
   var ex=existing();if(ex.length<2)return;
@@ -151,12 +174,13 @@ function renderOverview(){
   var wa=dk(mon),wb=dk(sun),ma=dk(new Date(t.getFullYear(),t.getMonth(),1)),mb=dk(new Date(t.getFullYear(),t.getMonth()+1,0)),libM='Ce mois';
   try{var per=global.M5_periodeAffichee&&M5_periodeAffichee();if(per&&per.debutStr&&per.finStr){ma=per.debutStr;mb=per.finStr;libM='Période '+ma.slice(8)+'/'+ma.slice(5,7)+' → '+mb.slice(8)+'/'+mb.slice(5,7);}}catch(e){}
   var libS=estAuj?'Cette semaine':'Semaine du '+wa.slice(8)+'/'+wa.slice(5,7);
-  var rows='',tw=0,tm=0;
-  ex.forEach(function(n){var d=allData(n),w=sumRange(d,wa,wb),m=sumRange(d,ma,mb),b=base(n);tw+=w;tm+=m;
-    rows+='<tr'+(n===ACTIVE?' style="font-weight:700"':'')+'><td style="padding:5px 4px">'+esc(nom(n))+'</td>'
-      +'<td style="padding:5px 4px;text-align:right;white-space:nowrap">'+fmtH(w)+(b?' <span style="opacity:.55;font-weight:400">/ '+fmtH(b)+'</span>':'')+'</td>'
-      +'<td style="padding:5px 4px;text-align:right;white-space:nowrap">'+fmtH(m)+'</td></tr>';});
-  tw=Math.round(tw*100)/100;tm=Math.round(tm*100)/100;
+  var rows='',tw=0,tm=0,hw=0,hm=0,aHw=false,aHm=false;
+  ex.forEach(function(n){var d=allData(n),w=sumRange(d,wa,wb),m=sumRange(d,ma,mb),b=base(n),hc=hcContrat(contrat(n),d,wa,ma,mb);tw+=w;tm+=m;
+    if(hc.w!=null){hw+=hc.w;aHw=true;}if(hc.p!=null){hm+=hc.p;aHm=true;}
+    rows+='<tr'+(n===ACTIVE?' style="font-weight:700"':'')+'><td style="padding:5px 4px;vertical-align:top">'+esc(nom(n))+'</td>'
+      +'<td style="padding:5px 4px;text-align:right;white-space:nowrap;vertical-align:top">'+fmtH(w)+(b?' <span style="opacity:.55;font-weight:400">/ '+fmtH(b)+'</span>':'')+hcTxt(hc.w)+'</td>'
+      +'<td style="padding:5px 4px;text-align:right;white-space:nowrap;vertical-align:top">'+fmtH(m)+hcTxt(hc.p)+'</td></tr>';});
+  tw=Math.round(tw*100)/100;tm=Math.round(tm*100)/100;hw=Math.round(hw*100)/100;hm=Math.round(hm*100)/100;
   var over=tw>48;
   var c=document.createElement('div');c.id='m5-ensemble';
   c.style.cssText='margin:10px 12px 0;padding:12px 14px;border-radius:14px;background:#fff;border:1px solid rgba(108,63,197,0.22);font-size:13px;color:#2a2340';
@@ -166,7 +190,8 @@ function renderOverview(){
     +'<th style="text-align:right;padding:2px 4px;font-weight:600">'+libS+' / base</th>'
     +'<th style="text-align:right;padding:2px 4px;font-weight:600">'+libM+'</th></tr></thead><tbody>'+rows
     +'<tr style="border-top:1px solid rgba(108,63,197,0.25);font-weight:800"><td style="padding:6px 4px">Total</td>'
-    +'<td style="padding:6px 4px;text-align:right">'+fmtH(tw)+'</td><td style="padding:6px 4px;text-align:right">'+fmtH(tm)+'</td></tr></tbody></table>'
+    +'<td style="padding:6px 4px;text-align:right;vertical-align:top">'+fmtH(tw)+(aHw?hcTxt(hw):'')+'</td><td style="padding:6px 4px;text-align:right;vertical-align:top">'+fmtH(tm)+(aHm?hcTxt(hm):'')+'</td></tr></tbody></table>'
+    +'<div style="margin-top:4px;font-size:11px;opacity:.65">Heures travaillées ; en orange, les heures complémentaires (HC) calculées contrat par contrat.</div>'
     +'<div style="margin-top:10px;padding:9px 11px;border-radius:10px;font-size:12px;line-height:1.45;'
     +(over?'background:#fff3e0;color:#b34700;border:1px solid #ffb74d':'background:rgba(108,63,197,0.06);color:#4a3f66')+'">'
     +'Tous employeurs confondus, la durée maximale de travail est de 48 h par semaine '
