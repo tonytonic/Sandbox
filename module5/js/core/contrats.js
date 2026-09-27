@@ -99,8 +99,8 @@ function base(n){try{var c=JSON.parse(get(keyFor(n,'M5_CONTRACT'))||'null');retu
    Seules les journées saisies au jour près comptent. On ne liste que les journées
    où c'est l'addition des contrats qui dépasse 10 h : un dépassement dans un seul
    contrat est déjà signalé par Mizuki dans ce contrat. */
-function jours10h(ex){
-  var t=new Date();t.setHours(12,0,0,0);var a=new Date(t);a.setDate(t.getDate()-27);
+function jours10h(ex,fin){
+  var t=fin?new Date(fin.getTime()):new Date();t.setHours(12,0,0,0);var a=new Date(t);a.setDate(t.getDate()-27);
   var da=dk(a),db=dk(t),parJour={};
   ex.forEach(function(n){var d=allData(n);for(var j in d){if(j<da||j>db)continue;var e=d[j];
     if(e&&e.type==='day'&&e.worked>0){(parJour[j]=parJour[j]||[]).push({n:n,h:e.worked});}}});
@@ -112,7 +112,7 @@ function jours10h(ex){
   var h='<div style="margin-top:8px;padding:9px 11px;border-radius:10px;font-size:12px;line-height:1.45;'
     +(liste.length?'background:#fff3e0;color:#b34700;border:1px solid #ffb74d':'background:rgba(108,63,197,0.06);color:#4a3f66')+'">';
   if(liste.length){
-    h+='Journées de plus de 10 h tous employeurs confondus (4 dernières semaines) :<br>';
+    h+='Journées de plus de 10 h tous employeurs confondus (4 semaines jusqu’au '+dk(t).slice(8)+'/'+dk(t).slice(5,7)+') :<br>';
     h+=liste.slice(-6).map(function(x){var p=x.j.split('-');
       return '<b>'+p[2]+'/'+p[1]+'</b> : '+fmtH(x.tot)+' ('+x.l.map(function(y){return esc(nom(y.n))+' '+fmtH(y.h);}).join(' + ')+')';}).join('<br>');
     if(liste.length>6)h+='<br>… et '+(liste.length-6)+' autre(s).';
@@ -140,11 +140,17 @@ function rpTexte(pct,total){
 }
 function contrat(n){try{return JSON.parse(get(keyFor(n,'M5_CONTRACT'))||'null');}catch(e){return null;}}
 function renderOverview(){
+  var old=document.getElementById('m5-ensemble');if(old&&old.parentNode)old.parentNode.removeChild(old);
   var ex=existing();if(ex.length<2)return;
   var strip=document.getElementById('m5-contrats');if(!strip)return;
-  var t=new Date();t.setHours(12,0,0,0);
+  /* 27/09/2026 : suit la semaine et la période AFFICHÉES (plus seulement aujourd'hui) */
+  var t=new Date(),cm=null;try{cm=global.M5_getCalMonday&&M5_getCalMonday();}catch(e){}
+  if(cm&&/^\d{4}-\d{2}-\d{2}$/.test(cm))t=new Date(cm+'T12:00:00');t.setHours(12,0,0,0);
   var mon=new Date(t);mon.setDate(t.getDate()-((t.getDay()+6)%7));var sun=new Date(mon);sun.setDate(mon.getDate()+6);
-  var wa=dk(mon),wb=dk(sun),ma=dk(new Date(t.getFullYear(),t.getMonth(),1)),mb=dk(new Date(t.getFullYear(),t.getMonth()+1,0));
+  var auj=new Date();auj.setHours(12,0,0,0);var estAuj=dk(auj)>=dk(mon)&&dk(auj)<=dk(sun);
+  var wa=dk(mon),wb=dk(sun),ma=dk(new Date(t.getFullYear(),t.getMonth(),1)),mb=dk(new Date(t.getFullYear(),t.getMonth()+1,0)),libM='Ce mois';
+  try{var per=global.M5_periodeAffichee&&M5_periodeAffichee();if(per&&per.debutStr&&per.finStr){ma=per.debutStr;mb=per.finStr;libM='Période '+ma.slice(8)+'/'+ma.slice(5,7)+' → '+mb.slice(8)+'/'+mb.slice(5,7);}}catch(e){}
+  var libS=estAuj?'Cette semaine':'Semaine du '+wa.slice(8)+'/'+wa.slice(5,7);
   var rows='',tw=0,tm=0;
   ex.forEach(function(n){var d=allData(n),w=sumRange(d,wa,wb),m=sumRange(d,ma,mb),b=base(n);tw+=w;tm+=m;
     rows+='<tr'+(n===ACTIVE?' style="font-weight:700"':'')+'><td style="padding:5px 4px">'+esc(nom(n))+'</td>'
@@ -157,22 +163,23 @@ function renderOverview(){
   c.innerHTML='<div style="font-weight:800;margin-bottom:6px">Vue d\u2019ensemble de tes contrats</div>'
     +'<table style="width:100%;border-collapse:collapse"><thead><tr style="font-size:11.5px;opacity:.65">'
     +'<th style="text-align:left;padding:2px 4px;font-weight:600">Contrat</th>'
-    +'<th style="text-align:right;padding:2px 4px;font-weight:600">Cette semaine / base</th>'
-    +'<th style="text-align:right;padding:2px 4px;font-weight:600">Ce mois</th></tr></thead><tbody>'+rows
+    +'<th style="text-align:right;padding:2px 4px;font-weight:600">'+libS+' / base</th>'
+    +'<th style="text-align:right;padding:2px 4px;font-weight:600">'+libM+'</th></tr></thead><tbody>'+rows
     +'<tr style="border-top:1px solid rgba(108,63,197,0.25);font-weight:800"><td style="padding:6px 4px">Total</td>'
     +'<td style="padding:6px 4px;text-align:right">'+fmtH(tw)+'</td><td style="padding:6px 4px;text-align:right">'+fmtH(tm)+'</td></tr></tbody></table>'
     +'<div style="margin-top:10px;padding:9px 11px;border-radius:10px;font-size:12px;line-height:1.45;'
     +(over?'background:#fff3e0;color:#b34700;border:1px solid #ffb74d':'background:rgba(108,63,197,0.06);color:#4a3f66')+'">'
     +'Tous employeurs confondus, la durée maximale de travail est de 48 h par semaine '
     +'(art. '+(global.LegiRef&&LegiRef.html?LegiRef.html('L3121-20'):'L3121-20')+' et L8261-1 du Code du travail). '
-    +'Total saisi cette semaine : <b>'+fmtH(tw)+'</b>.'+(over?' Ce total dépasse 48 h.':'')+'</div>'
-    +jours10h(ex)
+    +'Total saisi '+(estAuj?'cette semaine':'la semaine du '+wa.slice(8)+'/'+wa.slice(5,7))+' : <b>'+fmtH(tw)+'</b>.'+(over?' Ce total dépasse 48 h.':'')+'</div>'
+    +jours10h(ex,sun)
     +(function(){var rp=ex.some(function(n){var c=contrat(n);return c&&c.retraiteProgressive;});if(!rp)return '';
       var tot=0;ex.forEach(function(n){tot+=rpPct(contrat(n));});tot=Math.round(tot*10)/10;
       return '<div style="margin-top:8px;padding:9px 11px;border-radius:10px;font-size:12px;line-height:1.45;background:rgba(108,63,197,0.06);color:#4a3f66">🧓 '+rpTexte(tot,true)+'</div>';})()
     +'<div style="margin-top:6px;font-size:11px;opacity:.6">Semaine du lundi au dimanche. Les heures complémentaires se calculent contrat par contrat, dans chaque contrat. Données indicatives.</div>';
   strip.parentNode.insertBefore(c,strip.nextSibling);
 }
+global.M5_renderOverview=function(){try{renderOverview();}catch(e){}};
 function boot(){try{renderStrip();renderModal();}catch(e){}try{renderOverview();}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 

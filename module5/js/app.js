@@ -266,6 +266,7 @@ function refreshUI() {
   renderPeriodeNav();
   renderWeekSummary(analysis);
   renderQuickStats(analysis);
+  try{ if(window.M5_renderOverview) window.M5_renderOverview(); }catch(e){}
 }
 
 // ── CALENDRIER SEMAINE ────────────────────────────────────────────
@@ -2706,6 +2707,13 @@ function _activePeriode(){
   }catch(e){}
   return null;
 }
+window.M5_periodeAffichee=function(){
+  // Période contenant la semaine affichée, avec les clôtures de l'exercice affiché (y compris projeté)
+  try{ var cm=calendarMonday, y=M5_DataStore.getYear(), c0=M5_Contract.get();
+    var cp=window.M5_contratPourAnnee?M5_contratPourAnnee(String(y),c0):c0, ys=[String(y),String(parseInt(y,10)-1),String(parseInt(y,10)+1)];
+    for(var k=0;k<ys.length;k++){ var pers=buildPeriodes(ys[k],cp)||[]; for(var i=0;i<pers.length;i++){ if(pers[i].debutStr&&cm>=pers[i].debutStr&&cm<=pers[i].finStr) return pers[i]; } }
+  }catch(e){}
+  return null; };
 window.M5_isActivePeriodeLocked=function(){ var p=_activePeriode(); return !!(p && _lockMap()[p.debutStr]); };
 window.M5togglePeriodeLock=function(){
   var p=_activePeriode();
@@ -2858,8 +2866,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(typeof buildPeriodes!=='function'||typeof CalcEngine==='undefined'||typeof M5_DataStore==='undefined') return out;
       var bnds=_currentPeriodBounds(); if(!bnds||!bnds.debutStr) return out;
       var year=_year(), periodes=buildPeriodes(year,c)||[], allWeeks=_allWeeksRaw(), pm=_getPaidMap();
-      var cur=bnds.debutStr, b10=0,b25=0, _rp=_repExo(), _dep=(_rp&&cur>=_rp.to)?_rp.to:null;
-      if(_dep&&_rp.choix==='report'){ b10=+_rp.h10||0; b25=+_rp.h25||0; }
+      var cur=bnds.debutStr, b10=0,b25=0, _dep=_exoDebut(); if(_dep&&cur<_dep) _dep=null; var _rp=_repExoPour(_dep);
+      if(_dep&&_rp&&_rp.choix==='report'){ b10=+_rp.h10||0; b25=+_rp.h25||0; }
       for(var i=0;i<periodes.length;i++){ var per=periodes[i]; if(!per.debutStr||per.debutStr>=cur) break; if(_dep&&per.debutStr<_dep) continue;
         var wks=_weeksInPeriode(allWeeks,per);
         var nbJ=Math.round((new Date(per.finStr+'T12:00:00')-new Date(per.debutStr+'T12:00:00'))/86400000)+1;
@@ -2883,10 +2891,19 @@ document.addEventListener('DOMContentLoaded',()=>{
      exercice repart de zéro (elles restent dans le bilan de l'ancien). Sans choix, rien ne change. */
   function _repExo(){ try{ var r=JSON.parse(localStorage.getItem(M5_key('M5_REPORT_EXO'))||'null'); return (r&&r.to&&r.choix)?r:null; }catch(e){ return null; } }
   window.M5_repExo=_repExo;
+  /* 27/09/2026 : choix gardé PAR exercice (M5_REPORT_EXOS {to: {...}}) ; l'ancien
+     enregistrement unique M5_REPORT_EXO reste lu s'il concerne cet exercice. */
+  function _repExoPour(to){ if(!to) return null;
+    try{ var m=JSON.parse(localStorage.getItem(M5_key('M5_REPORT_EXOS'))||'{}')||{}; if(m[to]&&m[to].choix) return m[to]; }catch(e){}
+    var r=_repExo(); return (r&&r.to===to)?r:null; }
+  window.M5_repExoPour=_repExoPour;
+  /* Début de l'exercice affiché : le report repart de zéro à chaque exercice
+     (le reste de l'exercice précédent n'y entre que si l'utilisateur a choisi de le reporter). */
+  function _exoDebut(){ try{ var c0=M5_Contract.get(), cp=window.M5_contratPourAnnee?M5_contratPourAnnee(String(_year()),c0):c0; return (cp&&cp.exerciceStart)||null; }catch(e){ return null; } }
   function _computeHebdoReport(c, curMonday){
     var out={h10:0,h25:0};
     try{ if(!curMonday) return out;
-      var _rp=_repExo(), _dep=(_rp&&curMonday>=_rp.to)?_rp.to:null;
+      var _dep=_exoDebut(); if(_dep&&curMonday<_dep) _dep=null; var _rp=_repExoPour(_dep);
       var wks=_allWeeksRaw(), pm=_getPaidMap();
       // Toutes les semaines à traiter AVANT curMonday : celles qui ont des heures
       // travaillées ET/OU un paiement saisi (sinon un paiement sur une semaine
@@ -2897,7 +2914,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       Object.keys(pm).forEach(function(k){ if(k.indexOf('week:')===0){ var mday=k.slice(5); if(mday && mday<curMonday) set[mday]=1; } });
       var sorted=Object.keys(set).sort();
       var b10=0,b25=0;
-      if(_dep){ sorted=sorted.filter(function(m){return m>=_dep;}); if(_rp.choix==='report'){ b10=+_rp.h10||0; b25=+_rp.h25||0; } }
+      if(_dep){ sorted=sorted.filter(function(m){return m>=_dep;}); if(_rp&&_rp.choix==='report'){ b10=+_rp.h10||0; b25=+_rp.h25||0; } }
       for(var i=0;i<sorted.length;i++){
         var mday=sorted[i];
         var wk=(workedMap[mday]!=null?workedMap[mday]:0);
@@ -2919,8 +2936,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     var o={d10:0,d25:0,p10:0,p25:0,r10:0,r25:0,sem:0};
     try{
       var pm={};try{pm=JSON.parse(localStorage.getItem(paidKey||M5_key('M5_HC_PAID'))||'{}')||{};}catch(e){}
-      var rp=_repExo(),b10=0,b25=0;
-      if(rp&&rp.to===deb&&rp.choix==='report'){b10=+rp.h10||0;b25=+rp.h25||0;}
+      var rp=_repExoPour(deb),b10=0,b25=0;
+      if(rp&&rp.choix==='report'){b10=+rp.h10||0;b25=+rp.h25||0;}
       var all=_allWeeksRaw().filter(function(w){return w.monday>=deb&&w.monday<=fin;}),rate=(c.hourlyRate||c.rate||0);
       if((c.modeCalcul||'HEBDO')==='MENSUEL'&&typeof buildPeriodes==='function'){
         var vu={},pers=[];
@@ -3490,7 +3507,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!reste||!(reste.h10+reste.h25>0.01)||!window.hsNouvelExercice){if(apres)apres();return;}
     var c=M5_Contract.get(),tot=reste.h10+reste.h25;
     var det=[];if(reste.h10>0.01)det.push(fH(reste.h10)+' à +'+Math.round((c.rate1||0.10)*100)+' %');if(reste.h25>0.01)det.push(fH(reste.h25)+' à +'+Math.round((c.rate2||0.25)*100)+' %');
-    function choisir(ch){try{localStorage.setItem(kRep(),JSON.stringify({from:reste.deb,fin:reste.fin,to:to,h10:reste.h10,h25:reste.h25,choix:ch}));}catch(e){}
+    function choisir(ch){try{var rec={from:reste.deb,fin:reste.fin,to:to,h10:reste.h10,h25:reste.h25,choix:ch};localStorage.setItem(kRep(),JSON.stringify(rec));
+        var km=window.M5_key?M5_key('M5_REPORT_EXOS'):'M5_REPORT_EXOS',mp={};try{mp=JSON.parse(localStorage.getItem(km)||'{}')||{};}catch(e){}mp[to]=rec;localStorage.setItem(km,JSON.stringify(mp));}catch(e){}
       if(typeof toast==='function')toast(ch==='report'?'↪ '+fH(tot)+' reportées dans le nouvel exercice':'Reste gardé dans le bilan de l\'exercice terminé','success');
       if(apres)apres();
       // Le solde des heures complémentaires se recalcule au chargement : on recharge
@@ -3571,7 +3589,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     /* Reste de l'exercice précédent pas encore traité — seulement sur l'exercice en cours */
     try{if(cp!==c)throw 0;var rp=JSON.parse(localStorage.getItem(kRep())||'null'),h=histo(),prev=null;
       Object.keys(h).forEach(function(k){var x=h[k],l=derniere(x);if(l&&l<(c.exerciceStart||'')&&(!prev||l>derniere(prev)))prev=x;});
-      if(c.hoursBase&&prev&&(!rp||rp.to!==c.exerciceStart)&&c.modeCalcul!=='ANNUEL'&&localStorage.getItem('M5_REPORT_PLUS_TARD')!==auj){
+      if(c.hoursBase&&prev&&!(window.M5_repExoPour&&M5_repExoPour(c.exerciceStart))&&(!rp||rp.to!==c.exerciceStart)&&c.modeCalcul!=='ANNUEL'&&localStorage.getItem('M5_REPORT_PLUS_TARD')!==auj){
         var cprev=Object.assign({},c,{exerciceStart:prev.exerciceStart,cloturesDates:prev.cloturesDates});bilanLignes(cprev,derniere(prev));var rs=window.__m5Reste;
         if(rs&&rs.h10+rs.h25>0.01){
           window.__m5ResteAncien=rs;
