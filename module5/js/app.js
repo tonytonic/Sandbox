@@ -472,9 +472,21 @@ function calPrev() {
   const d=new Date(calendarMonday+'T12:00:00');
   d.setDate(d.getDate()-7);
   calendarMonday=M5_localDK(d);
+  _m5SuivreExercice();
   // Différer refreshUI au prochain frame → INP nettement réduit (le tap répond instantanément)
   requestAnimationFrame(refreshUI);
 }
+/* 27/09/2026 : la semaine affichée sort de l'exercice → on passe dans l'exercice qui la contient,
+   pour que la saisie soit rangée au bon endroit (avant : rangée dans l'exercice affiché). */
+function _m5SuivreExercice(){try{
+  const y=String(M5_DataStore.getYear()),b=window.M5_exoBornes&&M5_exoBornes(y);
+  if(!b||(calendarMonday>=b.deb&&calendarMonday<=b.fin))return;
+  const a=window.M5_exoDeDate&&M5_exoDeDate(calendarMonday);if(!a||a===y)return;
+  M5_DataStore.setYear(a);if(window.Mizuki&&Mizuki.clearCache)Mizuki.clearCache();
+  if(typeof updateYearBadge==='function')updateYearBadge();
+  toast('📅 Exercice '+a,'info');
+  if(window.M5_verifierExercice)setTimeout(window.M5_verifierExercice,60);
+}catch(e){}}
 function calNext() {
   if(window._m5IsMonthView&&window._m5IsMonthView()){ window.M5monthNext&&window.M5monthNext(); return; }
   const today=M5_getCurrentMonday();
@@ -485,6 +497,7 @@ function calNext() {
   const _max=new Date(); _max.setDate(_max.getDate()+371); const _maxDK=M5_localDK(_max);
   if(next>_maxDK) return;
   calendarMonday=next;
+  _m5SuivreExercice();
   requestAnimationFrame(refreshUI);
 }
 function calToday() {
@@ -3445,6 +3458,26 @@ document.addEventListener('DOMContentLoaded',()=>{
     }catch(e){return c;}
   };
   function derniere(c){var v=Object.values(c.cloturesDates||{}).filter(Boolean).sort();return v.length?v[v.length-1]:null;}
+  /* 27/09/2026 — bornes de l'exercice « y » (null si inconnues). L'exercice porte le nom de
+     l'année où il a le plus de jours : 29/12/2025 → 27/12/2026 = 2026. */
+  function majo(d,f){var y1=parseInt(d,10),y2=parseInt(f,10),b=y1,bj=-1;for(var y=y1;y<=y2;y++){var a=Math.max(jour(d).getTime(),jour(y+'-01-01').getTime()),z=Math.min(jour(f).getTime(),jour(y+'-12-31').getTime()),j=Math.round((z-a)/864e5)+1;if(j>bj){bj=j;b=y;}}return b;}
+  window.M5_exoBornes=function(y){try{var cp=window.M5_contratPourAnnee(String(y),M5_Contract.get()),f=derniere(cp),d=cp.exerciceStart;
+    if(!d||!f||f<d||majo(d,f)!==parseInt(y,10))return null;return {deb:d,fin:f};}catch(e){return null;}};
+  window.M5_exoDeDate=function(dk){var yk=parseInt(dk,10),l=[yk,yk+1,yk-1];for(var i=0;i<l.length;i++){var b=M5_exoBornes(l[i]);if(b&&dk>=b.deb&&dk<=b.fin)return String(l[i]);}return null;};
+  /* Saisies rangées dans le mauvais exercice (ex. semaine du 30/11/2026 enregistrée dans 2027
+     depuis la vue 2027) : remises dans l'exercice qui contient leur date. Jamais d'écrasement. */
+  window.M5_rangerSaisies=function(){var n=0;try{
+    ['M5_DATA_','M5_VACANCES_'].forEach(function(pf){
+      var pre=window.M5_key?M5_key(pf):pf,re=new RegExp('^'+pre.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(\\d{4})$'),tabs={},mod={};
+      for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i),m=re.exec(k||'');if(m){try{tabs[m[1]]=JSON.parse(localStorage.getItem(k)||'{}')||{};}catch(e){}}}
+      Object.keys(tabs).forEach(function(y){var b=M5_exoBornes(y);if(!b)return;var t=tabs[y];
+        Object.keys(t).forEach(function(dk){if(!/^\d{4}-\d{2}-\d{2}$/.test(dk)||(dk>=b.deb&&dk<=b.fin))return;
+          var a=M5_exoDeDate(dk);if(!a||a===y)return;if(!tabs[a])tabs[a]={};if(Object.prototype.hasOwnProperty.call(tabs[a],dk))return;
+          tabs[a][dk]=t[dk];delete t[dk];mod[a]=1;mod[y]=1;n++;});});
+      Object.keys(mod).forEach(function(y){try{localStorage.setItem(pre+y,JSON.stringify(tabs[y]));}catch(e){}});
+    });}catch(e){}return n;};
+  // Après chargement complet (l'exercice suivant projeté a besoin de nouvel-exercice.js)
+  window.addEventListener('load',function(){try{if(window.M5_rangerSaisies()>0&&typeof refreshUI==='function')refreshUI();}catch(e){}});
   window.M5_exerciceSuivant=function(forcees){
     var c=M5_Contract.get(),last=derniere(c);if(!last)return;
     var h=histo();h[c.exerciceStart||last]={exerciceStart:c.exerciceStart,cloturesDates:c.cloturesDates};
