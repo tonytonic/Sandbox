@@ -3330,6 +3330,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     // Période active = celle qui contient la semaine courante (barre + verrou + swipe)
     var _cmA=(window.M5_getCalMonday&&window.M5_getCalMonday())||'';
     var _actIdx=-1; for(var _ai=0;_ai<pers.length;_ai++){ if(_cmA>=pers[_ai].debutStr && _cmA<=pers[_ai].finStr){ _actIdx=_ai; break; } }
+    /* 27/09/2026 : jours hors de l'exercice affiché (ex. début décembre 2026 dans l'exercice 2027
+       qui commence le 28/12) : grisés, et un appui ouvre le bon exercice au lieu d'y saisir. */
+    var _exD='',_exF='';try{var _cpx=window.M5_contratPourAnnee?M5_contratPourAnnee(String(cy),M5_Contract.get()):M5_Contract.get();_exD=_cpx.exerciceStart||'';var _cl=Object.values(_cpx.cloturesDates||{}).filter(Boolean).sort();_exF=_cl.length?_cl[_cl.length-1]:'';}catch(e){}
     var h='<div class="m5-cal-weekly-badge">Mode mensuel — tape un jour · ∑ = semaine saisie en total</div><div class="m5-month-grid">';
     wd.forEach(function(d){ h+='<div class="m5-month-wd">'+d+'</div>'; });
     for(var i=0;i<offset;i++) h+='<div class="m5-month-pad"></div>';
@@ -3351,6 +3354,10 @@ document.addEventListener('DOMContentLoaded',()=>{
         :(v!=null?'<span>'+_fmt(v)+(_over10?' ⚠️':'')+'</span>'
         :(_wt!=null?'<span class="m5-wt-mark">'+(_isWS?('∑'+_fmt(_wt)):'∑')+'</span>':'')));
       var _click=_vac?'window.M5_toast&&M5_toast(\'Semaine en congés 🌴 — décoche les congés pour saisir\',\'info\')':'openDaySaisie(\''+dk+'\',\''+lab+'\')';
+      var _hors=(_exD&&dk<_exD)||(_exF&&dk>_exF);
+      if(_hors){ var _ya=String(parseInt(cy,10)+(dk<_exD?-1:1));
+        _click='if(confirm(\'Ce jour appartient à l\\\'exercice '+_ya+'. L\\\'ouvrir ?\'))switchYear(\''+_ya+'\')';
+        h+='<div class="'+cls+'" style="opacity:.35" title="Hors exercice '+cy+'" onclick="'+_click+'"><b>'+d+'</b>'+_inner+'</div>'; continue; }
       h+='<div class="'+cls+'" onclick="'+_click+'"><b>'+d+'</b>'+_inner+'</div>';
     }
     h+='</div>';
