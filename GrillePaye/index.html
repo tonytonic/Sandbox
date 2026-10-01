@@ -4654,11 +4654,12 @@ updateSmicPill();</script>
    avec un bandeau, et les conventions passent sur les estimations. */
 function __gpQuandPret(f){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',f); else f(); }
 (function(){
-  function lancer(grilles, erreur){
+  function lancer(grilles, erreur, meta, majServeur){
     window.__GR_GRILLES = grilles || {};
     var code = document.getElementById('gp-principal').textContent;
     var sc = document.createElement('script'); sc.textContent = code;
     document.body.appendChild(sc);
+    piedDePage(grilles, erreur, meta || {}, majServeur);
     if(erreur){
       console.error('GrillePaye : ccn-data.json', erreur);
       __gpQuandPret(function(){
@@ -4670,9 +4671,52 @@ function __gpQuandPret(f){ if(document.readyState==='loading') document.addEvent
       });
     }
   }
+  /* Pied de page (01/10/2026) : la preuve, sur l'écran, que les grilles
+     viennent bien de ccn-data.json -- combien, de quand, en ligne ou depuis
+     le cache du téléphone -- et un avertissement si le SMIC du fichier et
+     celui de la page (SMIC_DEF) ne sont pas les mêmes. */
+  function piedDePage(grilles, erreur, meta, majServeur){
+    __gpQuandPret(function(){
+      var n = Object.keys(grilles || {}).length;
+      var p = document.createElement('div');
+      p.id = 'gp-pied-donnees';
+      p.style.cssText = 'margin:18px 12px calc(14px + env(safe-area-inset-bottom));padding:9px 12px;border-radius:10px;'
+        + 'font:500 11.5px/1.45 -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;'
+        + (erreur ? 'background:#7a1d1d;color:#fff' : 'background:rgba(127,127,127,.14);color:#9aa3b2');
+      var morceaux;
+      if (erreur) {
+        morceaux = ['⚠️ ccn-data.json non lu (' + (erreur.message || erreur) + ') — montants estimés'];
+      } else {
+        morceaux = ['📄 ' + n + ' grilles lues dans ccn-data.json'];
+        if (majServeur) {
+          var dt = new Date(majServeur);
+          if (!isNaN(dt)) morceaux.push('fichier du ' + dt.toLocaleDateString('fr-FR') + ' à ' + dt.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}));
+        } else if (meta._version) {
+          morceaux.push('version ' + meta._version);
+        }
+        morceaux.push(navigator.onLine ? 'en ligne' : 'hors ligne (copie du téléphone)');
+        var smicPage = (typeof SMIC_DEF !== 'undefined') ? SMIC_DEF : null;
+        if (meta._smic && smicPage && Math.abs(meta._smic - smicPage) > 0.001) {
+          morceaux.push('⚠️ SMIC différent : fichier ' + meta._smic + ' € / page ' + smicPage + ' €');
+        }
+      }
+      p.textContent = morceaux.join(' · ');
+      // En fin de contenu (main), pas dans un coin fixe : rien n'est masqué.
+      (document.querySelector('main.main') || document.body).appendChild(p);
+    });
+  }
   fetch('ccn-data.json', {cache:'no-cache'})
-    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-    .then(function(d){ if(!d || typeof d.grilles!=='object') throw new Error('« grilles » absent'); lancer(d.grilles, null); })
+    .then(function(r){
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      var maj = r.headers.get('last-modified');
+      return r.json().then(function(d){ return [d, maj]; });
+    })
+    .then(function(x){
+      var d = x[0];
+      if(!d || typeof d.grilles!=='object') throw new Error('« grilles » absent');
+      var meta = {}; Object.keys(d).forEach(function(k){ if(k !== 'grilles') meta[k] = d[k]; });
+      lancer(d.grilles, null, meta, x[1]);
+    })
     .catch(function(e){ lancer({}, e); });
 })();
 </script>

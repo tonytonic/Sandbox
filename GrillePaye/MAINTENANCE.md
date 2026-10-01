@@ -134,6 +134,10 @@ chaque ouverture : modifier `ccn-data.json` sur GitHub suffit.
 - Si `ccn-data.json` est introuvable ou mal formé, la page s'ouvre quand même
   avec un bandeau rouge « Grilles indisponibles » (montants estimés). Vérifier
   le JSON (virgule oubliée, montant entre guillemets…).
+- Contrôle rapide : en bas de la liste des grilles, la ligne
+  `📄 N grilles lues dans ccn-data.json · fichier du … · en ligne` (élément
+  `#gp-pied-donnees`, créé par le chargeur en fin de fichier). Elle signale
+  aussi un écart entre `_smic` de ccn-data.json et `SMIC_DEF`.
 
 ---
 
