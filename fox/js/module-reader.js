@@ -1,3 +1,13 @@
+/* Congés payés (Cass. soc. 10/09/2025 n° 23-14.455 ; 07/01/2026 n° 24-19.410) : une absence M1 marquée cp:1 ne réduit pas
+   le seuil des heures sup, sauf si la règle est désactivée pour l'exercice (CP_JURIS_<exercice> = "false"). Même règle que le compteur M1.
+   y = suffixe de l'exercice M1, c'est-à-dire celui de la clé DATA_REPORT_<y> d'où vient le jour — PAS l'année de la date :
+   un exercice à cheval (29/12/2025 → 27/12/2026) est rangé sous 2026, ses jours de décembre 2025 aussi. */
+window.FOX_m1AbsHS = window.FOX_m1AbsHS || function(v, y){
+  const a = Number((v && v.absent) || 0);
+  if (!v || !v.cp) return a;
+  let k = null; try { k = localStorage.getItem('CP_JURIS_' + (y || '')); } catch (e) {}
+  return k === 'false' ? a : 0;
+};
 // ===============================
 //  FOX ENGINE \u2013 MODULE READER
 //  Lecture READ-ONLY de M1 (heures/) et M2 (paye/)
@@ -39,8 +49,8 @@ class ModuleReader {
         if (typeof val !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
         const extra  = Number(val.extra  || 0);
         const recup  = Number(val.recup  || 0);
-        const absent = Number(val.absent || 0);
-        totalAbsent += absent;
+        const absent = window.FOX_m1AbsHS(val, this.year);
+        totalAbsent += Number(val.absent || 0);
 
         // Semaine ISO
         const d    = new Date(dateKey);
@@ -246,8 +256,8 @@ class ModuleReaderPro extends ModuleReader {
         if (typeof val !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return;
         const extra  = Number(val.extra  || 0);
         const recup  = Number(val.recup  || 0);
-        const absent = Number(val.absent || 0);
-        totalAbsent += absent;
+        const absent = window.FOX_m1AbsHS(val, year);
+        totalAbsent += Number(val.absent || 0);
 
         const weekKey = this._getISOWeek(dateKey);
         if (!weeklyData[weekKey]) weeklyData[weekKey] = {
@@ -654,7 +664,7 @@ class ModuleReaderPro extends ModuleReader {
             if (typeof val !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(dk)) return;
             const extra  = parseFloat(val.extra  || 0);
             const recup  = parseFloat(val.recup  || 0);
-            const absent = parseFloat(val.absent || 0);
+            const absent = window.FOX_m1AbsHS(val, y);
             const wk = getMondayKey(dk);
             if (!tmpWeeks[wk]) tmpWeeks[wk] = { extra:0, recup:0, absent:0, months: new Set() };
             tmpWeeks[wk].extra  += extra;
