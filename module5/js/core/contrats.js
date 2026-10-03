@@ -248,7 +248,7 @@ function congesCommuns(annees,sd){
   return Object.keys(cpt).filter(function(m){return cpt[m]===ex.length;}).sort();
 }
 /* Plafond d'heures complémentaires de chaque contrat (CCN prioritaire, comme Mizuki) */
-function capDe(c){var cap=c.cap||0.10;try{if(c.idcc>0&&global.CCN_PARTIEL_API)cap=CCN_PARTIEL_API.getRules(c.idcc).cap||cap;}catch(e){}return cap;}
+function capDe(c){var cap=c.cap||0.10;try{if(c.idcc>0&&global.CCN_PARTIEL_API)cap=CCN_PARTIEL_API.getRules(c.idcc,c.ccnNom).cap||cap;}catch(e){}return cap;}
 /* Contrat « cumulé » pour le calcul santé : heures = somme, plafond = somme des plafonds */
 function contratCumul(){
   var ex=existing(),base=0,capH=0,noms={},c1=contrat(ACTIVE)||{};

@@ -49,7 +49,7 @@ const Contract = {
     // (corrections du fonds droit appliquées aussi aux contrats déjà enregistrés).
     if(raw.idcc>0 && typeof window!=='undefined' && window.CCN_PARTIEL_API){
       try{
-        const r=window.CCN_PARTIEL_API.getRules(raw.idcc);
+        const r=window.CCN_PARTIEL_API.getRules(raw.idcc,raw.ccnNom);
         if(r && r.idcc){
           if(r.cap) raw.cap=r.cap;
           if(r.rate1!=null) raw.rate1=r.rate1;
@@ -308,7 +308,7 @@ const DataStore = {
     if(!c.idcc || c.idcc <= 0) return false; // Droit commun → accord de branche obligatoire
     if(typeof window==='undefined' || !window.CCN_PARTIEL_API) return false;
     try {
-      const rules = window.CCN_PARTIEL_API.getRules(c.idcc);
+      const rules = window.CCN_PARTIEL_API.getRules(c.idcc,c.ccnNom);
       // Liste des groupes CCN ayant un accord de branche étendu prévoyant L3123-22
       // (seuls ceux-ci peuvent utiliser les avenants compléments d'heures)
       const groupesAvecAvenant = ['HCR','BOULAN329','COIF200','SECU329','PROP190','HOSPI130','ANIM70'];

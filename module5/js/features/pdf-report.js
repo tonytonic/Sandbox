@@ -72,7 +72,7 @@ const M5_PdfReport = {
     const capPct=Math.round((contract.cap||0.10)*100);
     const capH=(contract.hoursBase*(contract.cap||0.10)).toFixed(1);
     row('Plafond heures comp.',`${capPct}% du contrat (max ${capH}h/sem)`);
-    row("Majorations",contract.sansMajoration?"Aucune (IDCC 3239 : taux normal jusqu'à 40 h, sauf contrat)":`+${Math.round((contract.rate1??0.10)*100)}% jusqu'à ${(contract.hoursBase*((contract.threshold||0.10))).toFixed(1)}h · +${Math.round((contract.rate2??0.25)*100)}% au-delà`);
+    row("Majorations",contract.sansMajoration?"Aucune (IDCC 3239 : taux normal jusqu'à "+(contract.tempsPlein||40)+" h, sauf contrat)":`+${Math.round((contract.rate1??0.10)*100)}% jusqu'à ${(contract.hoursBase*((contract.threshold||0.10))).toFixed(1)}h · +${Math.round((contract.rate2??0.25)*100)}% au-delà`);
     row('Mode de calcul',modeLabel);
     row("Jours fériés", contract.neutraliseFeries!==false ? "Neutralisés (assimilation temps effectif)" : "Inclus dans l'assiette (accord spécifique)");
     row('Début exercice',contract.exerciceStart||String(new Date().getFullYear()));
@@ -232,7 +232,9 @@ const M5_PdfReport = {
     const noticeDefaut = contract.noticeDays || 7;
     const droits=contract.sansMajoration?[
       ["Art. L7221-2","Employé(e) de maison (IDCC 3239) : les règles du Code sur le temps partiel ne s'appliquent pas."],
-      ["CCN 3239","Heures au-delà du contrat payées au taux normal jusqu'à 40 h par semaine, sauf majoration prévue au contrat ; au-delà de 40 h (moyenne sur 8 semaines) : heures supplémentaires +25 % jusqu'à 48 h, puis +50 % (art. 136 et 147)."],
+      (contract.tempsPlein===45
+        ?["CCN 3239","Assistant(e) maternel(le) : heures au-delà du contrat jusqu'à 45 h = heures complémentaires, majorées seulement si le contrat le prévoit (art. 110.2) ; au-delà de 45 h : heures majorées au taux du contrat, au moins 10 % (art. 96.2 et 110.1)."]
+        :["CCN 3239","Heures au-delà du contrat payées au taux normal jusqu'à 40 h par semaine, sauf majoration prévue au contrat ; au-delà de 40 h (moyenne sur 8 semaines) : heures supplémentaires +25 % jusqu'à 48 h, puis +50 % (art. 136 et 147)."]),
     ]:[
       ["Art. L3123-28",`Plafond heures complémentaires : ${Math.round((contract.cap||0.10)*100)}% du contrat (selon ta CCN : 1/10 par défaut, jusqu'à 1/3 par accord de branche).`],
       ["Art. L3123-29",`Majorations supplétives : +${Math.round((contract.rate1??0.10)*100)}% jusqu'à 1/${Math.round(1/(contract.threshold||0.10))}e du contrat, puis +${Math.round((contract.rate2??0.25)*100)}%.`],

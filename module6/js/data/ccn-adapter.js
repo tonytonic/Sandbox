@@ -43,7 +43,7 @@ const FALLBACK_HS = [
   // Contingents réels 2024 — sources : Légifrance + avenants de branche
   { idcc: 1486, nom: 'Syntec / Bureaux études',      contingent: 130, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },
   { idcc: 3248, nom: 'Métallurgie (ANI 2024)',        contingent: 220, taux1: 25, taux2: 50, seuil: 35, palier1: 8 }, // art.99.4 : 220h (175h si annualisé) + 80h complémentaire 1 an/2
-  { idcc: 1979, nom: 'HCR',                           contingent: 360, seuil: 39, taux1: 10, palier1: 4, taux_inter: 20, palier_inter: 4, taux2: 50 },
+  { idcc: 1979, nom: 'HCR',                           contingent: 360, seuil: 35, taux1: 10, palier1: 4, taux_inter: 20, palier_inter: 4, taux2: 50 },
   { idcc: 2120, nom: 'Banque AFB',                    contingent: 202, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },
   { idcc: 1672, nom: 'Sociétés assurances',           contingent:  70, taux1: 25, taux2: 50, seuil: 35, palier1: 8 }, // art.46 CCN 1672 : contingent individuel 70h
   { idcc: 1996, nom: 'Pharmacie officine',            contingent: 180, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },
@@ -51,7 +51,7 @@ const FALLBACK_HS = [
   { idcc: 2511, nom: 'Sport',                         contingent: 220, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },
   { idcc: 1501, nom: 'Restauration rapide',           contingent: 220, seuil: 35, taux1: 10, palier1: 8, taux_inter: 20, palier_inter: 8, taux2: 50 },
   { idcc: 1597, nom: 'Bâtiment ETAM',                contingent: 130, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },
-  { idcc: 1090, nom: 'Réparation automobile',        contingent: 250, taux1: 25, taux2: 50, seuil: 39, palier1: 8 },
+  { idcc: 1090, nom: 'Réparation automobile',        contingent: 250, taux1: 25, taux2: 50, seuil: 35, palier1: 8 }, // 03/10/2026 : seuil 35 h (la table de secours ne sert que si ccn/conventions-collectives.js ne charge pas)
   { idcc: 1413, nom: 'Travail temporaire',            contingent: 220, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },
   { idcc: 2264, nom: 'Hospitalisation privée',        contingent: 220, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },
   { idcc: 2941, nom: 'Aide à domicile (BASS)',        contingent:  90, taux1: 25, taux2: 50, seuil: 35, palier1: 8 },

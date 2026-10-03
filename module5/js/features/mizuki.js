@@ -121,9 +121,11 @@ const Mizuki = {
 
     const alerts = weekResult.alerts || [];
     if (weekResult.rate1 === 0 && weekResult.rate2 === 0 && alerts.some(a=>a.code==='REQUALIFICATION'))
-      return `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 40 h, ce sont des heures supplémentaires (+25 % jusqu'à 48 h, puis +50 %). Note-les bien.`;
+      return weekResult.tempsPlein===45
+        ? `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 45 h, ce sont des heures majorées, au taux prévu dans ton contrat (au moins +10 %). Note-les bien.`
+        : `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 40 h, ce sont des heures supplémentaires (+25 % jusqu'à 48 h, puis +50 %). Note-les bien.`;
     if (weekResult.rate1 === 0 && weekResult.rate2 === 0 && alerts.some(a=>a.code==='PROCHE_TEMPS_PLEIN'))
-      return `🦊 ${n}${weekResult.workedH}h cette semaine : tu approches des 40 h, le temps plein de ta convention.`;
+      return `🦊 ${n}${weekResult.workedH}h cette semaine : tu approches des ${weekResult.tempsPlein||40} h, le temps plein de ta convention.`;
     if (alerts.some(a=>a.code==='REQUALIFICATION')) return _nextMsg(MSGS_REQUALIF)(n, weekResult.workedH);
     if (rule12 && rule12.triggered) return _nextMsg(MSGS_12SEM)(n, rule12.maxConsec);
     if (alerts.some(a=>a.code==='PROCHE_TEMPS_PLEIN')) return _nextMsg(MSGS_PROCHE_35)(n, weekResult.workedH);

@@ -494,6 +494,15 @@ const REGLES_HS = {
     notes:'Salariés du particulier employeur (IDCC 3239). Heures sup au-delà de 40h de travail effectif (moyenne sur 8 semaines, art. 136) : +25 % de la 41e à la 48e h, +50 % de la 49e à la 50e h (art. 147), 50h max. Les règles du Code sur le temps partiel ne s\'appliquent pas (L7221-2). Assistant(e) maternel(le) : seuil 45h et majoration fixée au contrat (min. 10 %, art. 96.2 et 110.1), non modélisé ici.'
   },
 
+  AMAT45: {
+    id:'AMAT45', nom:'Assistant(e) maternel(le) — seuil 45h',
+    seuil:45, taux1:10, palier1:3, taux_inter:null, palier_inter:null, taux2:10,
+    contingent:220, maxHebdo:48, debutSemaine:1,
+    feriesChomes: 11, feriesMajoration: 0,
+    feries1erMaiMajoration: 100, feriesAlsaceMoselle: false,
+    notes:'Assistant(e) maternel(le) agréé(e) (IDCC 3239, socle assistant maternel). Durée conventionnelle 45h (art. 96.2) ; heures au-delà de 45h majorées au taux fixé dans le contrat, au moins 10 % (art. 110.1) — l\'appli applique ce minimum de 10 % ; durée maximale 48h en moyenne (art. 96.3). Heures entre le contrat et 45h : heures complémentaires, majoration seulement si le contrat la prévoit (art. 110.2).'
+  },
+
   // ─────────────────────────────────────────────────────────
   // MODE PERSONNALISÉ — accord entreprise ou de branche
   // ─────────────────────────────────────────────────────────
@@ -707,7 +716,7 @@ const CCN_ALIASES = [
   {i:1267,b:null,n:"Pâtisserie",s:"Artisanat pâtisserie",g:"DC",fj:false,x:{contingent:180, src:'art. 27 : 180 h'}},
   {i:1286,b:null,n:"Confiserie chocolaterie biscuiterie détail artisans",s:"Artisanat confiserie",g:"DC",fj:false},
   {i:1307,b:null,n:"Exploitation cinématographique",s:"Cinéma exploitation",g:"DC",fj:false,x:{contingent:130, src:'art. 29 : 130 h'}},
-  {i:1405,b:null,n:"Expédition exportation fruits légumes",s:"Commerce fruits légumes",g:"DC",fj:false},
+  {i:1405,b:null,n:"Expédition exportation fruits légumes",s:"Commerce fruits légumes",g:"DC",fj:false,x:{contingent:263,src:'art. 27 : 263 h entreprises permanentes sans modulation (217 h saisonnières)'}},
   {i:1408,b:null,n:"Distribution logistique services énergies proximité",s:"Distribution énergie",g:"DC",fj:false,x:{contingent:150, src:'art. 13 : 150 h (+20 h circonstances exceptionnelles)'}},
   {i:1412,b:null,n:"Installation entretien réparation matériel thermique frigorifique",s:"Génie climatique install.",g:"DC",fj:false},
   {i:2335,b:null,n:"Personnel agences générales assurances",s:"Assurance agences personnel",g:"ASSURAGE140",fj:false},
@@ -728,13 +737,14 @@ const CCN_ALIASES = [
   {i:3230,b:null,n:"Presse quotidienne et hebdomadaire",s:"Presse",g:"DC",fj:false},
   
   {i:3239,b:null,n:"Particuliers employeurs emploi à domicile",s:"Emploi domicile",g:"PEMP40",fj:false},  // 03/10/2026 : seuil 40h (art. 136-147)
+  {i:3239,b:null,n:"Assistant(e) maternel(le) agréé(e) — particuliers employeurs",s:"Assistant maternel",g:"AMAT45",fj:false},  // 03/10/2026 : seuil 45h (art. 96.2, 110.1)
   // --- v5.6.6 : contenus reconstitues sous leur VRAI numero IDCC (verifie DARES jan2026 + Predictice) ---
   // le mauvais numero qui portait ce contenu par erreur a ete retire en v5.6.3
   {i:1607,b:3130,n:"Jeux jouets articles de fêtes puériculture",s:"Industrie jouets puériculture",g:"DC",fj:false},
   {i:1266,b:3225,n:"Restauration de collectivités",s:"Restauration collective",g:"DC",fj:false},
   {i:1978,b:3010,n:"Fleuristes vente et services animaux familiers",s:"Fleuristes animalerie",g:"DC",fj:false,x:{contingent:180, src:'art. 7.2 A : 180 h (130 h en modulation)'}},
   {i:2247,b:3110,n:"Courtage assurances et réassurances",s:"Assurance courtage",g:"ASSURCOURT150",fj:false},
-  {i:7002,b:3616,n:"Coopératives agricoles céréales meunerie alimentation bétail oléagineux",s:"Coopératives agricoles",g:"DC",fj:false},
+  {i:7002,b:3616,n:"Coopératives agricoles céréales meunerie alimentation bétail oléagineux",s:"Coopératives agricoles",g:"DC",fj:false,x:{contingent:130,src:'art. 4.1 : 130 h (110 h en modulation)'}},
   // --- v5.6.7 : 91 CCN actives (DARES jan2026) absentes du fichier, ajoutees ---
   // pour couverture complete temps plein. Brochures confirmees quand connues.
   {i:86,b:3073,n:"Entreprises de publicité et assimilées",s:"Publicité",g:"DC",fj:false},
@@ -786,7 +796,7 @@ const CCN_ALIASES = [
   {i:1880,b:3056,n:"Négoce de l'ameublement",s:"Négoce ameublement",g:"DC",fj:false},
   {i:1909,b:3175,n:"Organismes de tourisme",s:"Organismes de tourisme",g:"DC",fj:false},
   {i:1938,b:3111,n:"Industries de la transformation des volailles",s:"Transformation volailles",g:"DC",fj:false},
-  {i:1944,b:3288,n:"Personnel navigant technique des exploitants d'hélicoptères",s:"Hélicoptères personnel navigant",g:"DC",fj:false},
+  {i:1944,b:3288,n:"Personnel navigant technique des exploitants d'hélicoptères",s:"Hélicoptères personnel navigant",g:"DC",fj:false,x:{seuil:44,src:'annexe II : équivalence, 44 h de temps de service = 35 h de travail effectif'}},
   {i:1951,b:3295,n:"Cabinets ou entreprises d'expertises en automobile",s:"Expertise automobile",g:"DC",fj:false,x:{contingent:180, src:'art. 3.11.2 : 180 h'}},
   {i:1982,b:3286,n:"Négoce et prestations de services dans les domaines médico-techniques",s:"Médico-technique négoce",g:"DC",fj:false},
   {i:2021,b:3283,n:"Golf",s:"Golf",g:"DC",fj:false,x:{contingent:200, src:'art. 5.1.3 : 200 h (130 h en modulation)'}},
@@ -806,7 +816,7 @@ const CCN_ALIASES = [
   {i:3105,b:null,n:"Régies de quartier",s:"Régies de quartier",g:"DC",fj:false},
   {i:3168,b:null,n:"Professions de la photographie",s:"Photographie",g:"DC",fj:false},
   {i:3210,b:null,n:"Banque Populaire",s:"Banque Populaire",g:"DC",fj:false},
-  {i:3212,b:null,n:"Cadres des travaux publics",s:"Travaux publics cadres",g:"DC",fj:false},
+  {i:3212,b:null,n:"Cadres des travaux publics",s:"Travaux publics cadres",g:"DC",fj:false,x:{contingent:180,src:'accord contingent : 145 h + 35 h si horaire non annualisé = 180 h'}},
   {i:3213,b:3169,n:"Économistes de la construction et métreurs-vérificateurs",s:"Économistes construction",g:"DC",fj:false},
   {i:3218,b:null,n:"Enseignement privé non lucratif",s:"Enseignement privé non lucratif",g:"DC",fj:false},
   {i:3220,b:3385,n:"Offices publics de l'habitat",s:"Offices publics habitat",g:"DC",fj:false},
@@ -887,7 +897,7 @@ const CCN_ALIASES = [
   // (187 variantes agricoles departementales identifiees mais non ajoutees, cf commentaire fin de fichier)
   {i:1659,b:null,n:"Rouissage teillage du lin",s:"Lin rouissage teillage",g:"DC",fj:false,x:{contingent:340, src:'art. 68 : 340 h (255 h en modulation)'}},
   {i:7001,b:null,n:"Coopératives et SICA bétail et viandes",s:"Coopératives agricoles bétail",g:"DC",fj:false},
-  {i:7004,b:null,n:"Coopératives laitières et unions de coopératives",s:"Coopératives laitières",g:"DC",fj:false},
+  {i:7004,b:null,n:"Coopératives laitières et unions de coopératives",s:"Coopératives laitières",g:"DC",fj:false,x:{contingent:140,src:'art. 34 : 140 h'}},
   {i:7009,b:null,n:"Entreprises d'accouvage et de sélection avicole",s:"Accouvage sélection avicole",g:"DC",fj:false},
   {i:7010,b:null,n:"Personnel des élevages aquacoles",s:"Aquaculture élevage",g:"DC",fj:false},
   {i:7019,b:null,n:"Conchyliculture",s:"Conchyliculture",g:"DC",fj:false},
@@ -899,7 +909,7 @@ const CCN_ALIASES = [
   {i:7520,b:null,n:"Salariés des établissements d'enseignement agricole privé",s:"Enseignement agricole privé",g:"DC",fj:false},
   {i:2089,b:3113,n:"Industrie des panneaux à base de bois",s:"Panneaux bois",g:"DC",fj:false},
   {i:2098,b:3301,n:"Personnel des prestataires de services du secteur tertiaire",s:"Prestataires services tertiaire",g:"DC",fj:false},
-  {i:2128,b:3300,n:"Mutualité",s:"Mutualité",g:"DC",fj:false},
+  {i:2128,b:3300,n:"Mutualité",s:"Mutualité",g:"DC",fj:false,x:{contingent:100,src:'art. V : 100 h'}},
   {i:2147,b:3302,n:"Entreprises des services d'eau et d'assainissement",s:"Eau assainissement",g:"DC",fj:false,x:{contingent:130, src:'art. 5.2 : 130 h'}},
   {i:2148,b:3303,n:"Télécommunications",s:"Télécommunications",g:"DC",fj:false},
   {i:2149,b:3156,n:"Activités du déchet",s:"Déchet activités",g:"DC",fj:false,x:{contingent:130, src:'art. 2.12 : 130 h'}},
@@ -907,7 +917,7 @@ const CCN_ALIASES = [
   {i:2156,b:3082,n:"Grands magasins et magasins populaires",s:"Grands magasins",g:"DC",fj:false},
   {i:2190,b:null,n:"Missions locales et PAIO",s:"Missions locales PAIO",g:"DC",fj:false,x:{contingent:70, src:'art. 5.2 : 70 h'}},
   {i:2219,b:null,n:"Taxis",s:"Taxis",g:"DC",fj:false},
-  {i:2272,b:3309,n:"Assainissement et maintenance industrielle",s:"Assainissement industriel",g:"DC",fj:false},
+  {i:2272,b:3309,n:"Assainissement et maintenance industrielle",s:"Assainissement industriel",g:"DC",fj:false,x:{contingent:180,src:'art. 6.1 : 180 h'}},
   {i:2372,b:null,n:"Entreprises de la distribution directe",s:"Distribution directe",g:"DC",fj:false},
   {i:2412,b:3314,n:"Production de films d'animation",s:"Films d'animation production",g:"DC",fj:false},
   {i:2420,b:3322,n:"Cadres du bâtiment",s:"Bâtiment cadres",g:"DC",fj:false},
@@ -915,7 +925,7 @@ const CCN_ALIASES = [
   {i:2583,b:3336,n:"Sociétés concessionnaires ou exploitantes d'autoroutes",s:"Autoroutes concessionnaires",g:"DC",fj:false,x:{contingent:180, src:'art. 23 : 180 h (130 h en modulation)'}},
   {i:2603,b:null,n:"Praticiens-conseils du régime général de sécurité sociale",s:"Praticiens-conseils sécu",g:"DC",fj:false},
   {i:2609,b:3002,n:"Employés, techniciens et agents de maîtrise du bâtiment",s:"Bâtiment ETAM",g:"DC",fj:false,x:{contingent:180, src:'art. 4.1.2 : 145 h + 35 h si horaire non annualisé = 180 h'}},
-  {i:2614,b:null,n:"Employés, techniciens et agents de maîtrise des travaux publics",s:"Travaux publics ETAM",g:"DC",fj:false},
+  {i:2614,b:null,n:"Employés, techniciens et agents de maîtrise des travaux publics",s:"Travaux publics ETAM",g:"DC",fj:false,x:{contingent:180,src:'accord contingent : 145 h + 35 h si horaire non annualisé = 180 h'}},
   {i:2642,b:3346,n:"Production audiovisuelle",s:"Production audiovisuelle",g:"DC",fj:false,x:{contingent:300, src:'art. VI.8.6 : 300 h'}},
   {i:2668,b:null,n:"Cadres supérieurs des sociétés de secours minières",s:"Secours minières cadres",g:"DC",fj:false},
   {i:2697,b:null,n:"Personnels des structures associatives cynégétiques",s:"Chasse associations",g:"DC",fj:false},
@@ -940,7 +950,16 @@ function getGroupeForCCN(idcc) {
   if (idcc === 0 && REGLES_HS.CUSTOM && REGLES_HS.CUSTOM.id === 'CUSTOM') {
     return REGLES_HS.CUSTOM;
   }
-  const e = CCN_ALIASES.find(c => c.i === Number(idcc));
+  let e = CCN_ALIASES.find(c => c.i === Number(idcc));
+  // 03/10/2026 : plusieurs entrées pour un même IDCC (ex. 3239 salarié / assistant maternel) :
+  // on prend celle que l'utilisateur a choisie dans le menu (CCN_NOM).
+  try {
+    if (e && typeof localStorage !== 'undefined' && String(localStorage.getItem('CCN_IDCC')) === String(e.i)) {
+      const nom = localStorage.getItem('CCN_NOM');
+      const e2 = nom && CCN_ALIASES.find(c => c.i === e.i && c.n === nom);
+      if (e2) e = e2;
+    }
+  } catch (_) {}
   const base = getRules(e ? e.g : 'DC');
   // 03/10/2026 : exceptions propres a une convention (champ x de l'entree), verifiees
   // contre le texte en vigueur (fonds droit). Elles remplacent seulement les valeurs

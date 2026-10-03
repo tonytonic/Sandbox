@@ -757,8 +757,9 @@ function updateWeekPreview() {
 function saveWeeklySaisie() {
   const monday=document.getElementById('week-saisie-monday').value;
   const worked=window._hmVal('week-saisie-hoursH','week-saisie-hoursM');
-  if(!monday||isNaN(worked)||worked<0||worked>=35) {
-    toast('Saisis un total entre 0 et 34,5h.','error'); return;
+  const _maxSem=(M5_Contract.get().tempsPlein>35)?60:35; // 03/10/2026 : IDCC 3239, heures au-delà de 35 h possibles
+  if(!monday||isNaN(worked)||worked<0||worked>=_maxSem) {
+    toast('Saisis un total entre 0 et '+(_maxSem-0.5).toString().replace('.',',')+'h.','error'); return;
   }
   const year=M5_DataStore.getYear();
   M5_DataStore.saveWeekTotal(monday,worked,year);
@@ -1571,7 +1572,7 @@ function openContractModal() {
   // Cap : priorité à la CCN sélectionnée
   let capToShow = c.cap||0.10;
   if(c.idcc>0 && typeof CCN_PARTIEL_API!=='undefined') {
-    const ccnR=CCN_PARTIEL_API.getRules(c.idcc);
+    const ccnR=CCN_PARTIEL_API.getRules(c.idcc,c.ccnNom);
     if(ccnR && ccnR.cap) capToShow=ccnR.cap;
   }
   document.getElementById('contract-cap').value = Number(capToShow).toFixed(2);
@@ -1660,7 +1661,7 @@ window.setContractUnite=setContractUnite; window.updateContractHoursPreview=upda
 function saveContract() {
   const _uC=_WIZ_UNITES[_contractUnite], _vC=_contractValeur();
   if(!_vC||_vC<=0) { toast('Saisis la durée de ton contrat ('+_uC.ph+').','error'); return; }
-  const _tpCCN=(typeof CCN_PARTIEL_API!=='undefined'&&CCN_PARTIEL_API.getRules(parseInt(document.getElementById('contract-ccn').value)||0).tempsPlein)||35;
+  const _tpCCN=(typeof CCN_PARTIEL_API!=='undefined'&&CCN_PARTIEL_API.getRules(parseInt(document.getElementById('contract-ccn').value)||0,document.getElementById('contract-ccn-search')?.value).tempsPlein)||35;
   if(_tpCCN===35&&_vC>=_uC.plein) { toast('À partir de '+_uC.pleinTxt+', c\u2019est un temps plein : Mizuki suit les temps partiels.','error'); return; }
   const hoursBase =_contractHebdo();
   const hourlyRate=parseFloat(document.getElementById('contract-rate').value)||0;
@@ -1674,7 +1675,7 @@ function saveContract() {
   if(_vC < _min24) {
     toast("⚠️ Moins de 24 h/sem (ou l'équivalent "+(_contractUnite==='S'?'':'sur ton contrat')+") : vérifie qu'une dérogation légale s'applique (art. L3123-7)",'warn');
   }
-  const ccnRules=typeof CCN_PARTIEL_API!=='undefined'?CCN_PARTIEL_API.getRules(idcc):{cap:capManuel,rate1:0.10,rate2:0.25,threshold:0.10};
+  const ccnRules=typeof CCN_PARTIEL_API!=='undefined'?CCN_PARTIEL_API.getRules(idcc,document.getElementById('contract-ccn-search')?.value):{cap:capManuel,rate1:0.10,rate2:0.25,threshold:0.10};
   // Si une CCN est sélectionnée, son cap fait foi — sinon le sélecteur manuel
   const cap = (idcc>0 && ccnRules.cap) ? ccnRules.cap : capManuel;
   const weekStartDay=parseInt(document.getElementById('contract-start-day')?.value||'0');
@@ -1791,7 +1792,7 @@ function launchPDFContrat(n){
     if(!window.M5_Contrats||n===M5_Contrats.active){launchPDF();return;}
     let c={};try{c=JSON.parse(localStorage.getItem(M5_Contrats.keyFor(n,'M5_CONTRACT'))||'{}')||{};}catch(e){}
     if(!c.hoursBase){toast('Ce contrat n\'est pas configuré','error');return;}
-    try{if(c.idcc>0&&window.CCN_PARTIEL_API)c.cap=CCN_PARTIEL_API.getRules(c.idcc).cap||c.cap;}catch(e){}
+    try{if(c.idcc>0&&window.CCN_PARTIEL_API)c.cap=CCN_PARTIEL_API.getRules(c.idcc,c.ccnNom).cap||c.cap;}catch(e){}
     const year=M5_DataStore.getYear(),y0=parseInt(year,10),periode=document.getElementById('pdf-periode')?.value||'ANNUEL';
     const cum=M5_Contrats.semainesCumul([String(y0-1),String(y0),String(y0+1)],M5_Contract.get().weekStartDay||0)
       .filter(w=>w.parContrat[n]>0).map(w=>({monday:w.monday,worked:w.parContrat[n]}));
@@ -1875,7 +1876,7 @@ function launchPDFCommun(){
     const sem=filterWeeksByPeriode(all,periode,year).filter(w=>w.worked>0);
     const contrats=M5_Contrats.existing().map(n=>{
       let c={};try{c=JSON.parse(localStorage.getItem(M5_Contrats.keyFor(n,'M5_CONTRACT'))||'{}')||{};}catch(e){}
-      let cap=c.cap||0.10;try{if(c.idcc>0&&window.CCN_PARTIEL_API)cap=CCN_PARTIEL_API.getRules(c.idcc).cap||cap;}catch(e){}
+      let cap=c.cap||0.10;try{if(c.idcc>0&&window.CCN_PARTIEL_API)cap=CCN_PARTIEL_API.getRules(c.idcc,c.ccnNom).cap||cap;}catch(e){}
       const ws=sem.filter(w=>w.parContrat[n]>0).map(w=>({monday:w.monday,worked:w.parContrat[n]}));
       const pay=_m5PayePeriode(c,ws,M5_Contrats.keyFor(n,'M5_HC_PAID'));
       return {n,nom:M5_Contrats.nom(n),c,cap,heures:ws.reduce((a,w)=>a+w.worked,0),du10:pay.du10,du25:pay.du25,paye10:pay.paye10,paye25:pay.paye25};
@@ -1917,9 +1918,10 @@ window.M5_majDroitsCard=function(c){
   const g=document.querySelector('.acc-droits-grid'); if(!g||!c) return;
   const it=g.querySelectorAll('.acc-droit-item span:last-child'); if(it.length<3) return;
   if(c.sansMajoration){
-    it[0].innerHTML='Pas de plafond : heures en plus payées jusqu\'à <strong>40h</strong>';
-    it[1].innerHTML='<strong>Taux normal</strong> (sauf contrat) · au-delà de 40h : <strong>+25%</strong> puis <strong>+50%</strong>';
-    it[2].innerHTML='Temps plein : <strong>40h</strong> (IDCC 3239)';
+    const tp=c.tempsPlein||40;
+    it[0].innerHTML='Pas de plafond : heures en plus jusqu\'à <strong>'+tp+'h</strong>';
+    it[1].innerHTML='<strong>Taux normal</strong> (sauf contrat) · au-delà de '+tp+'h : '+(tp===45?'<strong>au moins +10%</strong>':'<strong>+25%</strong> puis <strong>+50%</strong>');
+    it[2].innerHTML='Temps plein : <strong>'+tp+'h</strong> (IDCC 3239)';
   } else {
     const cap=Math.round((c.cap||0.10)*100), r1=Math.round((c.rate1??0.10)*100), r2=Math.round((c.rate2??0.25)*100);
     it[0].innerHTML='Plafond <strong>'+cap+'%</strong> du contrat'+(c.idcc>0?' (ta convention)':' (droit commun)');
@@ -1927,14 +1929,20 @@ window.M5_majDroitsCard=function(c){
   }
 };
 
+try{ document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{ try{ M5_majDroitsCard(M5_Contract.get()); }catch(_){} },300)); }catch(_){}
+
 /* 03/10/2026 : encart propre à une convention (IDCC 3239 : employés de maison) */
-window.M5_encartCCN=function(idcc){
+window.M5_encartCCN=function(idcc,nom){
   if(parseInt(idcc,10)!==3239) return '';
+  if(/maternel/i.test(nom||'')) return `<div class="m5-alert warn" style="margin-top:8px;font-size:12px;line-height:1.45;text-align:left;"><span>🧸</span><div>
+    <strong>Assistant(e) maternel(le) (IDCC 3239)</strong> — Les règles du Code du travail sur le temps partiel ne s'appliquent pas à ton emploi.
+    Les heures en plus de ton contrat, jusqu'à <strong>45 h par semaine</strong>, sont des heures complémentaires : elles ne sont majorées que si ton contrat le prévoit (art. 110.2). Mizuki les compte donc sans majoration et sans plafond.
+    Au-delà de 45 h, ce sont des heures majorées, au taux fixé dans ton contrat, <strong>au moins +10 %</strong> (art. 110.1).</div></div>`;
   return `<div class="m5-alert warn" style="margin-top:8px;font-size:12px;line-height:1.45;text-align:left;"><span>🏠</span><div>
     <strong>Particuliers employeurs (IDCC 3239)</strong> — Les règles du Code du travail sur le temps partiel ne s'appliquent pas à ton emploi (art. L7221-2).
     Les heures en plus de ton contrat, jusqu'à <strong>40 h par semaine</strong>, sont payées au <strong>taux normal</strong>, sauf si ton contrat prévoit une majoration : Mizuki les compte donc sans majoration et sans plafond.
     Au-delà de 40 h (en moyenne sur 8 semaines), ce sont des heures supplémentaires : +25 % jusqu'à 48 h, puis +50 % (art. 147). Si tu dépasses souvent 40 h, utilise plutôt le module heures mensualisées.
-    <br><em>Assistant(e) maternel(le) : seuil de 45 h et majoration fixée dans ton contrat (au moins 10 %).</em></div></div>`;
+    <br><em>Assistant(e) maternel(le) : choisis l'entrée « Assistant(e) maternel(le) » de la convention 3239.</em></div></div>`;
 };
 
 function selectCCN(idcc, nom, secteur) {
@@ -1942,16 +1950,16 @@ function selectCCN(idcc, nom, secteur) {
   document.getElementById('contract-ccn-search').value=nom;
   const sel=document.getElementById('contract-ccn-selected');
   if(sel) {
-    const rules=typeof CCN_PARTIEL_API!=='undefined'?CCN_PARTIEL_API.getRules(idcc):null;
+    const rules=typeof CCN_PARTIEL_API!=='undefined'?CCN_PARTIEL_API.getRules(idcc,nom):null;
     const capTxt=rules?CCN_PARTIEL_API.capLabel(rules.cap):'10% (droit commun)';
     sel.innerHTML=`<strong style="color:#E9D5FF;">✓ ${nom}</strong><br>
-      <span style="font-size:11px;color:#A78BFA;">IDCC ${idcc} · Plafond <strong style="color:#DDD6FE;">${capTxt}</strong></span>${window.M5_encartCCN?M5_encartCCN(idcc):''}`;
+      <span style="font-size:11px;color:#A78BFA;">IDCC ${idcc} · Plafond <strong style="color:#DDD6FE;">${capTxt}</strong></span>${window.M5_encartCCN?M5_encartCCN(idcc,nom):''}`;
   }
   const res=document.getElementById('contract-ccn-results');
   if(res) res.style.display='none';
   // Auto-appliquer le plafond si CCN a un accord étendu
   if(typeof CCN_PARTIEL_API!=='undefined') {
-    const rules=CCN_PARTIEL_API.getRules(idcc);
+    const rules=CCN_PARTIEL_API.getRules(idcc,nom);
     const capEl=document.getElementById('contract-cap');
     if(capEl && rules.cap) capEl.value=Number(rules.cap).toFixed(2);
   }
@@ -2304,7 +2312,7 @@ function _wizPrefillMenu(){
     if(window.M5_Contrats&&M5_Contrats.active!==1) return;
     const idcc=parseInt(localStorage.getItem('CCN_IDCC')||'0',10);
     if(!idcc||typeof CCN_PARTIEL_API==='undefined') return;
-    const x=CCN_PARTIEL_API.getById(idcc); if(!x) return;
+    const x=CCN_PARTIEL_API.getById(idcc,localStorage.getItem('CCN_NOM')); if(!x) return;
     wizPickCCN(x.i,x.n,x.s,x.cap);
   }catch(e){}
 }
@@ -2321,7 +2329,7 @@ function M5_ccnDuMenu(){
     const c=M5_Contract.get();
     localStorage.setItem('M5_CCN_MENU',String(idcc));
     if(!c.hoursBase||(c.idcc&&c.idcc>0)) return;
-    const r=CCN_PARTIEL_API.getRules(idcc);
+    const r=CCN_PARTIEL_API.getRules(idcc,localStorage.getItem('CCN_NOM'));
     M5_Contract.save({...c,idcc,ccnNom:r.nom,cap:r.cap,rate1:r.rate1??0.10,rate2:r.rate2??0.25,threshold:r.threshold||0.10});
     setTimeout(()=>toast('Ta convention collective est reprise du menu : '+r.nom,'success',4000),900);
   }catch(e){}
@@ -2376,7 +2384,9 @@ function _wizHeuresHebdo(){
 function _wizHeuresErreur(){
   const v=_wizValeurSaisie(), u=_WIZ_UNITES[_wizUnite];
   if(!v||v<=0) return 'Saisis tes heures contractuelles ('+u.ph+')';
-  if(v>=u.plein) return 'À partir de '+u.pleinTxt+', c\u2019est un temps plein : Mizuki suit les temps partiels.';
+  let _tp=35; try{ if(_wizCCN&&typeof CCN_PARTIEL_API!=='undefined') _tp=CCN_PARTIEL_API.getRules(_wizCCN.i,_wizCCN.n).tempsPlein||35; }catch(_){}
+  const _plein=_tp===35?u.plein:(_wizUnite==='M'?_tp*52/12:_wizUnite==='A'?_tp*52:_tp);
+  if(v>=_plein) return 'À partir de '+(_tp===35?u.pleinTxt:(Math.round(_plein*100)/100).toString().replace('.',',')+' h'+(_wizUnite==='S'?' par semaine':_wizUnite==='M'?' par mois':' par an'))+', c\u2019est un temps plein : Mizuki suit les temps partiels.';
   return '';
 }
 function wizSetUnite(u){
@@ -2434,7 +2444,7 @@ function wizPickCCN(idcc, nom, secteur, cap) {
   if(sel) {
     sel.style.display='block';
     sel.innerHTML=`<strong style="color:#E9D5FF;">${nom}</strong><br>
-      <span style="font-size:11px;color:#A78BFA;">Plafond HC : <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(cap)}</strong></span>${window.M5_encartCCN?M5_encartCCN(idcc):''}`;
+      <span style="font-size:11px;color:#A78BFA;">Plafond HC : <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(cap)}</strong></span>${window.M5_encartCCN?M5_encartCCN(idcc,nom):''}`;
   }
 }
 
@@ -2541,7 +2551,7 @@ function wizFinish() {
   const name=(document.getElementById('wiz-name')?.value||'').trim();
   const startDay=parseInt(document.getElementById('wiz-start-day')?.value||'0');
   const joursOuvresContrat=Math.max(1,Math.min(7,parseInt(document.getElementById('wiz-jours-ouvres')?.value||'5')||5));
-  const ccnRules=_wizCCN?CCN_PARTIEL_API.getRules(_wizCCN.i):{cap:0.10,rate1:0.10,rate2:0.25,threshold:0.10,nom:'Droit commun'};
+  const ccnRules=_wizCCN?CCN_PARTIEL_API.getRules(_wizCCN.i,_wizCCN.n):{cap:0.10,rate1:0.10,rate2:0.25,threshold:0.10,nom:'Droit commun'};
   // Récupérer les 12 clôtures
   const cloturesDates={};
   if(_wizClotureMode==='auto') {
@@ -2684,7 +2694,7 @@ window.exportDataJSON=exportDataJSON; window.importDataJSON=importDataJSON;
 function quickSave(hours) {
   try {
     if(window.M5_isDayLocked&&window.M5_isDayLocked(calendarMonday)){ toast('Période verrouillée 🔒 — déverrouille-la pour saisir','info'); return; }
-    if(!hours||isNaN(hours)||hours<=0||hours>=35) return;
+    if(!hours||isNaN(hours)||hours<=0||hours>=((M5_Contract.get().tempsPlein>35)?60:35)) return;
     const year=M5_DataStore.getYear();
     M5_DataStore.saveWeekTotal(calendarMonday, hours, year);
     Mizuki.clearCache();

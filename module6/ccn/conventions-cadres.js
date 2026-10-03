@@ -6161,7 +6161,9 @@ function buildContractDefaults(ccn, regime) {
   regime = regime || 'forfait_jours';
 
   if (regime === 'forfait_heures') {
-    const hs = ccn.g ? (global.CCN_API ? global.CCN_API.getRules(ccn.g) : null) : null;
+    // 03/10/2026 : règles de la convention elle-même (exceptions comprises), pas seulement de son groupe
+    const _id = ccn.i || ccn.idcc || 0;
+    const hs = global.CCN_API ? (_id ? global.CCN_API.getGroupeForCCN(_id) : (ccn.g ? global.CCN_API.getRules(ccn.g) : null)) : null;
     return {
       ccnLabel:   ccn.n || ccn.nom || 'Droit commun', ccnIdcc: ccn.i || ccn.idcc || 0,
       seuilHebdo: (hs?.seuil) || 35, taux1: (hs?.taux1) || 25, taux2: (hs?.taux2) || 50,

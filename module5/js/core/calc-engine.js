@@ -136,7 +136,10 @@ const CalcEngine = {
     if(workedH > contractAjuste) {
       let diff = workedH - contractAjuste;
 
-      if(workedH >= FULL) {
+      if(workedH >= FULL && ccnRules.sansMajoration) {
+        alerts.push({ level:'alerte', code:'REQUALIFICATION',
+          msg:`${workedH}h cette semaine : au-delà de ${FULL} h, ce sont des heures ${FULL===45?'majorées, au taux de ton contrat (au moins +10 %)':'supplémentaires (+25 % jusqu\'à 48 h, puis +50 %)'}. Mizuki ne les majore pas : vérifie-les sur ta fiche de paie.` });
+      } else if(workedH >= FULL) {
         alerts.push({ level:'critique', code:'REQUALIFICATION',
           msg:`Tu as atteint ${workedH}h cette semaine — le seuil légal du temps plein. La loi prévoit des droits dans ce cas. Conserve cet historique.` });
         isLegal = false;
@@ -172,7 +175,7 @@ const CalcEngine = {
       comp1Amount: Math.round(comp1Amount*100)/100,
       comp2Amount: Math.round(comp2Amount*100)/100,
       totalAmount: Math.round(totalAmount*100)/100,
-      rate1, rate2, cap, maxAllowed: Math.round(maxAllowed*100)/100,
+      rate1, rate2, cap, maxAllowed: Math.round(maxAllowed*100)/100, tempsPlein: FULL,
       feriesCount, feriesNote, alerts, isLegal,
     };
   },
