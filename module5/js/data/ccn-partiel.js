@@ -180,7 +180,7 @@ const CCN_PARTIEL_ALIASES = [
   {i:3016,n:"Ateliers chantiers insertion",s:"Insertion professionnelle",g:"DC",cap:0.33,fj:false},
   {i:3017,n:"Ports et manutention unifiée",s:"Transport maritime port",g:"DC",cap:0.1,fj:false},
   {i:3032,n:"Esthétique cosmétique parfumerie",s:"Esthétique beauté",g:"DC",cap:0.1,fj:false},
-  {i:3109,n:"Métiers du commerce détail alimentaire spécialisé 5 branches",s:"Commerce alim spécialisé 5B",g:"DC",cap:0.33,fj:false},
+  {i:3109,n:"Cinq branches industries alimentaires diverses (biscuiterie, confiserie, chocolaterie…)",s:"Industries alimentaires diverses",g:"DC",cap:0.33,fj:false},
   {i:3127,n:"Entreprises services à la personne",s:"Services personne",g:"DC",cap:0.33,fj:false},
   {i:3203,n:"Structures coopératives agricoles bétail viande",s:"Coopérative viande",g:"DC",cap:0.1,fj:false},
   {i:2543,n:"Cabinets géomètres-experts topographes",s:"Géomètre expert",g:"DC",cap:0.1,fj:false},

@@ -730,7 +730,7 @@ const CCN_ALIASES = [
   {i:3017,b:null,n:"Ports et manutention unifiée",s:"Transport maritime port",g:"DC",fj:false,x:{contingent:160, src:'durée du travail : 160 h'}},
   {i:3032,b:null,n:"Esthétique cosmétique parfumerie",s:"Esthétique beauté",g:"DC",fj:false,x:{contingent:200, src:'art. 10 (1.2) : 200 h'}},
   
-  {i:3109,b:null,n:"Métiers du commerce détail alimentaire spécialisé 5 branches",s:"Commerce alim spécialisé 5B",g:"DC",fj:false},
+  {i:3109,b:null,n:"Cinq branches industries alimentaires diverses (biscuiterie, confiserie, chocolaterie…)",s:"Industries alimentaires diverses",g:"DC",fj:false},
   {i:3127,b:null,n:"Entreprises services à la personne",s:"Services personne",g:"DC",fj:false},
   {i:3203,b:null,n:"Structures coopératives agricoles bétail viande",s:"Coopérative viande",g:"DC",fj:false},
   {i:2543,b:null,n:"Cabinets géomètres-experts topographes",s:"Géomètre expert",g:"DC",fj:false,x:{contingent:180, src:'art. 9.4 : 180 h (90 h si horaire modulé)'}},
