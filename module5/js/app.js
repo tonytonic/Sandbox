@@ -847,9 +847,10 @@ function renderWeekSummary(analysis) {
   });
   if(weekResult.totalCompH>0&&contract.hourlyRate>0&&!prevenanceAlert) {
     const _cw=(weekResult.comp1Amount||0)+(weekResult.comp2Amount||0);
-    html+=`<div class="m5-alert info"><span>💰</span><div>Majoration estimée cette semaine : <strong>${_cw.toFixed(2)} € brut</strong> (${window._m5fmtH(weekResult.totalCompH)} comp. × taux majoré). Estimation brute basée sur votre taux horaire contractuel.</div></div>`;
+    html+=`<div class="m5-alert info"><span>💰</span><div>${contract.sansMajoration?'Montant estimé de ces heures':'Majoration estimée cette semaine'} : <strong>${_cw.toFixed(2)} € brut</strong> (${window._m5fmtH(weekResult.totalCompH)} comp. × ${contract.sansMajoration?'taux normal, sans majoration (IDCC 3239)':'taux majoré'}). Estimation brute basée sur votre taux horaire contractuel.</div></div>`;
   }
   el.innerHTML=html;
+  try{ window.M5_majDroitsCard && M5_majDroitsCard(contract); }catch(_){}
 }
 
 // ── Historique ────────────────────────────────────────────────────
@@ -1460,7 +1461,7 @@ function renderStats() {
         <div class="m5-alert info" style="margin-bottom:8px;">
           <span>📊</span><div>Seuil mensuel : <strong>${window._m5fmtH(mr.seuilMensuel)}</strong> (${(contract.dureeContrat&&contract.dureeContrat.unite==='M'&&contract.dureeContrat.valeur>0)?'ton contrat : '+String(contract.dureeContrat.valeur).replace('.',',')+' h/mois':contract.hoursBase+'h × 52 / 12'})</div>
         </div>
-        ${mr.totalCompH>0?`<div class="m5-alert ok"><span>💰</span><div>${window._m5fmtH(mr.compH1)} à +${Math.round((contract.rate1||0.10)*100)}%${mr.compH2>0?' | '+window._m5fmtH(mr.compH2)+' à +'+Math.round((contract.rate2||0.25)*100)+'%':''}</div></div>`:''}
+        ${mr.totalCompH>0?`<div class="m5-alert ok"><span>💰</span><div>${window._m5fmtH(mr.compH1)} ${M5_tauxTxt(contract.rate1??0.10)}${mr.compH2>0?' | '+window._m5fmtH(mr.compH2)+' '+M5_tauxTxt(contract.rate2??0.25):''}</div></div>`:''}
       </div></div>`;
   } else if(stats) {
     html+=`<div class="m5-card" style="margin:12px 0;">
@@ -1475,7 +1476,7 @@ function renderStats() {
           <span>⏱️</span><div><strong>${window._m5fmtH(stats.totalComp)}</strong> complémentaires<br>
           <small>Plafond annuel estimé : ${window._m5fmtH(caps.annual)}</small></div>
         </div>
-        ${stats.totalComp1>0?`<div class="m5-alert ok"><span>💰</span><div>${window._m5fmtH(stats.totalComp1)} à +${Math.round((contract.rate1||0.10)*100)}%${stats.totalComp2>0?' | '+window._m5fmtH(stats.totalComp2)+' à +'+Math.round((contract.rate2||0.25)*100)+'%':' | Aucune tranche à 25%'}</div></div>`:''}
+        ${stats.totalComp1>0?`<div class="m5-alert ok"><span>💰</span><div>${window._m5fmtH(stats.totalComp1)} ${M5_tauxTxt(contract.rate1??0.10)}${stats.totalComp2>0?' | '+window._m5fmtH(stats.totalComp2)+' '+M5_tauxTxt(contract.rate2??0.25):' | Aucune tranche à 25%'}</div></div>`:''}
       </div></div>`;
   } else {
     html='<div class="m5-empty"><div class="m5-empty-icon">📊</div><div class="m5-empty-text">Aucune semaine saisie pour '+year+'.</div></div>';
@@ -1573,7 +1574,7 @@ function openContractModal() {
     const ccnR=CCN_PARTIEL_API.getRules(c.idcc);
     if(ccnR && ccnR.cap) capToShow=ccnR.cap;
   }
-  document.getElementById('contract-cap').value = capToShow===0.33?'0.33':'0.10';
+  document.getElementById('contract-cap').value = Number(capToShow).toFixed(2);
   document.getElementById('contract-name').value    =(localStorage.getItem('M5_USER_NAME')||localStorage.getItem('SH_PRENOM')||'');
   const startDayEl=document.getElementById('contract-start-day');
   if(startDayEl) startDayEl.value=String(c.weekStartDay||0);
@@ -1659,13 +1660,14 @@ window.setContractUnite=setContractUnite; window.updateContractHoursPreview=upda
 function saveContract() {
   const _uC=_WIZ_UNITES[_contractUnite], _vC=_contractValeur();
   if(!_vC||_vC<=0) { toast('Saisis la durée de ton contrat ('+_uC.ph+').','error'); return; }
-  if(_vC>=_uC.plein) { toast('À partir de '+_uC.pleinTxt+', c\u2019est un temps plein : Mizuki suit les temps partiels.','error'); return; }
+  const _tpCCN=(typeof CCN_PARTIEL_API!=='undefined'&&CCN_PARTIEL_API.getRules(parseInt(document.getElementById('contract-ccn').value)||0).tempsPlein)||35;
+  if(_tpCCN===35&&_vC>=_uC.plein) { toast('À partir de '+_uC.pleinTxt+', c\u2019est un temps plein : Mizuki suit les temps partiels.','error'); return; }
   const hoursBase =_contractHebdo();
   const hourlyRate=parseFloat(document.getElementById('contract-rate').value)||0;
   const idcc      =parseInt(document.getElementById('contract-ccn').value)||0;
   const capManuel =parseFloat(document.getElementById('contract-cap').value)||0.10;
   const name      =document.getElementById('contract-name').value.trim();
-  if(!hoursBase||hoursBase<=0||hoursBase>=35) { toast('Saisis une durée entre 1 et 34,5h.','error'); return; }
+  if(!hoursBase||hoursBase<=0||hoursBase>=_tpCCN) { toast('Saisis une durée entre 1 et '+(_tpCCN-0.5).toString().replace('.',',')+'h.','error'); return; }
   // Art. L3123-27 et L3123-7 : 24 h/sem minimum, ou l'équivalent mensuel (104 h) ou sur la période
   // d'aménagement (24/35 de 1 607 h ≈ 1 102 h/an), sauf dérogations (demande du salarié, accord, étudiant…)
   const _min24={S:24,M:104,A:1102}[_contractUnite];
@@ -1693,7 +1695,7 @@ function saveContract() {
     if(el&&el.value) cloturesDates[m]=el.value;
   }
   M5_Contract.save({hoursBase,hourlyRate,idcc,ccnNom:ccnRules.nom||'Droit commun',cap,
-    rate1:ccnRules.rate1||0.10,rate2:ccnRules.rate2||0.25,threshold:ccnRules.threshold||0.10,
+    rate1:ccnRules.rate1??0.10,rate2:ccnRules.rate2??0.25,threshold:ccnRules.threshold||0.10,
     weekStartDay,exerciceStart,cloturesDates,modeCalcul,neutraliseFeries,
     accordCollectifPrevenance,joursOuvresContrat,
     dureeContrat:{unite:_contractUnite,valeur:_vC},
@@ -1906,9 +1908,34 @@ function searchCCN(term) {
       onmouseenter="this.style.background='rgba(109,40,217,0.20)'"
       onmouseleave="this.style.background=''">
       <span style="font-weight:600;color:#E9D5FF;">${ccn.n}</span>
-      <span style="font-size:11px;color:#A78BFA;">${ccn.s} — IDCC ${ccn.i} — plafond <strong style="color:#DDD6FE;">${ccn.cap===0.33?'33%':'10%'}</strong></span>
+      <span style="font-size:11px;color:#A78BFA;">${ccn.s} — IDCC ${ccn.i} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></span>
     </div>`).join('');
 }
+
+/* 03/10/2026 : carte « Tes droits » de l'accueil selon la convention du contrat */
+window.M5_majDroitsCard=function(c){
+  const g=document.querySelector('.acc-droits-grid'); if(!g||!c) return;
+  const it=g.querySelectorAll('.acc-droit-item span:last-child'); if(it.length<3) return;
+  if(c.sansMajoration){
+    it[0].innerHTML='Pas de plafond : heures en plus payées jusqu\'à <strong>40h</strong>';
+    it[1].innerHTML='<strong>Taux normal</strong> (sauf contrat) · au-delà de 40h : <strong>+25%</strong> puis <strong>+50%</strong>';
+    it[2].innerHTML='Temps plein : <strong>40h</strong> (IDCC 3239)';
+  } else {
+    const cap=Math.round((c.cap||0.10)*100), r1=Math.round((c.rate1??0.10)*100), r2=Math.round((c.rate2??0.25)*100);
+    it[0].innerHTML='Plafond <strong>'+cap+'%</strong> du contrat'+(c.idcc>0?' (ta convention)':' (droit commun)');
+    it[1].innerHTML=r1===r2?'Majoration <strong>+'+r1+'%</strong> pour chaque heure':'Majoration <strong>+'+r1+'%</strong> puis <strong>+'+r2+'%</strong>';
+  }
+};
+
+/* 03/10/2026 : encart propre à une convention (IDCC 3239 : employés de maison) */
+window.M5_encartCCN=function(idcc){
+  if(parseInt(idcc,10)!==3239) return '';
+  return `<div class="m5-alert warn" style="margin-top:8px;font-size:12px;line-height:1.45;text-align:left;"><span>🏠</span><div>
+    <strong>Particuliers employeurs (IDCC 3239)</strong> — Les règles du Code du travail sur le temps partiel ne s'appliquent pas à ton emploi (art. L7221-2).
+    Les heures en plus de ton contrat, jusqu'à <strong>40 h par semaine</strong>, sont payées au <strong>taux normal</strong>, sauf si ton contrat prévoit une majoration : Mizuki les compte donc sans majoration et sans plafond.
+    Au-delà de 40 h (en moyenne sur 8 semaines), ce sont des heures supplémentaires : +25 % jusqu'à 48 h, puis +50 % (art. 147). Si tu dépasses souvent 40 h, utilise plutôt le module heures mensualisées.
+    <br><em>Assistant(e) maternel(le) : seuil de 45 h et majoration fixée dans ton contrat (au moins 10 %).</em></div></div>`;
+};
 
 function selectCCN(idcc, nom, secteur) {
   document.getElementById('contract-ccn').value=idcc;
@@ -1916,9 +1943,9 @@ function selectCCN(idcc, nom, secteur) {
   const sel=document.getElementById('contract-ccn-selected');
   if(sel) {
     const rules=typeof CCN_PARTIEL_API!=='undefined'?CCN_PARTIEL_API.getRules(idcc):null;
-    const capTxt=rules&&rules.cap===0.33?'33% (accord de branche)':'10% (droit commun)';
+    const capTxt=rules?CCN_PARTIEL_API.capLabel(rules.cap):'10% (droit commun)';
     sel.innerHTML=`<strong style="color:#E9D5FF;">✓ ${nom}</strong><br>
-      <span style="font-size:11px;color:#A78BFA;">IDCC ${idcc} · Plafond <strong style="color:#DDD6FE;">${capTxt}</strong></span>`;
+      <span style="font-size:11px;color:#A78BFA;">IDCC ${idcc} · Plafond <strong style="color:#DDD6FE;">${capTxt}</strong></span>${window.M5_encartCCN?M5_encartCCN(idcc):''}`;
   }
   const res=document.getElementById('contract-ccn-results');
   if(res) res.style.display='none';
@@ -1926,7 +1953,7 @@ function selectCCN(idcc, nom, secteur) {
   if(typeof CCN_PARTIEL_API!=='undefined') {
     const rules=CCN_PARTIEL_API.getRules(idcc);
     const capEl=document.getElementById('contract-cap');
-    if(capEl && rules.cap) capEl.value=String(rules.cap);
+    if(capEl && rules.cap) capEl.value=Number(rules.cap).toFixed(2);
   }
 }
 
@@ -2295,7 +2322,7 @@ function M5_ccnDuMenu(){
     localStorage.setItem('M5_CCN_MENU',String(idcc));
     if(!c.hoursBase||(c.idcc&&c.idcc>0)) return;
     const r=CCN_PARTIEL_API.getRules(idcc);
-    M5_Contract.save({...c,idcc,ccnNom:r.nom,cap:r.cap,rate1:r.rate1||0.10,rate2:r.rate2||0.25,threshold:r.threshold||0.10});
+    M5_Contract.save({...c,idcc,ccnNom:r.nom,cap:r.cap,rate1:r.rate1??0.10,rate2:r.rate2??0.25,threshold:r.threshold||0.10});
     setTimeout(()=>toast('Ta convention collective est reprise du menu : '+r.nom,'success',4000),900);
   }catch(e){}
 }
@@ -2393,7 +2420,7 @@ function wizSearchCCN(term) {
     <div onclick="wizPickCCN(${ccn.i},'${ccn.n.replace(/'/g,"\'")}','${ccn.s}',${ccn.cap})"
       style="padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(167,139,250,0.15);">
       <div style="font-weight:600;color:#E9D5FF;">${ccn.n}</div>
-      <div style="font-size:11px;color:#A78BFA;">${ccn.s} — plafond <strong style="color:#DDD6FE;">${ccn.cap===0.33?'33%':'10%'}</strong></div>
+      <div style="font-size:11px;color:#A78BFA;">${ccn.s} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></div>
     </div>`).join('');
 }
 
@@ -2407,7 +2434,7 @@ function wizPickCCN(idcc, nom, secteur, cap) {
   if(sel) {
     sel.style.display='block';
     sel.innerHTML=`<strong style="color:#E9D5FF;">${nom}</strong><br>
-      <span style="font-size:11px;color:#A78BFA;">Plafond HC : <strong style="color:#DDD6FE;">${cap===0.33?'33% (accord de branche)':'10% (droit commun)'}</strong></span>`;
+      <span style="font-size:11px;color:#A78BFA;">Plafond HC : <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(cap)}</strong></span>${window.M5_encartCCN?M5_encartCCN(idcc):''}`;
   }
 }
 
@@ -2445,7 +2472,7 @@ function _wizUpdateSummary() {
   const _u=_WIZ_UNITES[_wizUnite];
   const _dur=_wizUnite==='S'?`${window._m5fmtH(h)}/semaine`:`${window._m5fmtH(_wizValeurSaisie())}/${_u.court} (≈ ${window._m5fmtH(h)}/semaine)`;
   _set('wiz-sum-hours', `⏱️ Contrat : <strong>${_dur}</strong>${rate>0?' · '+rate.toFixed(2)+' €/h':''}`);
-  _set('wiz-sum-ccn',   `🏢 CCN : <strong>${_wizCCN?_wizCCN.n+' ('+Math.round(_wizCCN.cap*100)+'%)':'Droit commun (10%)'}</strong>`);
+  _set('wiz-sum-ccn',   `🏢 CCN : <strong>${_wizCCN?_wizCCN.n+' ('+CCN_PARTIEL_API.capLabel(_wizCCN.cap,true)+')':'Droit commun (10%)'}</strong>`);
   _set('wiz-sum-mode',  `📅 Mode : <strong>${modeLbls[_wizMode]||_wizMode}</strong>`);
   _set('wiz-sum-feries',`🎌 Fériés : <strong>${_wizNeutraliseFeries?"Neutralisés (L3133-3 + jurisprudence)":"Dans l'assiette (accord spécifique)"}</strong>`);
   if(exercice) _set('wiz-sum-exercice',`📆 Début exercice : <strong>${new Date(exercice+'T12:00:00').toLocaleDateString('fr-FR')}</strong>`);
@@ -2543,8 +2570,8 @@ function wizFinish() {
     idcc:_wizCCN?_wizCCN.i:0,
     ccnNom:_wizCCN?_wizCCN.n:'Droit commun',
     cap:ccnRules.cap||0.10,
-    rate1:ccnRules.rate1||0.10,
-    rate2:ccnRules.rate2||0.25,
+    rate1:ccnRules.rate1??0.10,
+    rate2:ccnRules.rate2??0.25,
     threshold:ccnRules.threshold||0.10,
     weekStartDay:startDay,
     joursOuvresContrat:joursOuvresContrat,
@@ -3005,7 +3032,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   window._m5UpdateNet=function(){
     var card=document.getElementById('m5-solde-card'); if(!card) return;
     var due10=+card.getAttribute('data-due10')||0, due25=+card.getAttribute('data-due25')||0;
-    var rate=+card.getAttribute('data-rate')||0, r1=+card.getAttribute('data-r1')||0.10, r2=+card.getAttribute('data-r2')||0.25;
+    var rate=+card.getAttribute('data-rate')||0, r1=(card.getAttribute('data-r1')!=null?+card.getAttribute('data-r1'):0.10), r2=(card.getAttribute('data-r2')!=null?+card.getAttribute('data-r2'):0.25);
     var p=_getPaid(_periodKey());
     var n10=Math.max(0,due10-p.h10), n25=Math.max(0,due25-p.h25), nT=Math.round((n10+n25)*100)/100;
     function set(id,t){ var e=document.getElementById(id); if(e) e.textContent=t; }
@@ -3103,7 +3130,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         +'<div style="display:flex;align-items:center;gap:9px;"><span style="font-size:15px;font-weight:800;color:#8FD3E0;">'+_fmtH(totP)+'</span>'
         +'<span id="m5-persolde-chev" style="color:#C4A8FF;font-size:13px;transition:transform .2s;transform:'+(open?'rotate(180deg)':'')+';">▾</span></div></div>';
       var body='<div id="m5-persolde-body" style="display:'+(open?'':'none')+';margin-top:11px;">'
-        +'<div style="display:flex;gap:7px;">'+tile(totP,'Total période','#8FD3E0')+tile(s.comp10,'à +'+Math.round(r1*100)+'%','#FFC24B')+tile(s.comp25,'à +'+Math.round(r2*100)+'%','#FF7A59')+'</div>'
+        +'<div style="display:flex;gap:7px;">'+tile(totP,'Total période','#8FD3E0')+tile(s.comp10,M5_tauxTxt(r1),'#FFC24B')+tile(s.comp25,M5_tauxTxt(r2),'#FF7A59')+'</div>'
         +'<div style="display:flex;justify-content:space-between;margin-top:11px;font-size:13px;color:rgba(255,255,255,0.82);"><span>Report précédent</span><b>'+_fmtH(repP)+'</b></div>'
         +'<div style="display:flex;justify-content:space-between;margin-top:5px;font-size:13px;color:rgba(255,255,255,0.82);"><span>Payées (période)</span><b>'+_fmtH(Math.round((s.paid10+s.paid25)*100)/100)+'</b></div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid rgba(196,168,255,0.18);">'
@@ -3536,7 +3563,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     var l=[['Heures travaillées',f(r(tot))],['Semaines saisies',String(ws.length)]];
     if(c.modeCalcul==='ANNUEL'){var obj=r(base*52),so=r(tot-obj);l.push(['Objectif annuel du contrat',f(obj)],['Écart avec l\'objectif',(so>0?'+':so<0?'−':'')+f(Math.abs(so))]);}
     else{var HX=window.M5_hcExercice?M5_hcExercice(c,deb,fin):null;if(HX){h1=HX.d10;h2=HX.d25;hc=h1+h2;}
-      l.push(['Heures complémentaires',f(r(hc))],['Dont à +'+Math.round((c.rate1||0.10)*100)+' %',f(r(h1))],['Dont à +'+Math.round((c.rate2||0.25)*100)+' %',f(r(h2))]);}
+      l.push(['Heures complémentaires',f(r(hc))],['Dont '+M5_tauxTxt(c.rate1??0.10),f(r(h1))],['Dont '+M5_tauxTxt(c.rate2??0.25),f(r(h2))]);}
     if(n35>0)l.push(['Semaines à 35 h ou plus',String(n35)]);
     /* 26/09/2026 : reste à payer en fin d'exercice. Heures complémentaires de l'exercice
        moins les paiements saisis sur l'exercice (cases « payé » par semaine ou période). */
@@ -3555,7 +3582,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       window.__m5Reste={h10:n1,h25:n2,deb:deb,fin:fin};
       if(p1+p2>0)l.push(['Heures complémentaires payées',f(r(p1+p2))]);
       if(nT>0.01){l.push(['Reste à payer en fin d\'exercice',f(nT)]);
-        var det=[];if(n1>0.01)det.push(f(n1)+' à +'+Math.round((c.rate1||0.10)*100)+' %');if(n2>0.01)det.push(f(n2)+' à +'+Math.round((c.rate2||0.25)*100)+' %');
+        var det=[];if(n1>0.01)det.push(f(n1)+' '+M5_tauxTxt(c.rate1??0.10));if(n2>0.01)det.push(f(n2)+' '+M5_tauxTxt(c.rate2??0.25));
         window.__m5Alerte={titre:'⚠️ Exercice non soldé : '+f(nT)+' d\'heures complémentaires non payées',
           texte:(det.length>1?'Soit '+det.join(' + ')+'. ':'')+'Même calcul que la carte « Solde » à la fin de l\'exercice : les heures non payées sont reportées de semaine en semaine (un paiement en trop n\'efface pas les semaines suivantes). '+((window.hsBilanAnnee&&hsBilanAnnee.delai)||'')};
       }
@@ -3609,7 +3636,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   /* Fenêtre de choix : une ligne par exercice, cochée par défaut */
   window.M5_demanderReports=function(items,to,apres){
     if(!items||!items.length){if(apres)apres();return;}
-    var c=M5_Contract.get(),r1=Math.round((c.rate1||0.10)*100),r2=Math.round((c.rate2||0.25)*100),tot=0;
+    var c=M5_Contract.get(),r1=Math.round((c.rate1??0.10)*100),r2=Math.round((c.rate2??0.25)*100),tot=0;
     items.forEach(function(it){tot+=it.h10+it.h25;});
     function fin(coches){enregistrer(to,items,coches);
       var n=0;coches.forEach(function(x,i){if(x)n+=items[i].h10+items[i].h25;});

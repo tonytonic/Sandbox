@@ -93,9 +93,10 @@ const CalcEngine = {
    */
   calcWeek(contractH, workedH, ccnRules, hourlyRate=0, options={}) {
     const cap       = ccnRules.cap       || 0.10;
-    const rate1     = ccnRules.rate1     || 0.10;
-    const rate2     = ccnRules.rate2     || 0.25;
+    const rate1     = ccnRules.rate1     ?? 0.10;   // 03/10/2026 : 0 % possible (IDCC 3239)
+    const rate2     = ccnRules.rate2     ?? 0.25;
     const threshold = ccnRules.threshold || 0.10;
+    const FULL      = ccnRules.tempsPlein || LEGAL_FULL_TIME; // 40 h pour l'IDCC 3239
     const joursOuvres = options.joursOuvresContrat || 5;
     const neutralise  = options.neutraliseFeries !== false; // true par défaut
 
@@ -135,19 +136,19 @@ const CalcEngine = {
     if(workedH > contractAjuste) {
       let diff = workedH - contractAjuste;
 
-      if(workedH >= LEGAL_FULL_TIME) {
+      if(workedH >= FULL) {
         alerts.push({ level:'critique', code:'REQUALIFICATION',
           msg:`Tu as atteint ${workedH}h cette semaine — le seuil légal du temps plein. La loi prévoit des droits dans ce cas. Conserve cet historique.` });
         isLegal = false;
       }
-      if(workedH > maxAllowed && workedH < LEGAL_FULL_TIME) {
+      if(workedH > maxAllowed && workedH < FULL && !ccnRules.sansPlafond && cap < 0.99) {
         alerts.push({ level:'alerte', code:'PLAFOND_CCN',
           msg:`Tes heures dépassent le plafond conventionnel (${Math.round(cap*100)}% du contrat = max ${maxAllowed.toFixed(1)}h). Garde une trace de ces semaines.` });
         isLegal = false;
       }
-      if(workedH >= LEGAL_FULL_TIME - 1 && workedH < LEGAL_FULL_TIME) {
+      if(workedH >= FULL - 1 && workedH < FULL) {
         alerts.push({ level:'vigilance', code:'PROCHE_TEMPS_PLEIN',
-          msg:`Tu es à ${(LEGAL_FULL_TIME - workedH).toFixed(1)}h du temps plein. Sois vigilante.` });
+          msg:`Tu es à ${(FULL - workedH).toFixed(1)}h du temps plein. Sois vigilante.` });
       }
       if(diff <= threshold1H) {
         compH1 = diff;
@@ -189,16 +190,17 @@ const CalcEngine = {
     const totalWorked  = weeks.reduce((s,w) => s + (w.worked||0), 0);
     const diff         = totalWorked - seuilMensuel;
     const cap          = ccnRules.cap || 0.10;
-    const rate1        = ccnRules.rate1 || 0.10;
-    const rate2        = ccnRules.rate2 || 0.25;
+    const rate1        = ccnRules.rate1 ?? 0.10;
+    const rate2        = ccnRules.rate2 ?? 0.25;
+    const FULL         = ccnRules.tempsPlein || LEGAL_FULL_TIME;
     const threshold    = ccnRules.threshold || 0.10;
     const maxAllowed   = Math.round(seuilMensuel * (1 + cap) * 100) / 100;
 
     // ⚠️ La limite 35h est HEBDOMADAIRE — elle s'applique même en mode mensuel
-    const semainesRequalif = weeks.filter(w => (w.worked||0) >= LEGAL_FULL_TIME);
+    const semainesRequalif = weeks.filter(w => (w.worked||0) >= FULL);
     const alerts = semainesRequalif.length > 0 ? [{
       level:'critique', code:'REQUALIFICATION',
-      msg:`${semainesRequalif.length} semaine(s) à 35h ou plus détectée(s) (${semainesRequalif.map(w=>w.monday).join(', ')}). La durée légale ne peut jamais être atteinte sur un contrat temps partiel — risque de requalification (Art. L3123-28). Conserve cet historique.`
+      msg:`${semainesRequalif.length} semaine(s) à ${FULL}h ou plus détectée(s) (${semainesRequalif.map(w=>w.monday).join(', ')}). La durée légale ne peut jamais être atteinte sur un contrat temps partiel — risque de requalification (Art. L3123-28). Conserve cet historique.`
     }] : [];
 
     let compH1 = 0, compH2 = 0;
@@ -207,7 +209,7 @@ const CalcEngine = {
       compH1 = Math.min(diff, th1);
       compH2 = Math.max(0, diff - th1);
       // Alerte si dépassement du plafond conventionnel
-      if(totalWorked > maxAllowed) {
+      if(totalWorked > maxAllowed && cap < 0.99) {
         alerts.push({ level:'alerte', code:'PLAFOND_CCN',
           msg:`Tes heures ce mois (${totalWorked}h) dépassent le plafond conventionnel de ${Math.round(cap*100)}% du seuil mensuel (max ${maxAllowed}h). Conserve ces relevés — Art. L3123-28.`
         });

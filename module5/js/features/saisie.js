@@ -45,6 +45,22 @@ const Contract = {
     if(raw.accordCollectifPrevenance === undefined) raw.accordCollectifPrevenance = false;
     // noticeDays : 7 par défaut (L3123-31) ; 3 si accord d'entreprise/branche (L3123-24)
     raw.noticeDays = raw.accordCollectifPrevenance ? 3 : 7;
+    // 03/10/2026 : plafond, taux et prévenance toujours repris de la convention choisie
+    // (corrections du fonds droit appliquées aussi aux contrats déjà enregistrés).
+    if(raw.idcc>0 && typeof window!=='undefined' && window.CCN_PARTIEL_API){
+      try{
+        const r=window.CCN_PARTIEL_API.getRules(raw.idcc);
+        if(r && r.idcc){
+          if(r.cap) raw.cap=r.cap;
+          if(r.rate1!=null) raw.rate1=r.rate1;
+          if(r.rate2!=null) raw.rate2=r.rate2;
+          if(r.threshold) raw.threshold=r.threshold;
+          if(r.tempsPlein) raw.tempsPlein=r.tempsPlein; else delete raw.tempsPlein;
+          raw.sansMajoration=!!r.sansMajoration;
+          if(!raw.accordCollectifPrevenance && r.notice) raw.noticeDays=r.notice;
+        }
+      }catch(_){}
+    }
     // joursOuvresContrat : nombre de jours travaillés/semaine (défaut 5)
     if(raw.joursOuvresContrat === undefined) raw.joursOuvresContrat = 5;
     return raw;

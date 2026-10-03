@@ -120,12 +120,19 @@ const Mizuki = {
     }
 
     const alerts = weekResult.alerts || [];
+    if (weekResult.rate1 === 0 && weekResult.rate2 === 0 && alerts.some(a=>a.code==='REQUALIFICATION'))
+      return `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 40 h, ce sont des heures supplémentaires (+25 % jusqu'à 48 h, puis +50 %). Note-les bien.`;
+    if (weekResult.rate1 === 0 && weekResult.rate2 === 0 && alerts.some(a=>a.code==='PROCHE_TEMPS_PLEIN'))
+      return `🦊 ${n}${weekResult.workedH}h cette semaine : tu approches des 40 h, le temps plein de ta convention.`;
     if (alerts.some(a=>a.code==='REQUALIFICATION')) return _nextMsg(MSGS_REQUALIF)(n, weekResult.workedH);
     if (rule12 && rule12.triggered) return _nextMsg(MSGS_12SEM)(n, rule12.maxConsec);
     if (alerts.some(a=>a.code==='PROCHE_TEMPS_PLEIN')) return _nextMsg(MSGS_PROCHE_35)(n, weekResult.workedH);
     if (alerts.some(a=>a.code==='PLAFOND_CCN')) return _nextMsg(MSGS_PLAFOND)(n, weekResult.cap);
 
     const total = weekResult.totalCompH || 0;
+    // 03/10/2026 : employé de maison (IDCC 3239) — pas de majoration, temps plein 40 h
+    if (weekResult.rate1 === 0 && weekResult.rate2 === 0 && total > 0)
+      return `🦊 ${n}${total}h au-delà de ton contrat cette semaine, payées au taux normal (sauf majoration prévue dans ton contrat). Vérifie qu'elles apparaissent bien sur ta fiche de paie.`;
     if (weekResult.compH2 > 0) return _nextMsg(MSGS_COMP_HIGH)(n, total);
     if (total > 0) return _nextMsg(MSGS_COMP_LOW)(n, total, weekResult.rate1);
     return _nextMsg(MSGS_NORMAL)(n);
@@ -218,7 +225,7 @@ const Mizuki = {
         msg = {
           titre: `🟡 ${total}h complémentaires`,
           icon: '🟡', level: 'info',
-          message: `Tu as effectué ${total}h au-delà de ton contrat cette semaine.${weekResult.compH1>0?` ${weekResult.compH1.toFixed(1)}h à +${Math.round((weekResult.rate1||0.10)*100)}%`:''}${weekResult.compH2>0?` et ${weekResult.compH2.toFixed(1)}h à +${Math.round((weekResult.rate2||0.25)*100)}%`:''}. ${weekResult.totalAmount>0?`Estimé : ${weekResult.totalAmount.toFixed(2)} € brut.`:''} Vérifie bien que ces heures apparaissent sur ta prochaine fiche de paie.`,
+          message: `Tu as effectué ${total}h au-delà de ton contrat cette semaine.${weekResult.compH1>0?` ${weekResult.compH1.toFixed(1)}h ${M5_tauxTxt(weekResult.rate1??0.10)}`:''}${weekResult.compH2>0?` et ${weekResult.compH2.toFixed(1)}h à +${Math.round((weekResult.rate2??0.25)*100)}%`:''}. ${weekResult.totalAmount>0?`Estimé : ${weekResult.totalAmount.toFixed(2)} € brut.`:''} Vérifie bien que ces heures apparaissent sur ta prochaine fiche de paie.`,
           actions: ['Vérifier ta fiche de paie', 'Comprendre les majorations', 'Voir le glossaire'],
         };
       }
