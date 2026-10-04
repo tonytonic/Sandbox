@@ -183,7 +183,12 @@ const M5_PdfReport = {
       doc.setFillColor(...VIOLET_LIGHT);
       doc.rect(M,y-4,PW,7,'F');
       doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...VIOLET);
-      ['Semaine','Travaillées','Comp.',`+${Math.round((contract.rate1??0.10)*100)}%`,`+${Math.round((contract.rate2??0.25)*100)}%`,'Montant','OK'].forEach((h,i)=>doc.text(h,cols[i],y));
+      // 04/10/2026 : taux égaux (3239 : taux normal) → une seule colonne de taux
+      const _uniT=Math.abs((contract.rate1??0.10)-(contract.rate2??0.25))<1e-9;
+      const _lblT=r=>{ const v=Math.round((r||0)*100); return v>0?'+'+v+'%':'Taux normal'; };
+      (_uniT
+        ? ['Semaine','Travaillées','Comp.',_lblT(contract.rate1??0.10),'','Montant','OK']
+        : ['Semaine','Travaillées','Comp.',_lblT(contract.rate1??0.10),_lblT(contract.rate2??0.25),'Montant','OK']).forEach((h,i)=>doc.text(h,cols[i],y));
       doc.setTextColor(0,0,0); y+=7;   // 27/09/2026 : la 1re ligne ne chevauche plus le bandeau d'en-tête
       doc.setFontSize(8); doc.setFont('helvetica','normal');
       let alt=false, auFerie=false;
@@ -209,15 +214,17 @@ const M5_PdfReport = {
           const montant=contract.hourlyRate>0?c1*contract.hourlyRate*(1+(contract.rate1??0.10))+c2*contract.hourlyRate*(1+(contract.rate2??0.25)):0;
           doc.setTextColor(...VIOLET);
           doc.text(`+${diff.toFixed(1)}h${w.hcFerie?'*':''}`,cols[2],y);
+          if(_uniT){ doc.text(`${diff.toFixed(1)}h`,cols[3],y); }
+          else {
           doc.text(c1>0?`${c1.toFixed(1)}h`:'--',cols[3],y);
-          doc.text(c2>0?`${c2.toFixed(1)}h`:'--',cols[4],y);
+          doc.text(c2>0?`${c2.toFixed(1)}h`:'--',cols[4],y); }
           doc.text(montant>0?`${montant.toFixed(2)}€`:'--',cols[5],y);
           doc.setTextColor(wh>(contract.tempsPlein||34.99)?180:0,0,0);
           doc.text(wh>(contract.tempsPlein||34.99)?'! '+(contract.tempsPlein||35)+'h':' ',cols[6],y);
           doc.setTextColor(0,0,0);
         } else {
           doc.setTextColor(180,180,180);
-          ['--','--','--','--','OK'].forEach((t,i)=>doc.text(t,cols[i+2],y));
+          (_uniT?['--','--','','--','OK']:['--','--','--','--','OK']).forEach((t,i)=>doc.text(t,cols[i+2],y));
           doc.setTextColor(0,0,0);
         }
         y+=5.5;
