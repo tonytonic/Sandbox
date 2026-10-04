@@ -117,7 +117,8 @@ const Mizuki = {
         ? `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 45 h, ce sont des heures majorées, au taux prévu dans ton contrat (au moins +10 %). Note-les bien.`
         : `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 40 h, ce sont des heures supplémentaires (+25 % jusqu'à 48 h, puis +50 %). Note-les bien.`;
     // Journée > 10h : signal santé/légal (Art. L3121-18)
-    if (daily && daily.count > 0) return _nextMsg(MSGS_JOUR_10H)(n, daily.max);
+    // 04/10/2026 : IDCC 3239 (taux normal) : 10 h/jour du Code non applicable (L7221-2) → pas de message
+    if (daily && daily.count > 0 && !(weekResult && weekResult.rate1 === 0 && weekResult.rate2 === 0)) return _nextMsg(MSGS_JOUR_10H)(n, daily.max);
 
     if (!weekResult || weekResult.workedH <= weekResult.contractH) {
       return _nextMsg(MSGS_NORMAL)(n);
