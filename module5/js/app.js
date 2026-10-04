@@ -940,9 +940,9 @@ function renderQuickStats(analysis) {
     html+=`<div class="m5-stat-grid">
       <div class="m5-stat"><div class="m5-stat-val">${annualStats.totalWeeks}</div><div class="m5-stat-label">Semaines saisies</div></div>
       <div class="m5-stat"><div class="m5-stat-val ${weeksWithHC>0?'warn':'ok'}">${weeksWithHC}</div><div class="m5-stat-label">Sem. avec HC</div></div>
-      <div class="m5-stat"><div class="m5-stat-val ${r12Cls}" title="Semaines consécutives avec +2h ou plus (Art. L3123-13)">${rule12.maxConsec}</div><div class="m5-stat-label">Consécutives +2h</div></div>
+      ${contract.sansMajoration?'<div class="m5-stat"><div class="m5-stat-val ok" title="Règle des 12 semaines (L3123-13) non applicable aux employés de maison (L7221-2)">—</div><div class="m5-stat-label">Règle 12 sem. : sans objet</div></div>':`<div class="m5-stat"><div class="m5-stat-val ${r12Cls}" title="Semaines consécutives avec +2h ou plus (Art. L3123-13)">${rule12.maxConsec}</div><div class="m5-stat-label">Consécutives +2h</div></div>`}
     </div>
-    ${weeksWithHC>0&&rule12.maxConsec<weeksWithHC?`<div style="font-size:11px;color:var(--miz-text3);padding:4px 2px;">
+    ${weeksWithHC>0&&!contract.sansMajoration&&rule12.maxConsec<weeksWithHC?`<div style="font-size:11px;color:var(--miz-text3);padding:4px 2px;">
       ℹ️ ${weeksWithHC} sem. avec des HC — mais la règle des 12 sem. ne s'applique que si tu dépasses de <strong>+2h ou plus</strong> chaque semaine (Art. L3123-13).
     </div>`:''}`;
   } else {
