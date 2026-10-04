@@ -208,7 +208,7 @@ function _selectPopup(analysis, bio, prenom, regime) {
     if (b.phase?.code === 'P3') return _pick(MSG_P3)(n);
     if (!a || !a.semaines) {
       return { titre: 'Démarrage', icon: '⏱️', level: 'ok',
-        msg: `${n}Saisissez vos premières semaines pour que je puisse analyser votre rythme. Je calculerai automatiquement vos heures supplémentaires et la consommation de votre contingent.`,
+        msg: `${n}Saisissez vos premières semaines pour que je puisse analyser votre rythme. Je calculerai automatiquement vos heures supplémentaires${a && a.sansContingent ? '' : ' et la consommation de votre contingent'}.`,
         actions: ['Saisir une semaine'] };
     }
     const tauxRempli = a.tauxRemplissage || 0;
@@ -404,7 +404,7 @@ const M6_ZenjiPopup = {
     _injectStyles();
     this._analysis = analysis;
     this._bio      = bio;
-    this._prenom   = contract?.nomCadre || contract?.nom || '';
+    this._prenom   = contract?.nomCadre || contract?.nom || (function(){try{return localStorage.getItem('SH_PRENOM')||'';}catch(_){return '';}})();
     this._regime   = regime || 'forfait_jours';
     this._onAction = onActionCallback || null;
 
