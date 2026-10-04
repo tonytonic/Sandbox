@@ -57,7 +57,8 @@ const M6_ValiditeFH = {
     // Prorata si arrivée en cours d'exercice
     let contingent = contingentBase;
     if (analysis?.contingentProrata && analysis?.contingent) contingent = analysis.contingent;
-    const respectContingent = totalHS <= contingent;
+    const sansCont = !!analysis?.sansContingent; // 04/10/2026 : IDCC 3239, pas de contingent
+    const respectContingent = sansCont || totalHS <= contingent;
     const contingentLabel = (contingent < contingentBase)
       ? `${contingent}h proraté (/${contingentBase}h sur l'exercice complet)`
       : `${contingent}h`;
@@ -67,8 +68,10 @@ const M6_ValiditeFH = {
       loi: 'Art. L3121-30 + L3121-33',
       ok: respectContingent,
       niveau: respectContingent ? 'ok' : (totalHS > contingent * 1.1 ? 'danger' : 'warning'),
-      detail: `${totalHS}h sur ${contingentLabel} de contingent (${Math.round(totalHS/Math.max(1,contingent)*100)}%).${!respectContingent ? ' Au-delà : repos compensateur obligatoire.' : ''}`,
-      recommandation: 'Au-delà du contingent, chaque HS ouvre droit à un repos compensateur obligatoire (100% pour entreprises >20 salariés).',
+      detail: sansCont
+        ? 'Sans objet : la convention ne fixe pas de contingent annuel d\'heures sup (L7221-2). Seules les durées maximales s\'appliquent.'
+        : `${totalHS}h sur ${contingentLabel} de contingent (${Math.round(totalHS/Math.max(1,contingent)*100)}%).${!respectContingent ? ' Au-delà : repos compensateur obligatoire.' : ''}`,
+      recommandation: sansCont ? 'Pas de contingent pour cette convention : vérifie surtout la durée maximale et le paiement des heures sup.' : 'Au-delà du contingent, chaque HS ouvre droit à un repos compensateur obligatoire (100% pour entreprises >20 salariés).',
     });
 
     // ── 4. Majoration des HS appliquée (L3121-28) ──────────────
