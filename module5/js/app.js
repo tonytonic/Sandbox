@@ -154,8 +154,12 @@ function runAnalysis() {
           wbWeeks=all.slice(-16); wbContract=Object.assign({},cc,{_vacLundis:conges});
           // Repères légaux, tous employeurs : 48 h sur une semaine (L3121-20),
           // 44 h en moyenne sur 12 semaines consécutives (L3121-22)
-          const d12=all.slice(-12), moy12=d12.length?d12.reduce((a,w)=>a+w.worked,0)/d12.length:0;
-          cumul={n:ex.length, base:cc.hoursBase, sem48:all.slice(-12).filter(w=>w.worked>48), moy12:Math.round(moy12*100)/100, nb12:d12.length};
+          // 04/10/2026 : heures des contrats IDCC 3239 hors repères du Code (L7221-2)
+          const c39=ex.filter(n=>M5_Contrats.est3239&&M5_Contrats.est3239(n));
+          const legal=w=>Math.round((w.worked-c39.reduce((a,n)=>a+(w.parContrat[n]||0),0))*100)/100;
+          const d12=all.slice(-12), moy12=d12.length?d12.reduce((a,w)=>a+legal(w),0)/d12.length:0;
+          const codeOk=c39.length<ex.length;
+          cumul={n:ex.length, base:cc.hoursBase, sem48:codeOk?all.slice(-12).map(w=>({monday:w.monday,worked:legal(w)})).filter(w=>w.worked>48):[], moy12:codeOk?Math.round(moy12*100)/100:0, nb12:codeOk?d12.length:0, hors3239:c39.length};
         }
       }
     }catch(e){}
@@ -199,9 +203,13 @@ function _weekResultFor(monday){
       { feriesMap, neutraliseFeries: contract.neutraliseFeries===true || contract.neutraliseFeries===undefined, mondayStr:monday, joursOuvresContrat: contract.joursOuvresContrat||5, workedDaysMap:_workedDaysMap(monday,year) });
   }catch(e){ return null; }
 }
+/* 04/10/2026 : contrat chez un particulier employeur (IDCC 3239) : pas de repère 10 h/jour
+   du Code (L7221-2) dans les calendriers. */
+window.M5_est3239=function(){try{const c=M5_Contract.get();return !!(c&&(c.sansMajoration||parseInt(c.idcc,10)===3239));}catch(e){return false;}};
 // Analyse par JOUR d'une semaine : repère les journées > 10h (Art. L3121-18)
 function _dailyFlags(monday, year){
   var out={max:0, count:0, days:[]};
+  if(window.M5_est3239&&window.M5_est3239()) return out; // 04/10/2026 : IDCC 3239, pas de repère 10 h/jour (L7221-2)
   try{
     var wd=M5_DataStore.getWeekDays(monday, year); var arr=(wd&&wd.length)?wd:[];
     for(var i=0;i<arr.length;i++){
@@ -399,9 +407,10 @@ function renderCalendar() {
     } else if(worked!==null) {
       const diff=worked-contract_daily;
       cellClass+= diff>0?' over': diff<-0.5?' under':' normal';
-      if(worked>10) cellClass+=' m5-day-over10';
+      const _o10=worked>10&&!window.M5_est3239();
+      if(_o10) cellClass+=' m5-day-over10';
       hoursHtml=`<span class="m5-cal-day-hours">${window._m5fmtH(worked)}</span>`;
-      if(worked>10) hoursHtml+='<span class="m5-cal-day-warn" title="Plus de 10h — Art. L3121-18">⚠️</span>';
+      if(_o10) hoursHtml+='<span class="m5-cal-day-warn" title="Plus de 10h — Art. L3121-18">⚠️</span>';
       if(diff>0) hoursHtml+=`<span class="m5-cal-day-diff">+${window._m5fmtH(diff)}</span>`;
     }
 
@@ -984,7 +993,7 @@ function renderWellbeing(analysis) {
     const cu=wb.cumul, f=window._m5fmtH;
     html+=`<div style="background:rgba(108,63,197,0.08);border:1px solid rgba(108,63,197,0.25);border-radius:8px;padding:8px 12px;font-size:11.5px;color:#6c3fc5;margin-bottom:10px;">
       <strong>Cumul de tes ${cu.n} contrats · ${f(cu.base)} prévues par semaine</strong><br>
-      Ta santé dépend de toutes tes heures, tous employeurs confondus. Les heures complémentaires restent calculées contrat par contrat.</div>`;
+      Ta santé dépend de toutes tes heures, tous employeurs confondus. Les heures complémentaires restent calculées contrat par contrat.${cu.hors3239?' Les repères 48 h et 44 h du Code ne comptent pas les heures chez un particulier employeur (IDCC 3239, art. L7221-2).':''}</div>`;
     if(cu.sem48.length){
       html+=`<div style="background:#fdecea;border:1.5px solid #e57373;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#b71c1c;margin-bottom:10px;">
         <strong>⚠️ Plus de 48 h sur ${cu.sem48.length>1?cu.sem48.length+' semaines':'une semaine'}</strong> (${cu.sem48.map(w=>f(w.worked)).join(', ')}), tous contrats réunis.
@@ -3452,7 +3461,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       var v=val(dk), lab=jr[(offset+d-1)%7];
       var _pi=_pIdx(dk);
       var _lk=(window.M5_isDayLocked&&window.M5_isDayLocked(dk));
-      var _over10=(v!=null && v>10);
+      var _over10=(v!=null && v>10 && !window.M5_est3239());
       var _wt=(v==null)?weekTotalFor(dk):null;
       var _isWS=(_wt!=null && window.M5_weekStartOf && window.M5_weekStartOf(dk,sd)===dk);
       var _vac=isVacDay(dk);
