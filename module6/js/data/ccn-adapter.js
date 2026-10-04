@@ -294,6 +294,7 @@ const M6_CCN_Adapter = {
         seuil: rules.seuil||35, taux1: rules.taux1||25, palier1: rules.palier1||8,
         taux2: rules.taux2||50, contingent: rules.contingent||220,
         sansContingent: !!rules.sansContingent,
+        renvoi: r.renvoi || null, // ancienne convention fusionnée (2111, 2395)
         // 3 paliers (ex: HCR 10/20/50) — préserver si la source en a
         taux_inter:   rules.taux_inter   || null,
         palier_inter: rules.palier_inter || null,
@@ -336,7 +337,7 @@ const M6_CCN_Adapter = {
     return '';
   },
   _getSubtitle(r, regime) {
-    if (regime === 'forfait_heures') return `IDCC ${r.idcc||'—'} · ${r.secteur||''} · ${r.sansContingent?'pas de contingent':(r.contingent||220)+'h'} · ${(!r.taux_inter && Number(r.taux1||25)===Number(r.taux2||50)) ? '+'+(r.taux1||25)+'%' : '+'+(r.taux1||25)+'%/'+(r.taux2||50)+'%'}`;
+    if (regime === 'forfait_heures') return `IDCC ${r.idcc||'—'}${r.renvoi?' (ex-'+r.renvoi+')':''} · ${r.secteur||''} · ${r.sansContingent?'pas de contingent':(r.contingent||220)+'h'} · ${(!r.taux_inter && Number(r.taux1||25)===Number(r.taux2||50)) ? '+'+(r.taux1||25)+'%' : '+'+(r.taux1||25)+'%/'+(r.taux2||50)+'%'}`;
     if (regime === 'cadre_dirigeant') return `IDCC ${r.idcc||'—'} · ${r.secteur||''} · L3111-2`;
     const e = r.entretienFreq==='semestriel'?'⚠️ Semestriel':'Annuel';
     return `IDCC ${r.idcc||'—'} · ${r.secteur||''} · ${r.plafond||218}j · ${e} · Rachat ${r.tauxRachat||10}%`;
