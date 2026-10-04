@@ -1052,7 +1052,18 @@ function _kitsuneGetCCN() {
 /* 04/10/2026 : convention sans contingent annuel (IDCC 3239) et taux unique */
 function _kitsuneSansContingent() { try { return !!(_kitsuneGetCCN() || {}).sansContingent; } catch (_) { return false; } }
 function _kitsuneTauxUnique() { try { const c = _kitsuneGetCCN() || {}; return !c.taux_inter && Number(c.taux1) === Number(c.taux2); } catch (_) { return false; } }
-function _kitsuneParleContingent(t) { return /contingent|220 ?h|220 heures/i.test(String(t || '')); }
+/* 04/10/2026 : majorations d'heures sup selon la convention (avant : « +25 % » écrit en dur) */
+function _kitsuneMajTxt(hs) {
+  const c = _kitsuneGetCCN() || {}, f = (typeof _fmtH === 'function') ? _fmtH : (x => x + 'h');
+  const t1 = Number(c.taux1 || 25), t2 = Number(c.taux2 || 50), p1 = Number(c.palier1 || 8);
+  if (!c.taux_inter && t1 === t2) return f(hs) + ' à +' + t1 + '%';
+  if (c.taux_inter) {
+    const pi = Number(c.palier_inter || 0), a = Math.min(hs, p1), b = Math.min(Math.max(0, hs - p1), pi), d = Math.max(0, hs - p1 - pi);
+    return [a > 0 ? f(a) + ' à +' + t1 + '%' : '', b > 0 ? f(b) + ' à +' + c.taux_inter + '%' : '', d > 0 ? f(d) + ' à +' + t2 + '%' : ''].filter(Boolean).join(' puis ');
+  }
+  return hs <= p1 ? f(hs) + ' à +' + t1 + '%' : f(p1) + ' à +' + t1 + '% puis ' + f(hs - p1) + ' à +' + t2 + '%';
+}
+function _kitsuneParleContingent(t) { return /contingent|220 ?h|220 heures/i.test(String(t || '').replace(/pas de contingent[^.]*/gi, '')); }
 function _kitsuneFormatMsg(msg, h) {
   const r = _kitsuneGetCCN();
   const nom = localStorage.getItem('CCN_NOM') || '';
@@ -2598,11 +2609,16 @@ function _analyzeLegalSituation() {
       return cnt >= 3; // au moins 3 jours vacances = semaine considérée vacances
     };
 
+    // 04/10/2026 : IDCC 3239 (Code du travail sur la durée non applicable, L7221-2) : plafond de la
+    // convention (50 h emploi à domicile ; 48 h EN MOYENNE assistant maternel), pas de moyenne 44 h/12 sem.
+    const _c3239 = !!ccnRules.sansContingent;
+    const _maxSem = _c3239 ? (ccnRules.maxHebdo || 48) : 48;
+    const _maxMoy = _c3239 && !!ccnRules.maxHebdoMoyenne;
     let maxWeekTotal = 0, maxWeekMon = '', weeksOver48 = 0, weeksOver44 = 0, maxAvg12 = 0;
     weekArr.forEach(w => {
       const isVac = _isVacWeekM4(w.mon) || weeksWithDayOff.has(isoWeekKey(w.mon || ''));
       if (!isVac && w.total > maxWeekTotal) { maxWeekTotal = w.total; maxWeekMon = w.mon; }
-      if (!isVac && w.total >= 48) weeksOver48++;
+      if (!isVac && w.total >= _maxSem) weeksOver48++;
       if (!isVac && w.total >= 44) weeksOver44++;
     });
     // Moyenne 12 semaines — les semaines vacances comptent comme baseHebdo (35h)
@@ -2631,10 +2647,11 @@ function _analyzeLegalSituation() {
       maxWeekTotal: Math.round(maxWeekTotal * 100) / 100,
       maxWeekMon, weeksOver48, weeksOver44,
       maxAvg12:     Math.round(maxAvg12 * 100) / 100,
-      hasWeekViol:  maxWeekTotal >= 48,
+      hasWeekViol:  !_maxMoy && maxWeekTotal >= _maxSem,
+      maxSem: _maxSem, maxSemMoyenne: _maxMoy, conv3239: _c3239,
       // Art. L3121-22 : moyenne sur 12 sem CONSECUTIVES — il faut au moins 12 sem effectives
       // Sans cette protection, 1 seule semaine à 45h déclenche l'alerte (faux positif)
-      hasAvgViol:   weekArr.length >= 12 && maxAvg12 >= 44,
+      hasAvgViol:   !_c3239 && weekArr.length >= 12 && maxAvg12 >= 44,
       // Alerte uniquement à partir de 44h moyenne 12 sem (Art. L3121-22)
       // Pas d'alerte sous-seuil — le seuil légal est 44h, point.
       hasWeekAlert: false,
@@ -2892,19 +2909,36 @@ function _generateDynamicMessageBase(situation, deltaH, burnoutScore) {
     const _semLbl  = _isPrevW ? 'La semaine passée' : 'Ta semaine';
     const _semLbl2 = _isPrevW ? 'la semaine passée' : 'cette semaine';
 
+    // 04/10/2026 : IDCC 3239 → plafond et majorations de la convention, pas les articles du Code
+    const _w3239 = !!s.weekly.conv3239, _wMax = s.weekly.maxSem || 48, _wMoy = !!s.weekly.maxSemMoyenne;
+    const _sansCont = _kitsuneSansContingent();
+    if (_w3239 && cwTotal >= _wMax) {
+      return {
+        titre: `${_wMoy ? '⚠️' : '🚨'} ${_isPrevW ? 'Sem. passée' : 'Semaine'} à ${_fmtH(cwTotal)} — ${_wMoy ? 'au-delà de ' + _wMax + 'h' : 'maximum de la convention'}`,
+        message: _wMoy
+          ? `${pr_pr}${_semLbl} atteint ${_fmtH(cwTotal)} (${_fmtH(cwHS)} d'heures sup). Ta convention (IDCC 3239) limite la durée à ${_wMax}h en moyenne : une semaine au-dessus reste possible si ta moyenne ne dépasse pas ${_wMax}h. Les heures au-delà de ${_fmtH(s.baseHebdo || 45)} sont majorées.`
+          : `${pr_pr}${_semLbl} atteint ${_fmtH(cwTotal)} (${_fmtH(cwHS)} d'heures sup). Ta convention (IDCC 3239) fixe un maximum de ${_wMax}h par semaine.`,
+        actions: [
+          `HS semaine : ${_kitsuneMajTxt(cwHS)}`,
+          _wMoy ? 'Surveille ta moyenne sur les semaines suivantes' : 'Conserve un relevé de tes horaires journaliers',
+          'Vérifie que ces heures apparaissent sur ton prochain bulletin'
+        ],
+        alerte: { niveau: _wMoy ? 'warning' : 'danger', texte: `⚠️ ${_fmtH(cwTotal)}/sem — IDCC 3239 : ${_wMax}h ${_wMoy ? 'en moyenne' : 'maximum'}` }
+      };
+    }
     // Choisir le message selon le niveau de surcharge
-    if (cwTotal >= 48) {
+    if (!_w3239 && cwTotal >= 48) {
       return {
         titre: `🚨 ${_isPrevW ? 'Sem. passée' : 'Semaine'} à ${_fmtH(cwTotal)} — plafond légal`,
         message: `${pr_pr}${_semLbl} atteint ${_fmtH(cwTotal)} (${_fmtH(cwHS)} de HS). Le plafond légal de 48h est dépassé (Art. L3121-20). Ces heures doivent être majorées et figurer sur ta fiche de paie.`,
         actions: [
-          `HS semaine : ${_fmtH(cwHS)} (${cwHS <= 8 ? '+25%' : '8h à +25% puis +50%'})`,
+          `HS semaine : ${_kitsuneMajTxt(cwHS)}`,
           'Conserve un relevé de tes horaires journaliers',
           'Vérifie que ces heures apparaissent sur ton prochain bulletin'
         ],
         alerte: { niveau: 'danger', texte: `⚠️ ${_fmtH(cwTotal)}/sem — Art. L3121-20 : 48h maximum` }
       };
-    } else if (cwTotal >= 44) {
+    } else if (!_w3239 && cwTotal >= 44) {
       // Lire la vraie moyenne 12 semaines depuis s.weekly pour ne pas alarmer à tort
       const avg12 = (s && s.weekly && s.weekly.maxAvg12) ? Math.round(s.weekly.maxAvg12 * 10) / 10 : 0;
       const avg12Over = avg12 >= 44;
@@ -2914,7 +2948,7 @@ function _generateDynamicMessageBase(situation, deltaH, burnoutScore) {
           ? `${pr_pr}${_fmtH(cwTotal)} ${_semLbl2} (${_fmtH(cwHS)} de HS). Ta moyenne sur 12 semaines atteint ${_fmtH(avg12)} — au-delà de la limite de 44h (Art. L3121-22).`
           : `${pr_pr}${_fmtH(cwTotal)} ${_semLbl2} (${_fmtH(cwHS)} de HS). C'est au-dessus de 44h mais ta moyenne sur 12 semaines reste raisonnable. Si ce rythme se répète, surveille la tendance (Art. L3121-22).`,
         actions: [
-          `HS majorées : ${cwHS <= 8 ? _fmtH(cwHS) + ' à +25%' : '8h à +25% + ' + _fmtH(cwHS-8) + ' à +50%'}`,
+          `HS majorées : ${_kitsuneMajTxt(cwHS)}`,
           avg12Over ? 'Deux seuils franchis — en parler à ton responsable' : 'Semaine ponctuelle — continue à saisir pour suivre la tendance',
           'Vérifier les majorations sur ta prochaine fiche de paie'
         ],
@@ -2933,12 +2967,12 @@ function _generateDynamicMessageBase(situation, deltaH, burnoutScore) {
           ? `Sem. passee — ${_fmtH(cwTotal)} (${_fmtH(cwHS)} de HS)`
           : `${jourNow} — semaine à ${_fmtH(cwTotal)}`,
         message: _isPrev
-          ? `${pr_pr}la semaine passée totalisait ${_fmtH(cwTotal)} (base ${_fmtH(s.baseHebdo || 35)} + ${_fmtH(cwHS)} de HS). ${hs50 > 0 ? `Majorations : ${_fmtH(hs25)} à +25% et ${_fmtH(hs50)} à +50%` : `Majoration : ${_fmtH(hs25)} à +25%`} (Art. L3121-36). Vérifie ton prochain bulletin.`
-          : `${pr_pr}${_fmtH(cwTotal)} cette semaine (base ${_fmtH(s.baseHebdo || 35)} + ${_fmtH(cwHS)} de HS). ${hs50 > 0 ? `Majorations : ${_fmtH(hs25)} à +25% et ${_fmtH(hs50)} à +50%` : `Majoration : ${_fmtH(hs25)} à +25%`} (Art. L3121-36).`,
+          ? `${pr_pr}la semaine passée totalisait ${_fmtH(cwTotal)} (base ${_fmtH(s.baseHebdo || 35)} + ${_fmtH(cwHS)} de HS). Majoration : ${_kitsuneMajTxt(cwHS)} ${_w3239 ? '(convention IDCC 3239)' : '(Art. L3121-36)'}. Vérifie ton prochain bulletin.`
+          : `${pr_pr}${_fmtH(cwTotal)} cette semaine (base ${_fmtH(s.baseHebdo || 35)} + ${_fmtH(cwHS)} de HS). Majoration : ${_kitsuneMajTxt(cwHS)} ${_w3239 ? '(convention IDCC 3239)' : '(Art. L3121-36)'}.`,
         actions: [
           'Saisies enregistrées dans FOX ✓',
           'Vérifier les majorations sur ta prochaine fiche de paie',
-          'Surveille le contingent annuel (max 220h par défaut)'
+          _sansCont ? 'Pas de contingent annuel pour ta convention' : 'Surveille le contingent annuel (max 220h par défaut)'
         ],
         alerte: cwTotal >= 40 ? { niveau: 'info', texte: `📊 ${_fmtH(cwTotal)}/sem — heures majorées à vérifier sur le bulletin` } : null
       };
