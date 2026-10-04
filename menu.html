@@ -3651,7 +3651,9 @@ document.addEventListener('DOMContentLoaded', function(){
     </div>`;
     let html = items.map(it => {
       const isActive = it.i === activeIdcc;
-      return `<div class="ccn-item${isActive?' active':''}" onclick="selectCCN(${it.i},this)"><div>${it.n}</div><div class="ccn-item-idcc">IDCC ${it.i} · ${it.g}</div></div>`;
+      // 04/10/2026 : ancienne convention fusionnée (2111, 2395) → renvoi vers l'entrée 3239
+      const ren = it.renvoi ? ` · remplace l'ex-IDCC ${it.renvoi} (${it.renvoiNom})` : '';
+      return `<div class="ccn-item${isActive?' active':''}" onclick="selectCCN(${it.i},this)"><div>${it.n}</div><div class="ccn-item-idcc">IDCC ${it.i} · ${it.g}${ren}</div></div>`;
     }).join('');
     html = droitCommunItem + html;
     html += `<div class="ccn-item-custom" onclick="toggleCustomForm()">⚙️ Accord d'entreprise / personnalisé…</div>`;
