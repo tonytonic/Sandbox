@@ -427,7 +427,17 @@ const M6_ForfaitHeures = {
       if(_mk){ const mm=moisMap[_mk]||(moisMap[_mk]={mois:_mk,hs1:0,hs_inter:0,hs2:0,semaines:0});
         mm.hs1+=hs1; mm.hs_inter+=hs_inter; mm.hs2+=hs2; mm.semaines++; }
 
-      if(h>60) alertes.push({niveau:'danger',icon:'⛔',titre:`${wk} — ${h}h > 60h absolu`,
+      // 04/10/2026 : IDCC 3239 : Code du travail sur la durée non applicable (L7221-2) →
+      // maximum de la convention (50 h par semaine emploi à domicile ; 48 h EN MOYENNE
+      // assistant maternel, donc une semaine au-delà n'est pas en soi un dépassement).
+      if(sansContingent && ccnRules && ccnRules.maxHebdoMoyenne){
+        if(h>maxHebdo) alertes.push({niveau:'info',icon:'ℹ️',titre:`${wk} — ${h}h, au-delà de ${maxHebdo}h`,
+          texte:`La convention limite la durée à ${maxHebdo}h en moyenne : une semaine au-dessus reste possible si la moyenne ne dépasse pas ${maxHebdo}h.`,loi:'CCN 3239'});
+      } else if(sansContingent){
+        if(h>maxHebdo) alertes.push({niveau:'danger',icon:'⚠️',titre:`${wk} — ${h}h > ${maxHebdo}h`,
+          texte:`Maximum hebdomadaire de la convention (${maxHebdo}h) dépassé.`,loi:'CCN 3239'});
+      }
+      else if(h>60) alertes.push({niveau:'danger',icon:'⛔',titre:`${wk} — ${h}h > 60h absolu`,
         texte:'Dépassement absolu interdit (L3121-20).',loi:'L3121-20'});
       else if(h>maxHebdo) alertes.push({niveau:'danger',icon:'⚠️',titre:`${wk} — ${h}h > ${maxHebdo}h CCN`,
         texte:`Maximum CCN "${ccnNom}" dépassé.`,loi:'L3121-20'});
@@ -436,6 +446,17 @@ const M6_ForfaitHeures = {
     }
 
     const totalHS = Math.round((totalHSTaux1 + totalHSTaux_inter + totalHSTaux2)*60)/60;
+    // 04/10/2026 : IDCC 3239 : moyenne maximale de la convention (emploi à domicile 48 h sur
+    // 12 semaines, art. 134 ; assistant maternel 48 h sur 4 mois ≈ 17 semaines, art. 96.3)
+    let avgConv=0, avgConvN=0;
+    if(sansContingent && ccnRules && ccnRules.maxMoyenneSemaines){
+      avgConvN=ccnRules.maxMoyenneSemaines; const hs=detailSemaines.map(d=>d.heures||0);
+      for(let i=avgConvN-1;i<hs.length;i++){ const w=hs.slice(i-avgConvN+1,i+1); const m=w.reduce((a,b)=>a+b,0)/w.length; if(m>avgConv) avgConv=m; }
+      avgConv=Math.round(avgConv*100)/100;
+      const mx=ccnRules.maxMoyenne||48;
+      if(hs.length>=avgConvN && avgConv>mx) alertes.push({niveau:'warning',icon:'⚠️',titre:`Moyenne ${avgConv}h > ${mx}h`,
+        texte:`Sur ${avgConvN>=17?'4 mois':avgConvN+' semaines'} consécutifs, la moyenne dépasse les ${mx}h de la convention (${avgConvN>=17?'art. 96.3':'art. 134'}).`,loi:'CCN 3239'});
+    }
     const pct=sansContingent?0:Math.min(100,Math.round(totalHS/contingent*100));
     if(sansContingent){ /* pas de contingent : aucune alerte de contingent */ }
     else if(totalHS>contingent) alertes.push({niveau:'danger',icon:'⚠️',titre:`Contingent dépassé (${ccnNom})`,
@@ -473,7 +494,7 @@ const M6_ForfaitHeures = {
             seuil,taux1,taux_inter,palier_inter,taux2,palier:palier1,contingent,
             contingentBase, contingentProrata,
             ccnNom,prediction,
-            tauxHoraire:tauxH, sansContingent, parMois,
+            tauxHoraire:tauxH, sansContingent, parMois, avgConv, avgConvN,
             // un seul taux pour toutes les heures sup (ex. assistant maternel 10 %/10 %)
             tauxUnique: taux_inter === null && Number(taux1) === Number(taux2),
             a3Paliers: taux_inter !== null};
