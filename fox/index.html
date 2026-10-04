@@ -2469,7 +2469,7 @@ function _analyzeLegalSituation() {
     const _seuilLegal = ccnRules.seuil; // seuil LÉGAL de déclenchement des HS (35h en droit commun)
     // Base CONTRACTUELLE réelle (ex: 39h) — lue depuis M1 (clé BASE_HEBDO_<année>),
     // même source que module-reader.js. Fallback sur le seuil légal si non défini.
-    const baseHebdo = Number(localStorage.getItem('BASE_HEBDO_' + year)) || _seuilLegal;
+    const baseHebdo = Math.max(Number(localStorage.getItem('BASE_HEBDO_' + year)) || 0, _seuilLegal || 35); // 04/10/2026 : jamais sous le seuil de la convention (40 h pour la 3239)
     const baseJour  = baseHebdo / 5;
     const contingentMax = ccnRules.contingent;
 
@@ -2682,8 +2682,9 @@ function _analyzeLegalSituation() {
       annualOT: Math.round(bestAnnual * 10) / 10,
       contingentMax, contingentPct: pct,
       contingentRem: Math.max(0, Math.round((contingentMax - bestAnnual) * 10) / 10),
-      hasContingentAlert:  pct >= 75,
-      hasContingentDanger: pct >= 100,
+      hasContingentAlert:  !ccnRules.sansContingent && pct >= 75,   // 04/10/2026 : pas de contingent (IDCC 3239)
+      hasContingentDanger: !ccnRules.sansContingent && pct >= 100,
+      sansContingent: !!ccnRules.sansContingent,
     };
 
     // 5. NIVEAU GLOBAL
@@ -2704,7 +2705,7 @@ function _analyzeLegalSituation() {
     console.warn('_analyzeLegalSituation:', e);
     const fallbackCCN = _kitsuneGetCCN();
     const _fbYear = localStorage.getItem('ACTIVE_YEAR_SUFFIX') || String(new Date().getFullYear());
-    const _fbBase = Number(localStorage.getItem('BASE_HEBDO_' + _fbYear)) || fallbackCCN.seuil;
+    const _fbBase = Math.max(Number(localStorage.getItem('BASE_HEBDO_' + _fbYear)) || 0, fallbackCCN.seuil || 35);
     return {
       daily:  { hasDailyCrit:false, hasDailyRisk:false, dailyRecent:false, maxDayTotal:0, maxDayExtra:0, baseJour:_fbBase/5, daysOver10:0, daysOver12:0 },
       weekly: { hasWeekViol:false, hasAvgViol:false, hasWeekAlert:false, maxWeekTotal:0, maxAvg12:0, weeksOver48:0, weeksOver44:0, totalWeeks:0 },

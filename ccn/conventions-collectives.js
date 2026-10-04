@@ -488,19 +488,19 @@ const REGLES_HS = {
   PEMP40: {
     id:'PEMP40', nom:'Particuliers employeurs — seuil 40h',
     seuil:40, taux1:25, palier1:8, taux_inter:null, palier_inter:null, taux2:50,
-    contingent:220, maxHebdo:50, debutSemaine:1,
+    contingent:220, sansContingent:true, maxHebdo:50, debutSemaine:1,
     feriesChomes: 11, feriesMajoration: 0,
     feries1erMaiMajoration: 100, feriesAlsaceMoselle: false,
-    notes:'Salariés du particulier employeur (IDCC 3239). Heures sup au-delà de 40h de travail effectif (moyenne sur 8 semaines, art. 136) : +25 % de la 41e à la 48e h, +50 % de la 49e à la 50e h (art. 147), 50h max. Les règles du Code sur le temps partiel ne s\'appliquent pas (L7221-2). Assistant(e) maternel(le) : seuil 45h et majoration fixée au contrat (min. 10 %, art. 96.2 et 110.1), non modélisé ici.'
+    notes:'Salariés du particulier employeur (IDCC 3239). Pas de contingent annuel d\'heures sup (le Code du travail sur la durée du travail ne s\'applique pas, L7221-2 ; la convention n\'en fixe pas) : le 220 h n\'est qu\'un repère interne, jamais affiché ni utilisé pour alerter. Heures sup au-delà de 40h de travail effectif (moyenne sur 8 semaines, art. 136) : +25 % de la 41e à la 48e h, +50 % de la 49e à la 50e h (art. 147), 50h max. Les règles du Code sur le temps partiel ne s\'appliquent pas (L7221-2). Assistant(e) maternel(le) : seuil 45h et majoration fixée au contrat (min. 10 %, art. 96.2 et 110.1), non modélisé ici.'
   },
 
   AMAT45: {
     id:'AMAT45', nom:'Assistant(e) maternel(le) — seuil 45h',
     seuil:45, taux1:10, palier1:3, taux_inter:null, palier_inter:null, taux2:10,
-    contingent:220, maxHebdo:48, debutSemaine:1,
+    contingent:220, sansContingent:true, maxHebdo:48, debutSemaine:1,
     feriesChomes: 11, feriesMajoration: 0,
     feries1erMaiMajoration: 100, feriesAlsaceMoselle: false,
-    notes:'Assistant(e) maternel(le) agréé(e) (IDCC 3239, socle assistant maternel). Durée conventionnelle 45h (art. 96.2) ; heures au-delà de 45h majorées au taux fixé dans le contrat, au moins 10 % (art. 110.1) — l\'appli applique ce minimum de 10 % ; durée maximale 48h en moyenne (art. 96.3). Heures entre le contrat et 45h : heures complémentaires, majoration seulement si le contrat la prévoit (art. 110.2).'
+    notes:'Pas de contingent annuel d\'heures sup (convention et L7221-2). Assistant(e) maternel(le) agréé(e) (IDCC 3239, socle assistant maternel). Durée conventionnelle 45h (art. 96.2) ; heures au-delà de 45h majorées au taux fixé dans le contrat, au moins 10 % (art. 110.1) — l\'appli applique ce minimum de 10 % ; durée maximale 48h en moyenne (art. 96.3). Heures entre le contrat et 45h : heures complémentaires, majoration seulement si le contrat la prévoit (art. 110.2).'
   },
 
   // ─────────────────────────────────────────────────────────
@@ -965,7 +965,8 @@ function getGroupeForCCN(idcc) {
   // contre le texte en vigueur (fonds droit). Elles remplacent seulement les valeurs
   // citees ; tout le reste vient du groupe. Sans x : comportement d'origine.
   if (!e || !e.x) return base;
-  return Object.assign({}, base, e.x, { notes: (base.notes || '') + (e.x.src ? ' | IDCC ' + e.i + ' : ' + e.x.src : '') });
+  return Object.assign({}, base, e.x, { nom: e.n + ' — règles propres à la convention',
+    notes: (base.notes || '') + (e.x.src ? ' | IDCC ' + e.i + ' : ' + e.x.src : '') });
 }
 
 function findCCN(terme) {

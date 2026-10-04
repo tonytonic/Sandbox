@@ -339,6 +339,28 @@ M6_CCN_Adapter.duMenu = function(regime) {
 /* Contrat Zenji déjà enregistré sans CCN : reprise une fois (M6_CCN_MENU_<régime> garde
    l'IDCC déjà proposé). Seules les valeurs restées au défaut légal sont remplacées ;
    une valeur saisie à la main n'est jamais écrasée. Renvoie le nom repris, sinon ''. */
+/* 04/10/2026 : règles de la convention corrigées (fonds droit) : un contrat forfait heures
+   déjà rattaché à une convention reprend les nouvelles valeurs (contingent, seuil, taux,
+   paliers) une fois par version des règles, seulement là où la valeur est restée au défaut
+   légal. Une valeur saisie à la main n'est jamais écrasée. Renvoie true si modifié. */
+M6_CCN_Adapter.resyncRegles = function(regime) {
+  try {
+    if (regime !== 'forfait_heures' || !global.M6_Storage || !global.CCN_API) return false;
+    const c = M6_Storage.getContract(regime); if (!c || !c.ccnIdcc) return false;
+    const ver = String(global.CCN_API.version || '') + ':' + c.ccnIdcc;
+    if (localStorage.getItem('M6_CCN_REGLES_VER') === ver) return false;
+    localStorage.setItem('M6_CCN_REGLES_VER', ver);
+    const r = global.CCN_API.getGroupeForCCN(parseInt(c.ccnIdcc, 10)); if (!r) return false;
+    const def = (v, x) => v === undefined || v === null || v === '' || v === 0 || v === x;
+    const n = Object.assign({}, c); let ch = false;
+    const set = (k, v, d) => { if (v != null && def(c[k], d) && c[k] !== v) { n[k] = v; ch = true; } };
+    set('contingent', r.contingent, 220); set('taux1', r.taux1, 25); set('taux2', r.taux2, 50); set('palier1', r.palier1, 8);
+    set('seuilHebdo', r.seuil, 35);
+    if (!c.taux_inter && !c.palier_inter && r.taux_inter) { n.taux_inter = r.taux_inter; n.palier_inter = r.palier_inter || null; ch = true; }
+    if (ch) M6_Storage.setContract(regime, n);
+    return ch;
+  } catch (_) { return false; }
+};
 M6_CCN_Adapter.appliquerDuMenu = function(regime) {
   try {
     if (!regime || !global.M6_Storage) return '';

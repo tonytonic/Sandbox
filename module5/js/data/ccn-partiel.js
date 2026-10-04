@@ -44,8 +44,8 @@ const REGLES_HC = {
   HOSPI130:  { cap:0.33, rate1:0.10, rate2:0.25, threshold:0.10, notice:7, note:'Hospitalisation privée FEHAP — accord branche étendu, plafond 1/3' },
   TRANSP:    { cap:0.10, rate1:0.10, rate2:0.25, threshold:0.10, notice:7, note:'Transport routier — plafond 10% pour les temps partiels' },
   ANIM70:    { cap:0.33, rate1:0.10, rate2:0.25, threshold:0.10, notice:7, note:'Animation ÉCLAT — avenant n°201 du 20/09/2023, plafond 1/3' },
-  PEMP:      { cap:1, rate1:0, rate2:0, threshold:0.10, notice:7, tempsPlein:40, sansMajoration:true, note:'Particuliers employeurs (IDCC 3239) — règles du Code sur le temps partiel non applicables (L7221-2) : heures au-delà du contrat payées au taux normal jusqu\'à 40 h (sauf majoration prévue au contrat) ; au-delà de 40 h, heures supplémentaires (+25 % puis +50 %, art. 147)' },
-  AMAT:      { cap:1, rate1:0, rate2:0, threshold:0.10, notice:7, tempsPlein:45, sansMajoration:true, note:'Assistant(e) maternel(le) (IDCC 3239) — heures au-delà du contrat jusqu\'à 45 h : heures complémentaires, majorées seulement si le contrat le prévoit (art. 110.2) ; au-delà de 45 h : heures majorées au taux du contrat, au moins 10 % (art. 110.1)' },
+  PEMP:      { cap:1, rate1:0, rate2:0, threshold:1, notice:7, tempsPlein:40, sansMajoration:true, note:'Particuliers employeurs (IDCC 3239) — règles du Code sur le temps partiel non applicables (L7221-2) : heures au-delà du contrat payées au taux normal jusqu\'à 40 h (sauf majoration prévue au contrat) ; au-delà de 40 h, heures supplémentaires (+25 % puis +50 %, art. 147)' },
+  AMAT:      { cap:1, rate1:0, rate2:0, threshold:1, notice:7, tempsPlein:45, sansMajoration:true, note:'Assistant(e) maternel(le) (IDCC 3239) — heures au-delà du contrat jusqu\'à 45 h : heures complémentaires, majorées seulement si le contrat le prévoit (art. 110.2) ; au-delà de 45 h : heures majorées au taux du contrat, au moins 10 % (art. 110.1)' },
   CSS60:    { cap:0.10, rate1:0.10, rate2:0.25, threshold:0.10, notice:7, note:'Centres sociaux — plafond 10%' },
 };
 

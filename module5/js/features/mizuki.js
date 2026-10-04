@@ -111,7 +111,11 @@ const Mizuki = {
     const daily = analysis && analysis.dailyFlags;
     const _al = (weekResult && weekResult.alerts) || [];
     // Requalification (seuil temps plein) = le plus grave → prioritaire
-    if (_al.some(a=>a.code==='REQUALIFICATION')) return _nextMsg(MSGS_REQUALIF)(n, weekResult.workedH);
+    if (_al.some(a=>a.code==='REQUALIFICATION') && !(weekResult.rate1 === 0 && weekResult.rate2 === 0)) return _nextMsg(MSGS_REQUALIF)(n, weekResult.workedH);
+    if (_al.some(a=>a.code==='REQUALIFICATION'))   // IDCC 3239 : au-delà du temps plein de la convention (04/10/2026)
+      return weekResult.tempsPlein===45
+        ? `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 45 h, ce sont des heures majorées, au taux prévu dans ton contrat (au moins +10 %). Note-les bien.`
+        : `🦊 ${n}${weekResult.workedH}h cette semaine : au-delà de 40 h, ce sont des heures supplémentaires (+25 % jusqu'à 48 h, puis +50 %). Note-les bien.`;
     // Journée > 10h : signal santé/légal (Art. L3121-18)
     if (daily && daily.count > 0) return _nextMsg(MSGS_JOUR_10H)(n, daily.max);
 
@@ -194,7 +198,18 @@ const Mizuki = {
       const hasCap = alerts.some(a=>a.code==='PLAFOND_CCN');
       const hasProche = alerts.some(a=>a.code==='PROCHE_TEMPS_PLEIN');
 
-      if (hasRequalif) {
+      const _pemp = weekResult.rate1 === 0 && weekResult.rate2 === 0;   // IDCC 3239 (04/10/2026)
+      const _tp = weekResult.tempsPlein || 35;
+      if (hasRequalif && _pemp) {
+        msg = {
+          titre: _tp===45 ? '🧸 Au-delà de 45 h' : '🏠 Au-delà de 40 h',
+          icon: '⏱️', level: 'alerte',
+          message: _tp===45
+            ? `Cette semaine, tu as fait ${weekResult.workedH}h. Au-delà de 45 h, ce sont des heures majorées, au taux fixé dans ton contrat (au moins +10 %, art. 110.1 de ta convention). Mizuki ne les majore pas : vérifie-les sur ta fiche de paie.`
+            : `Cette semaine, tu as fait ${weekResult.workedH}h. Au-delà de 40 h, ce sont des heures supplémentaires : +25 % jusqu'à 48 h, puis +50 % (art. 136 et 147 de ta convention). Mizuki ne les majore pas : vérifie-les sur ta fiche de paie.`,
+          actions: ['Comparer avec la fiche de paie', 'Garder une trace écrite'],
+        };
+      } else if (hasRequalif) {
         msg = {
           titre: '🚨 Risque de requalification',
           icon: '🚨', level: 'critique',
@@ -212,7 +227,7 @@ const Mizuki = {
         msg = {
           titre: '👀 Proche du temps plein',
           icon: '👀', level: 'vigilance',
-          message: `Tu as travaillé ${weekResult.workedH}h cette semaine, soit ${Math.round(weekResult.workedH/35*100)}% du temps plein légal. Il reste seulement ${(35-weekResult.workedH).toFixed(1)}h avant le seuil de requalification. Sois attentive la semaine prochaine.`,
+          message: _pemp ? `Tu as travaillé ${weekResult.workedH}h cette semaine. Il reste ${(_tp-weekResult.workedH).toFixed(1)}h avant les ${_tp} h de ta convention : au-delà, ${_tp===45?'les heures sont majorées (au moins +10 %)':'ce sont des heures supplémentaires (+25 %)'}.` : `Tu as travaillé ${weekResult.workedH}h cette semaine, soit ${Math.round(weekResult.workedH/35*100)}% du temps plein légal. Il reste seulement ${(35-weekResult.workedH).toFixed(1)}h avant le seuil de requalification. Sois attentive la semaine prochaine.`,
           actions: ['Surveiller les prochaines semaines', 'Voir les règles de requalification'],
         };
       } else if (hasCap) {

@@ -71,7 +71,7 @@ const M5_PdfReport = {
     row('Convention collective',contract.ccnNom||'Droit commun');
     const capPct=Math.round((contract.cap||0.10)*100);
     const capH=(contract.hoursBase*(contract.cap||0.10)).toFixed(1);
-    row('Plafond heures comp.',`${capPct}% du contrat (max ${capH}h/sem)`);
+    row('Plafond heures comp.',contract.sansMajoration?`Pas de plafond (jusqu'à ${contract.tempsPlein||40} h)`:`${capPct}% du contrat (max ${capH}h/sem)`);
     row("Majorations",contract.sansMajoration?"Aucune (IDCC 3239 : taux normal jusqu'à "+(contract.tempsPlein||40)+" h, sauf contrat)":`+${Math.round((contract.rate1??0.10)*100)}% jusqu'à ${(contract.hoursBase*((contract.threshold||0.10))).toFixed(1)}h · +${Math.round((contract.rate2??0.25)*100)}% au-delà`);
     row('Mode de calcul',modeLabel);
     row("Jours fériés", contract.neutraliseFeries!==false ? "Neutralisés (assimilation temps effectif)" : "Inclus dans l'assiette (accord spécifique)");
@@ -105,16 +105,18 @@ const M5_PdfReport = {
       row('Heures ce mois',`${mr.totalWorked}h`);
       row('Delta vs seuil',`${mr.delta>=0?'+':''}${mr.delta.toFixed(1)}h`,mr.delta>0);
       row('Heures comp. mois',`${mr.totalCompH}h`);
-      row(`dont ${M5_tauxTxt(contract.rate1??0.10)}`,`${mr.compH1.toFixed(1)}h`);
-      row(`dont ${M5_tauxTxt(contract.rate2??0.25)}`,`${mr.compH2.toFixed(1)}h`);
+      if(Math.abs((contract.rate1??0.10)-(contract.rate2??0.25))<1e-9) row(`dont ${M5_tauxTxt(contract.rate1??0.10)}`,`${(mr.compH1+mr.compH2).toFixed(1)}h`);
+      else { row(`dont ${M5_tauxTxt(contract.rate1??0.10)}`,`${mr.compH1.toFixed(1)}h`);
+      row(`dont ${M5_tauxTxt(contract.rate2??0.25)}`,`${mr.compH2.toFixed(1)}h`); }
       if(contract.hourlyRate>0) row('Montant estimé brut',`${mr.totalCompAmount.toFixed(2)} €`);
       row('Plafond mensuel',`${mr.maxAllowed.toFixed(1)}h`);
     } else if(stats) {
       row('Semaines saisies',String(stats.totalWeeks));
       row('Semaines en dépassement',`${stats.weeksWithComp} (${stats.pctOverContract}%)`);
       row('Total heures comp.',`${stats.totalComp.toFixed(1)}h`,stats.totalComp>0);
-      row(`dont ${M5_tauxTxt(contract.rate1??0.10)}`,`${(stats.totalComp1||0).toFixed(1)}h`);
-      row(`dont ${M5_tauxTxt(contract.rate2??0.25)}`,`${(stats.totalComp2||0).toFixed(1)}h`);
+      if(Math.abs((contract.rate1??0.10)-(contract.rate2??0.25))<1e-9) row(`dont ${M5_tauxTxt(contract.rate1??0.10)}`,`${((stats.totalComp1||0)+(stats.totalComp2||0)).toFixed(1)}h`);
+      else { row(`dont ${M5_tauxTxt(contract.rate1??0.10)}`,`${(stats.totalComp1||0).toFixed(1)}h`);
+      row(`dont ${M5_tauxTxt(contract.rate2??0.25)}`,`${(stats.totalComp2||0).toFixed(1)}h`); }
       row('Moyenne hebdo',`${stats.avgWorked}h/sem`);
       row('Semaine la plus chargée',`${stats.maxWorked}h`);
     }
@@ -124,8 +126,9 @@ const M5_PdfReport = {
     if(contract.pay && mode!=='ANNUEL'){
       const P=contract.pay, f=(h)=>{h=Math.round((h||0)*60);return Math.floor(h/60)+'h'+(h%60?String(h%60).padStart(2,'0'):'');};
       h1('Paiement des heures complémentaires');
-      row(`Dues ${M5_tauxTxt(contract.rate1??0.10)}`,f(P.du10));
-      row(`Dues ${M5_tauxTxt(contract.rate2??0.25)}`,f(P.du25));
+      if(Math.abs((contract.rate1??0.10)-(contract.rate2??0.25))<1e-9) row(`Dues ${M5_tauxTxt(contract.rate1??0.10)}`,f(P.du10+P.du25));
+      else { row(`Dues ${M5_tauxTxt(contract.rate1??0.10)}`,f(P.du10));
+      row(`Dues ${M5_tauxTxt(contract.rate2??0.25)}`,f(P.du25)); }
       row('Payées (cochées dans Mizuki)',f(P.paye10+P.paye25)+(P.paye10+P.paye25>0?` (${f(P.paye10)} + ${f(P.paye25)})`:''));
       row('Reste à payer',f(P.reste10+P.reste25),P.reste10+P.reste25>0.01);
       if(contract.hourlyRate>0) row('Reste estimé (brut)',((P.reste10*(1+(contract.rate1??0.10))+P.reste25*(1+(contract.rate2??0.25)))*contract.hourlyRate).toFixed(2)+' €',P.reste10+P.reste25>0.01);
@@ -150,7 +153,7 @@ const M5_PdfReport = {
         const ratio=maxW>0?wh/maxW:0;
         // Couleur : vert si OK, ambre si HC, rouge si proche 35h
         let r=230,g=230,b=255;
-        if(wh>=35){ r=220;g=80;b=80; }
+        if(wh>=(contract.tempsPlein||35)){ r=220;g=80;b=80; }
         else if(wh>contract.hoursBase){ r=Math.round(245+ratio*0); g=Math.round(158*(1-ratio*0.3)); b=Math.round(11+ratio*20); }
         else if(wh>0){ r=16;g=185;b=129; }
         doc.setFillColor(r,g,b);
@@ -164,7 +167,7 @@ const M5_PdfReport = {
       y=wy+CELL+6;
       // Légende
       doc.setFontSize(7); doc.setFont('helvetica','normal');
-      [[16,185,129,'Conforme'],[245,158,11,'Heures comp.'],[220,80,80,'35h et +']].forEach(([r,g,b,lbl],i)=>{
+      [[16,185,129,'Conforme'],[245,158,11,'Heures comp.'],[220,80,80,(contract.tempsPlein||35)+'h et +']].forEach(([r,g,b,lbl],i)=>{
         const lx=M+i*40;
         doc.setFillColor(r,g,b); doc.rect(lx,y,5,4,'F');
         doc.setTextColor(0,0,0); doc.text(lbl,lx+7,y+3);
@@ -209,8 +212,8 @@ const M5_PdfReport = {
           doc.text(c1>0?`${c1.toFixed(1)}h`:'--',cols[3],y);
           doc.text(c2>0?`${c2.toFixed(1)}h`:'--',cols[4],y);
           doc.text(montant>0?`${montant.toFixed(2)}€`:'--',cols[5],y);
-          doc.setTextColor(wh>=35?180:0,0,0);
-          doc.text(wh>=35?'! 35h':' ',cols[6],y);
+          doc.setTextColor(wh>(contract.tempsPlein||34.99)?180:0,0,0);
+          doc.text(wh>(contract.tempsPlein||34.99)?'! '+(contract.tempsPlein||35)+'h':' ',cols[6],y);
           doc.setTextColor(0,0,0);
         } else {
           doc.setTextColor(180,180,180);

@@ -2293,7 +2293,7 @@ function hsPour(c){
       const e=CCN_API.CCN_ALIASES.find(x=>x.i===c[0]);
       if(e){
         const r=CCN_API.getGroupeForCCN(c[0]);
-        return {n:e.x?'règles propres à la convention':r.nom,id:e.x?'IDCC '+c[0]:r.id,s:r.seuil,t1:r.taux1,p1:r.palier1,ti:r.taux_inter,pi:r.palier_inter,t2:r.taux2,cg:r.contingent,mh:r.maxHebdo||48,
+        return {n:e.x?'règles propres à la convention':r.nom,id:e.x?'IDCC '+c[0]:r.id,s:r.seuil,t1:r.taux1,p1:r.palier1,ti:r.taux_inter,pi:r.palier_inter,t2:r.taux2,cg:r.sansContingent?null:r.contingent,mh:r.maxHebdo||48,
           src:(e.x&&e.x.src)?e.x.src:(r.id==='PEMP40'?r.notes:'')};
       }
     }
@@ -2429,7 +2429,7 @@ function renderGList(){
       <div style="flex:1;min-width:0">
         <div><span class="chip">IDCC ${c[0]>7000?"rég.":c[0]}</span>${sBadge(st)}${hasPct?'<span class="pct-t">%SMIC</span>':""}</div>
         <div class="cn">${c[1]}</div>
-        <div class="cm">${c[2]} · ${hs.cg}h/an</div>
+        <div class="cm">${c[2]} · ${hs.cg==null?'pas de contingent':hs.cg+'h/an'}</div>
       </div>
       <div class="cr"><div class="crv">${fmt(mn)}</div><div class="crl">→ ${fmt(mx)}</div></div>
       <span class="arr">›</span>
@@ -2595,7 +2595,7 @@ function showGD(idx){
     <div class="hsc"><div class="hsv">+${hs.t1}%</div><div class="hsl">Pal.1 (${hs.p1}h)</div></div>
     ${hs.ti?'<div class="hsc"><div class="hsv">+'+hs.ti+'%</div><div class="hsl">Inter.'+(hs.pi?' ('+hs.pi+'h)':'')+'</div></div>':""}
     <div class="hsc"><div class="hsv">+${hs.t2}%</div><div class="hsl">Pal.final</div></div>
-    <div class="hsc"><div class="hsv">${hs.cg}h</div><div class="hsl">Contingent/an</div></div>
+    <div class="hsc"><div class="hsv">${hs.cg==null?'—':hs.cg+'h'}</div><div class="hsl">${hs.cg==null?'Pas de contingent':'Contingent/an'}</div></div>
     <div class="hsc"><div class="hsv">${hs.mh}h</div><div class="hsl">Max hebdo</div></div>
   </div>${hs.src?'<div style="font-size:.68rem;opacity:.85;margin-top:6px;line-height:1.35">Règle de la convention : '+hs.src+'</div>':''}</div>`;
   h+=`<div class="disc-modal">Source : ${gd.s} · SMIC ${fmt(SMIC)} (${SDATE}) · Montants à titre indicatif · Vérifier sur Légifrance avant application.</div>`;

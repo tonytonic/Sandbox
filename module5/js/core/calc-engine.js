@@ -136,10 +136,10 @@ const CalcEngine = {
     if(workedH > contractAjuste) {
       let diff = workedH - contractAjuste;
 
-      if(workedH >= FULL && ccnRules.sansMajoration) {
+      if(workedH > FULL && ccnRules.sansMajoration) {   // 04/10/2026 : 40 h pile = temps plein, pas encore des heures sup
         alerts.push({ level:'alerte', code:'REQUALIFICATION',
           msg:`${workedH}h cette semaine : au-delà de ${FULL} h, ce sont des heures ${FULL===45?'majorées, au taux de ton contrat (au moins +10 %)':'supplémentaires (+25 % jusqu\'à 48 h, puis +50 %)'}. Mizuki ne les majore pas : vérifie-les sur ta fiche de paie.` });
-      } else if(workedH >= FULL) {
+      } else if(workedH >= FULL && !ccnRules.sansMajoration) {
         alerts.push({ level:'critique', code:'REQUALIFICATION',
           msg:`Tu as atteint ${workedH}h cette semaine — le seuil légal du temps plein. La loi prévoit des droits dans ce cas. Conserve cet historique.` });
         isLegal = false;

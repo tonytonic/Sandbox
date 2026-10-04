@@ -924,7 +924,9 @@ function _absRetenue(v){if(!v)return 0;if(CP_JURIS&&v.cp)return 0;return v.absen
 if(localStorage.getItem('AUTO_IMPORT_FERIES')==='true'){
   setTimeout(()=>{ if(typeof importFeries==='function') importFeries(); }, 2000);
 }
-const DAILY_WORK_HOURS=7,ALLOW_RECUP_FREE=true;
+const ALLOW_RECUP_FREE=true;
+// 04/10/2026 : journée type = seuil hebdo de la convention / 5 (7 h en droit commun, 8 h pour 40 h)
+Object.defineProperty(window,'DAILY_WORK_HOURS',{get(){try{return (getCCNRules().seuil||35)/5;}catch(_){return 7;}},configurable:true});
 
 /* ── CCN : règles actives ── */
 function getCCNRules() {
@@ -1460,6 +1462,7 @@ function updateContingent(){
   const rules=getCCNRules();
   BASE_HEBDO = rules.seuil;
   const LIMIT=rules.contingent;
+  try{localStorage.setItem("BASE_HEBDO_"+currentSuffix,String(rules.seuil));}catch(_){}
   const total=hsContingentExercice(data,specialDays,AUTO_FERIE,exerciseStart,annualDate);
   // Enregistré seulement si l'exercice a des saisies (un M1 ouvert mais vide ne doit pas masquer M2)
   if(Object.keys(data||{}).some(k=>/^\d{4}-\d{2}-\d{2}$/.test(k)))hsEnregistrerOfficiel(currentSuffix,total);
@@ -1468,6 +1471,10 @@ function updateContingent(){
   const fill=document.getElementById("contingentFill");
   const txt=document.getElementById("contingentText");
   if(!fill||!txt)return;
+  if(rules.sansContingent){ // 04/10/2026 : IDCC 3239, pas de contingent annuel
+    fill.style.width="0%";txt.textContent=fmtH(total)+" · pas de contingent pour ta convention";
+    const rw=document.getElementById("rcoWrap");if(rw)rw.classList.remove("visible");return;
+  }
   fill.style.width=pct+"%";
   fill.style.background=pct<70?"#2ecc71":pct<90?"#f39c12":"#c0392b";
   txt.textContent=fmtH(total)+" / "+LIMIT+"h";
@@ -1557,17 +1564,13 @@ baseHebdoInput.oninput=()=>{BASE_HEBDO=Number(baseHebdoInput.value)||35;localSto
 function syncBaseHebdoWithCCN(){
   const r=getCCNRules();
   // Ne remplacer que si l'utilisateur n'a pas saisi de valeur personnalisée différente du droit commun
-  const storedBase=Number(localStorage.getItem("BASE_HEBDO_"+currentSuffix));
-  if(!storedBase||storedBase===35){
-    BASE_HEBDO=r.seuil;
-    localStorage.setItem("BASE_HEBDO_"+currentSuffix,BASE_HEBDO);
-    if(baseHebdoInput)baseHebdoInput.value=BASE_HEBDO;
-    if(typeof update==="function")update();
-  }else{
-    // La base perso est déjà set — juste rafraîchir l'affichage
-    if(baseHebdoInput)baseHebdoInput.value=BASE_HEBDO;
-  }
+  // 04/10/2026 : la base suit toujours la convention (le calcul l'impose déjà, cf. updateContingent)
+  BASE_HEBDO=r.seuil;
+  localStorage.setItem("BASE_HEBDO_"+currentSuffix,BASE_HEBDO);
+  if(baseHebdoInput)baseHebdoInput.value=BASE_HEBDO;
+  if(typeof update==="function")update();
 }
+try{ setTimeout(syncBaseHebdoWithCCN,0); }catch(_){}
 window.addEventListener('storage',e=>{if(e.key==='CCN_IDCC'||e.key==='CCN_CUSTOM')syncBaseHebdoWithCCN();});
 
 /* =====================================================

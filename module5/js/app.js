@@ -67,7 +67,8 @@ function runAnalysis() {
 
   const allWeeks=M5_DataStore.getWeeksSorted(year);
   const last12=M5_DataStore.getLast12Weeks(year);
-  const rule12=CalcEngine.check12WeeksRule(last12,contract.hoursBase);
+  // 04/10/2026 : règle des 12 semaines (L3123-13) non applicable aux employés de maison (L7221-2)
+  const rule12=contract.sansMajoration?{triggered:false,maxConsec:0}:CalcEngine.check12WeeksRule(last12,contract.hoursBase);
   const stats=M5_DataStore.getAnnualStats(year,contract.hoursBase,contract);
 
   // Mode ANNUEL
@@ -421,11 +422,11 @@ function renderCalendar() {
   const total=wk.total;
   if(total!==null) {
     const diff=total-contract.hoursBase;
-    const pct35=Math.round(total/35*100);
+    const pct35=Math.round(total/(contract.tempsPlein||35)*100);
     html+=`<div class="m5-cal-total">
       <span>Total semaine</span>
       <span style="font-weight:700;color:${diff>0?'var(--miz-warning)':'var(--miz-success)'}">
-        ${window._m5fmtH(total)} ${diff>0?'(+'+window._m5fmtH(diff)+' comp.)':''}
+        ${window._m5fmtH(total)} ${diff>0?'(+'+window._m5fmtH(diff)+(contract.sansMajoration?' en plus du contrat)':' comp.)'):''}
       </span>
       <span style="font-size:11px;color:var(--miz-text3)">${pct35}% du temps plein</span>
     </div>`;
@@ -718,7 +719,7 @@ function updateWeekPreview() {
 
   const useAvenant=document.getElementById('week-avenant-toggle')?.checked;
   const avenatH=parseFloat(document.getElementById('week-avenant-hours')?.value)||0;
-  const pct35=Math.round(worked/35*100);
+  const pct35=Math.round(worked/(contract.tempsPlein||35)*100);
 
   let result, html='';
 
@@ -848,7 +849,7 @@ function renderWeekSummary(analysis) {
   });
   if(weekResult.totalCompH>0&&contract.hourlyRate>0&&!prevenanceAlert) {
     const _cw=(weekResult.comp1Amount||0)+(weekResult.comp2Amount||0);
-    html+=`<div class="m5-alert info"><span>💰</span><div>${contract.sansMajoration?'Montant estimé de ces heures':'Majoration estimée cette semaine'} : <strong>${_cw.toFixed(2)} € brut</strong> (${window._m5fmtH(weekResult.totalCompH)} comp. × ${contract.sansMajoration?'taux normal, sans majoration (IDCC 3239)':'taux majoré'}). Estimation brute basée sur votre taux horaire contractuel.</div></div>`;
+    html+=`<div class="m5-alert info"><span>💰</span><div>${contract.sansMajoration?'Montant estimé de ces heures':'Majoration estimée cette semaine'} : <strong>${_cw.toFixed(2)} € brut</strong> (${window._m5fmtH(weekResult.totalCompH)} ${contract.sansMajoration?'en plus du contrat':'comp.'} × ${contract.sansMajoration?'taux normal, sans majoration (IDCC 3239)':'taux majoré'}). Estimation brute basée sur votre taux horaire contractuel.</div></div>`;
   }
   el.innerHTML=html;
   try{ window.M5_majDroitsCard && M5_majDroitsCard(contract); }catch(_){}
@@ -1382,7 +1383,7 @@ function renderHistorique() {
     const isVac=w.mode==='vac'||M5_DataStore.isVacWeek(w.monday,year);
     const worked=w.worked||0;
     const diff=Math.max(0,worked-contract.hoursBase);
-    const pct35=Math.round(worked/35*100);
+    const pct35=Math.round(worked/(contract.tempsPlein||35)*100);
     const d=new Date(w.monday+'T12:00:00'),fn=new Date(w.monday+'T12:00:00');
     fn.setDate(fn.getDate()+6); // semaine complète 7 jours
     const label=`${d.getDate()}/${d.getMonth()+1} → ${fn.getDate()}/${fn.getMonth()+1}`;
@@ -1477,7 +1478,7 @@ function renderStats() {
           <span>⏱️</span><div><strong>${window._m5fmtH(stats.totalComp)}</strong> complémentaires<br>
           <small>Plafond annuel estimé : ${window._m5fmtH(caps.annual)}</small></div>
         </div>
-        ${stats.totalComp1>0?`<div class="m5-alert ok"><span>💰</span><div>${window._m5fmtH(stats.totalComp1)} ${M5_tauxTxt(contract.rate1??0.10)}${stats.totalComp2>0?' | '+window._m5fmtH(stats.totalComp2)+' '+M5_tauxTxt(contract.rate2??0.25):' | Aucune tranche à 25%'}</div></div>`:''}
+        ${stats.totalComp1>0?`<div class="m5-alert ok"><span>💰</span><div>${window._m5fmtH(stats.totalComp1)} ${M5_tauxTxt(contract.rate1??0.10)}${stats.totalComp2>0?' | '+window._m5fmtH(stats.totalComp2)+' '+M5_tauxTxt(contract.rate2??0.25):(Math.abs((contract.rate1??0.10)-(contract.rate2??0.25))<1e-9?'':' | Aucune heure '+M5_tauxTxt(contract.rate2??0.25))}</div></div>`:''}
       </div></div>`;
   } else {
     html='<div class="m5-empty"><div class="m5-empty-icon">📊</div><div class="m5-empty-text">Aucune semaine saisie pour '+year+'.</div></div>';
@@ -1497,7 +1498,7 @@ function renderStats() {
       const wh=w.worked||0;
       const ratio=maxHours>0?Math.min(wh/maxHours,1):0;
       let bg='rgba(108,63,197,0.08)', border='rgba(108,63,197,0.15)', txt='rgba(255,255,255,0.40)';
-      if(wh>=35){ bg='rgba(220,38,38,0.92)'; border='rgba(185,28,28,1)'; txt='#fff'; }
+      if(wh>((typeof contract!=='undefined'&&contract&&contract.tempsPlein)||34.99)){ bg='rgba(220,38,38,0.92)'; border='rgba(185,28,28,1)'; txt='#fff'; }
       else if(wh>contract.hoursBase){ /* HC : jaune-orange clair, distinct du rouge */ const i=Math.min(Math.round(ratio*255),255); bg=`rgba(251,191,36,${0.55+ratio*0.30})`; border=`rgba(217,119,6,0.85)`; txt='#1f1f1f'; }
       else if(wh>0){ bg=`rgba(16,185,129,${0.25+ratio*0.5})`; border='rgba(16,185,129,0.5)'; txt='#fff'; }
       const d=new Date(w.monday+'T12:00:00');
@@ -3140,7 +3141,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         +'<div style="display:flex;align-items:center;gap:9px;"><span style="font-size:15px;font-weight:800;color:#8FD3E0;">'+_fmtH(totP)+'</span>'
         +'<span id="m5-persolde-chev" style="color:#C4A8FF;font-size:13px;transition:transform .2s;transform:'+(open?'rotate(180deg)':'')+';">▾</span></div></div>';
       var body='<div id="m5-persolde-body" style="display:'+(open?'':'none')+';margin-top:11px;">'
-        +'<div style="display:flex;gap:7px;">'+tile(totP,'Total période','#8FD3E0')+tile(s.comp10,M5_tauxTxt(r1),'#FFC24B')+tile(s.comp25,M5_tauxTxt(r2),'#FF7A59')+'</div>'
+        +'<div style="display:flex;gap:7px;">'+tile(totP,'Total période','#8FD3E0')+(Math.abs(r1-r2)<1e-9?tile(s.comp10+s.comp25,M5_tauxTxt(r1),'#FFC24B'):tile(s.comp10,M5_tauxTxt(r1),'#FFC24B')+tile(s.comp25,M5_tauxTxt(r2),'#FF7A59'))+'</div>'
         +'<div style="display:flex;justify-content:space-between;margin-top:11px;font-size:13px;color:rgba(255,255,255,0.82);"><span>Report précédent</span><b>'+_fmtH(repP)+'</b></div>'
         +'<div style="display:flex;justify-content:space-between;margin-top:5px;font-size:13px;color:rgba(255,255,255,0.82);"><span>Payées (période)</span><b>'+_fmtH(Math.round((s.paid10+s.paid25)*100)/100)+'</b></div>'
         +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid rgba(196,168,255,0.18);">'
