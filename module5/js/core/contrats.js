@@ -170,8 +170,13 @@ function hcContrat(c,d,wa,pa,pb){
    (L7221-2) : ses heures sortent des repères 48 h / 10 h « tous employeurs ». */
 function est3239(n){var c=contrat(n);return !!(c&&(c.sansMajoration||parseInt(c.idcc,10)===3239));}
 function hcTxt(h,tn){if(h==null)return '';
-  var lib=tn?(h>0?'dont '+fmtH(h)+' en plus, taux normal':'0 h en plus'):(h>0?'dont '+fmtH(h)+' HC':'0 h HC');
-  return '<div style="font-size:11px;font-weight:600;color:'+(h>0?'#d35400':'#9a8fb5')+'">'+lib+'</div>';}
+  /* 04/10/2026 : libellé court et retour à la ligne permis (la colonne débordait de l'écran) */
+  var lib=tn?(h>0?'dont '+fmtH(h)+' taux normal':'0 h en plus'):(h>0?'dont '+fmtH(h)+' HC':'0 h HC');
+  return '<div style="font-size:11px;font-weight:600;white-space:normal;line-height:1.25;color:'+(h>0?'#d35400':'#9a8fb5')+'">'+lib+'</div>';}
+/* Total : heures complémentaires (majorées) et heures 3239 au taux normal, séparées */
+function hcTotTxt(hc,tn,a){if(!a)return '';
+  if(!(hc>0)&&!(tn>0))return hcTxt(0,false);
+  return (hc>0?hcTxt(hc,false):'')+(tn>0?hcTxt(tn,true):'');}
 function renderOverview(){
   var old=document.getElementById('m5-ensemble');if(old&&old.parentNode)old.parentNode.removeChild(old);
   var ex=existing();if(ex.length<2)return;
@@ -184,14 +189,14 @@ function renderOverview(){
   var wa=dk(mon),wb=dk(sun),ma=dk(new Date(t.getFullYear(),t.getMonth(),1)),mb=dk(new Date(t.getFullYear(),t.getMonth()+1,0)),libM='Ce mois';
   try{var per=global.M5_periodeAffichee&&M5_periodeAffichee();if(per&&per.debutStr&&per.finStr){ma=per.debutStr;mb=per.finStr;libM='Période '+ma.slice(8)+'/'+ma.slice(5,7)+' → '+mb.slice(8)+'/'+mb.slice(5,7);}}catch(e){}
   var libS=estAuj?'Cette semaine':'Semaine du '+wa.slice(8)+'/'+wa.slice(5,7);
-  var rows='',tw=0,tm=0,hw=0,hm=0,aHw=false,aHm=false,tw2=0,n3239=0,tnTous=true;
+  var rows='',tw=0,tm=0,hw=0,hm=0,aHw=false,aHm=false,tw2=0,n3239=0,hwT=0,hmT=0;
   ex.forEach(function(n){var d=allData(n),w=sumRange(d,wa,wb),m=sumRange(d,ma,mb),b=base(n),hc=hcContrat(contrat(n),d,wa,ma,mb),tn=est3239(n);tw+=w;tm+=m;
-    if(tn)n3239++;else{tw2+=w;tnTous=false;}
-    if(hc.w!=null){hw+=hc.w;aHw=true;}if(hc.p!=null){hm+=hc.p;aHm=true;}
-    rows+='<tr'+(n===ACTIVE?' style="font-weight:700"':'')+'><td style="padding:5px 4px;vertical-align:top">'+esc(nom(n))+'</td>'
+    if(tn)n3239++;else tw2+=w;
+    if(hc.w!=null){if(tn)hwT+=hc.w;else hw+=hc.w;aHw=true;}if(hc.p!=null){if(tn)hmT+=hc.p;else hm+=hc.p;aHm=true;}
+    rows+='<tr'+(n===ACTIVE?' style="font-weight:700"':'')+'><td style="padding:5px 4px;vertical-align:top;overflow-wrap:anywhere">'+esc(nom(n))+'</td>'
       +'<td style="padding:5px 4px;text-align:right;white-space:nowrap;vertical-align:top">'+fmtH(w)+(b?' <span style="opacity:.55;font-weight:400">/ '+fmtH(b)+'</span>':'')+hcTxt(hc.w,tn)+'</td>'
       +'<td style="padding:5px 4px;text-align:right;white-space:nowrap;vertical-align:top">'+fmtH(m)+hcTxt(hc.p,tn)+'</td></tr>';});
-  tw=Math.round(tw*100)/100;tm=Math.round(tm*100)/100;hw=Math.round(hw*100)/100;hm=Math.round(hm*100)/100;tw2=Math.round(tw2*100)/100;
+  tw=Math.round(tw*100)/100;tm=Math.round(tm*100)/100;hw=Math.round(hw*100)/100;hm=Math.round(hm*100)/100;hwT=Math.round(hwT*100)/100;hmT=Math.round(hmT*100)/100;tw2=Math.round(tw2*100)/100;
   var ex2=ex.filter(function(n){return !est3239(n);}); // contrats soumis aux durées maximales du Code
   var over=ex2.length>0&&tw2>48;
   var art20=(global.LegiRef&&LegiRef.html?LegiRef.html('L3121-20'):'L3121-20');
@@ -205,12 +210,12 @@ function renderOverview(){
   var c=document.createElement('div');c.id='m5-ensemble';
   c.style.cssText='margin:10px 12px 0;padding:12px 14px;border-radius:14px;background:#fff;border:1px solid rgba(108,63,197,0.22);font-size:13px;color:#2a2340';
   c.innerHTML='<div style="font-weight:800;margin-bottom:6px">Vue d\u2019ensemble de tes contrats</div>'
-    +'<table style="width:100%;border-collapse:collapse"><thead><tr style="font-size:11.5px;opacity:.65">'
+    +'<table style="width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse"><colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup><thead><tr style="font-size:11.5px;opacity:.65">'
     +'<th style="text-align:left;padding:2px 4px;font-weight:600">Contrat</th>'
     +'<th style="text-align:right;padding:2px 4px;font-weight:600">'+libS+' / base</th>'
     +'<th style="text-align:right;padding:2px 4px;font-weight:600">'+libM+'</th></tr></thead><tbody>'+rows
     +'<tr style="border-top:1px solid rgba(108,63,197,0.25);font-weight:800"><td style="padding:6px 4px">Total</td>'
-    +'<td style="padding:6px 4px;text-align:right;vertical-align:top">'+fmtH(tw)+(aHw?hcTxt(hw,tnTous):'')+'</td><td style="padding:6px 4px;text-align:right;vertical-align:top">'+fmtH(tm)+(aHm?hcTxt(hm,tnTous):'')+'</td></tr></tbody></table>'
+    +'<td style="padding:6px 4px;text-align:right;vertical-align:top">'+fmtH(tw)+hcTotTxt(hw,hwT,aHw)+'</td><td style="padding:6px 4px;text-align:right;vertical-align:top">'+fmtH(tm)+hcTotTxt(hm,hmT,aHm)+'</td></tr></tbody></table>'
     +'<div style="margin-top:4px;font-size:11px;opacity:.65">Heures travaillées ; en orange, les heures complémentaires (HC) calculées contrat par contrat'
     +(n3239?' ; chez un particulier employeur (IDCC 3239), les heures en plus du contrat sont payées au taux normal':'')+'.</div>'
     +bloc48
