@@ -497,7 +497,7 @@ const REGLES_HS = {
   AMAT45: {
     id:'AMAT45', nom:'Assistant(e) maternel(le) — seuil 45h',
     seuil:45, taux1:10, palier1:3, taux_inter:null, palier_inter:null, taux2:10,
-    contingent:220, sansContingent:true, maxHebdo:48, debutSemaine:1,
+    contingent:220, sansContingent:true, maxHebdo:48, maxHebdoMoyenne:true, debutSemaine:1, // 04/10/2026 : 48 h en MOYENNE (art. 96.3), pas un plafond par semaine
     feriesChomes: 11, feriesMajoration: 0,
     feries1erMaiMajoration: 100, feriesAlsaceMoselle: false,
     notes:'Pas de contingent annuel d\'heures sup (convention et L7221-2). Assistant(e) maternel(le) agréé(e) (IDCC 3239, socle assistant maternel). Durée conventionnelle 45h (art. 96.2) ; heures au-delà de 45h majorées au taux fixé dans le contrat, au moins 10 % (art. 110.1) — l\'appli applique ce minimum de 10 % ; durée maximale 48h en moyenne (art. 96.3). Heures entre le contrat et 45h : heures complémentaires, majoration seulement si le contrat la prévoit (art. 110.2).'
