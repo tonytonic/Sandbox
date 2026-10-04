@@ -1910,7 +1910,7 @@ function searchCCN(term) {
       onmouseenter="this.style.background='rgba(109,40,217,0.20)'"
       onmouseleave="this.style.background=''">
       <span style="font-weight:600;color:#E9D5FF;">${ccn.n}</span>
-      <span style="font-size:11px;color:#A78BFA;">${ccn.s} — IDCC ${ccn.i} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></span>
+      <span style="font-size:11px;color:#A78BFA;">${ccn.s} — IDCC ${ccn.i}${ccn.renvoi?' (remplace l\'ex-IDCC '+ccn.renvoi+')':''} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></span>
     </div>`).join('');
 }
 
@@ -2431,7 +2431,7 @@ function wizSearchCCN(term) {
     <div onclick="wizPickCCN(${ccn.i},'${ccn.n.replace(/'/g,"\'")}','${ccn.s}',${ccn.cap})"
       style="padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(167,139,250,0.15);">
       <div style="font-weight:600;color:#E9D5FF;">${ccn.n}</div>
-      <div style="font-size:11px;color:#A78BFA;">${ccn.s} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></div>
+      <div style="font-size:11px;color:#A78BFA;">${ccn.s}${ccn.renvoi?' — IDCC 3239, remplace l\'ex-IDCC '+ccn.renvoi:''} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></div>
     </div>`).join('');
 }
 
