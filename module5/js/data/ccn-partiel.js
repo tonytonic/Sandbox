@@ -413,11 +413,24 @@ const CCN_PARTIEL_API = {
   search(term) {
     if (!term || term.length < 2) return [];
     const t = term.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    return CCN_PARTIEL_ALIASES.filter(c => {
+    // 04/10/2026 : anciennes conventions fusionnées dans l'IDCC 3239 (2111, 2395) → entrée 3239
+    const RENV = [
+      { ancien: 2111, nomAncien: 'Salariés du particulier employeur', cible: 'Particuliers employeurs emploi à domicile' },
+      { ancien: 2395, nomAncien: 'Assistants maternels du particulier employeur', cible: 'Assistant(e) maternel(le) agréé(e) — particuliers employeurs' },
+    ];
+    const ren = [];
+    RENV.forEach(r => {
+      const na = r.nomAncien.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const ok = (/^\d{3,}$/.test(t) && String(r.ancien).startsWith(t)) || (t.length >= 4 && !/^\d+$/.test(t) && na.includes(t));
+      const e = ok && CCN_PARTIEL_ALIASES.find(c => c.i === 3239 && c.n === r.cible);
+      if (e) ren.push(Object.assign({}, e, { renvoi: r.ancien }));
+    });
+    const res = CCN_PARTIEL_ALIASES.filter(c => {
       const n = c.n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const s = c.s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       return n.includes(t) || s.includes(t) || String(c.i).startsWith(term);
-    }).slice(0, 40);
+    }).filter(c => !ren.some(r => r.i === c.i && r.n === c.n));
+    return ren.concat(res).slice(0, 40);
   },
 
   getSecteurs() {
