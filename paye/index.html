@@ -1435,6 +1435,9 @@ function recalc(){
     } else {
       infoEl.innerHTML = `ℹ️ Calcul : ${rules.taux1}% jusqu'à ${rules.palier1}h hebdomadaires, puis ${rules.taux2}%.`;
     }
+    // 04/10/2026 : IDCC 3239 emploi à domicile — décompte par semaine (art. 136) ; durée irrégulière
+    // prévue au contrat → moyenne de 40 h sur 8 semaines, que l'appli ne calcule pas.
+    if (rules.id === 'PEMP40') infoEl.innerHTML += `<br><span style="font-size:0.92em;opacity:.85">Heures sup comptées semaine par semaine, du lundi au dimanche (art. 136 de ta convention). Si ton contrat prévoit une durée de travail <b>irrégulière</b>, elles se calculent sur une moyenne de 40 h sur 8 semaines : l'appli peut alors en compter plus que ta paie.</span>`;
   }
   if(unlocked)calcEuro();
   updateContingent();
