@@ -1049,6 +1049,10 @@ function _kitsuneGetCCN() {
 
   return defaultCCN;
 }
+/* 04/10/2026 : convention sans contingent annuel (IDCC 3239) et taux unique */
+function _kitsuneSansContingent() { try { return !!(_kitsuneGetCCN() || {}).sansContingent; } catch (_) { return false; } }
+function _kitsuneTauxUnique() { try { const c = _kitsuneGetCCN() || {}; return !c.taux_inter && Number(c.taux1) === Number(c.taux2); } catch (_) { return false; } }
+function _kitsuneParleContingent(t) { return /contingent|220 ?h|220 heures/i.test(String(t || '')); }
 function _kitsuneFormatMsg(msg, h) {
   const r = _kitsuneGetCCN();
   const nom = localStorage.getItem('CCN_NOM') || '';
@@ -2827,7 +2831,16 @@ function _nextMsgIdx(arr) {
   return idx;
 }
 
+/* 04/10/2026 : convention sans contingent → on saute les messages qui en parlent */
 function _generateDynamicMessage(situation, deltaH, burnoutScore) {
+  let _m = _generateDynamicMessageBase(situation, deltaH, burnoutScore);
+  if (_kitsuneSansContingent()) {
+    for (let _i = 0; _i < 8 && _m && _kitsuneParleContingent((_m.titre || '') + ' ' + (_m.message || '') + ' ' + (_m.actions || []).join(' ')); _i++)
+      _m = _generateDynamicMessageBase(situation, deltaH, burnoutScore);
+  }
+  return _m;
+}
+function _generateDynamicMessageBase(situation, deltaH, burnoutScore) {
   // Si semaine vacances M4 courante → message vacances prioritaire pour le popup aussi
   try {
     const now = new Date();
@@ -4605,6 +4618,11 @@ function kitsuneNarrateOvertime(deltaH, source) {
     const _dailyLoop = [..._dailyLoop5, ..._extMsg]; // 10 messages
     const _visitIdx   = _getDailyVisitIdx(_todayOT ? _todayOT.extra : 0);  // 0-9
     let bubbleText    = _dailyLoop[_visitIdx] || _dailyLoop[0] || '🦊 Analyse en cours…';
+    if (_kitsuneSansContingent() && _kitsuneParleContingent(bubbleText)) {
+      // 04/10/2026 : pas de contingent pour la convention → message suivant qui n'en parle pas
+      const _okB = _dailyLoop.filter(t => t && !_kitsuneParleContingent(t));
+      bubbleText = _okB.length ? _okB[_visitIdx % _okB.length] : '🦊 Pas de contingent annuel pour ta convention : je surveille surtout tes durées maximales.';
+    }
 
     // Adapter la technicité selon le niveau utilisateur (bulle uniquement)
     const expertise    = _getUserExpertise();
@@ -6404,6 +6422,12 @@ function refreshModulesPopup() {
         // 26/09/2026 : le contingent est annuel — année en cours seulement, pas le cumul de toutes les années
         const _yc = String(moduleReader.year || new Date().getFullYear());
         const totalHS = (cum?.perYear?.[_yc]?.net) || 0;
+        if (ccn.sansContingent) return `
+        <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;margin-top:8px;text-align:center;">
+          <div style="color:#555;font-size:0.7rem;margin-bottom:4px;">Heures sup ${_yc}</div>
+          <div style="font-weight:900;font-size:1.2rem;color:#4CAF50;">${_fmtH(totalHS)}</div>
+          <div style="font-size:0.7rem;color:#888;margin-top:2px;">Pas de contingent annuel pour ta convention</div>
+        </div>`;
         const pct = Math.round((totalHS / contingent) * 100);
         const color = pct >= 100 ? '#E53935' : pct >= 75 ? '#FF8C42' : '#4CAF50';
         return `
@@ -6432,11 +6456,12 @@ function refreshModulesPopup() {
             ${m2cov ? `<span style="color:#FFD700;background:rgba(255,215,0,0.1);border-radius:8px;padding:2px 7px;">M2: ${m2cov} mois</span>` : ''}
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:${(() => { const c=_kitsuneGetCCN(); return c.taux_inter!==null?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr'; })()};gap:6px;font-size:0.82rem;">
+        <div style="display:grid;grid-template-columns:${(() => { const c=_kitsuneGetCCN(); return _kitsuneTauxUnique()?'1fr 1fr':(c.taux_inter!==null?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr'); })()};gap:6px;font-size:0.82rem;">
           <div><div style="color:#555;font-size:0.7rem;">HS nettes</div><strong style="color:${netColor};">${_fmtH(net)}</strong></div>
+          ${_kitsuneTauxUnique() ? `<div><div style="color:#555;font-size:0.7rem;">HS +${_kitsuneGetCCN().taux1}%</div><strong>${_fmtH((py?.hs25||0)+(py?.hs50||0))}</strong></div>` : `
           <div><div style="color:#555;font-size:0.7rem;">HS +${_kitsuneGetCCN().taux1||25}%</div><strong>${_fmtH((py?.hs25||0))}</strong></div>
           ${(() => { const c=_kitsuneGetCCN(); return c.taux_inter!==null ? `<div><div style="color:#555;font-size:0.7rem;">HS +${c.taux_inter}%</div><strong>${_fmtH((py?.hs10||0))}</strong></div>` : ''; })()}
-          <div><div style="color:#555;font-size:0.7rem;">HS +${_kitsuneGetCCN().taux2||50}%</div><strong>${_fmtH((py?.hs50||0))}</strong></div>
+          <div><div style="color:#555;font-size:0.7rem;">HS +${_kitsuneGetCCN().taux2||50}%</div><strong>${_fmtH((py?.hs50||0))}</strong></div>`}
         </div>
       </div>`;
   });
@@ -8791,7 +8816,7 @@ function showMonthlySummary(forceMonth) {
     if (bo) burnoutScore = bo.score || 0;
   } catch(e) {}
 
-  const pct = Math.round(totalHS / 220 * 100);
+  const pct = _kitsuneSansContingent() ? 0 : Math.round(totalHS / ((_kitsuneGetCCN().contingent) || 220) * 100);
   const level = totalHS === 0 ? 'ok' : totalHS < 50 ? 'light' : totalHS < 150 ? 'medium' : 'high';
   const colors = { ok:'#4CAF50', light:'#8BC34A', medium:'#FF8C42', high:'#E53935' };
   const msgs = {
@@ -8814,7 +8839,7 @@ function showMonthlySummary(forceMonth) {
     </div>
     <div class="monthly-stat">
       <span class="ms-label">📊 % du contingent annuel</span>
-      <span class="ms-val" style="color:${pct > 75 ? '#E53935' : '#FF8C42'};">${pct}%</span>
+      <span class="ms-val" style="color:${pct > 75 ? '#E53935' : '#FF8C42'};">${_kitsuneSansContingent() ? 'aucun (convention)' : pct + '%'}</span>
     </div>
     <div class="monthly-stat">
       <span class="ms-label">⚠️ Jours > seuil légal</span>
@@ -14931,7 +14956,7 @@ function _getYearData(year) {
   // 26/09/2026 : total officiel du module (contingent) quand il existe
   try { const _off = (typeof window.hsOfficiel === 'function') ? window.hsOfficiel(y) : null; if (_off) totalHS = _off.total; } catch (_) {}
   const avgPerMonth  = monthVals.length ? totalHS / monthVals.length : 0;
-  const pctContingent = Math.round(totalHS / ((_kitsuneGetCCN().contingent) || 220) * 100);
+  const pctContingent = _kitsuneSansContingent() ? 0 : Math.round(totalHS / ((_kitsuneGetCCN().contingent) || 220) * 100);
 
   return { year, totalHS: Math.round(totalHS * 100) / 100, pctContingent, peakMonth, peakMonthKey, avgPerMonth: Math.round(avgPerMonth * 100) / 100, violationsDay, hasData: totalHS > 0 };
 }
@@ -14995,7 +15020,7 @@ function renderAnnualComparison() {
       ${datN.hasData ? `<div>
         <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
           <span style="color:#ccc;font-size:0.75rem;font-weight:700;">${now}</span>
-          <span style="color:${colN};font-size:0.75rem;font-weight:900;">${_fmtH(datN.totalHS)} <span style="color:#555;font-weight:400;">(${datN.pctContingent}%)</span></span>
+          <span style="color:${colN};font-size:0.75rem;font-weight:900;">${_fmtH(datN.totalHS)} ${_kitsuneSansContingent() ? '' : `<span style="color:#555;font-weight:400;">(${datN.pctContingent}%)</span>`}</span>
         </div>
         <div style="height:7px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">
           <div style="height:100%;width:${barN}%;background:${colN};border-radius:4px;transition:width 0.5s ease;"></div>
@@ -15004,7 +15029,7 @@ function renderAnnualComparison() {
       ${datP.hasData ? `<div>
         <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
           <span style="color:#777;font-size:0.75rem;">${now-1}</span>
-          <span style="color:${colP};font-size:0.75rem;">${_fmtH(datP.totalHS)} <span style="color:#444;font-weight:400;">(${datP.pctContingent}%)</span></span>
+          <span style="color:${colP};font-size:0.75rem;">${_fmtH(datP.totalHS)} ${_kitsuneSansContingent() ? '' : `<span style="color:#444;font-weight:400;">(${datP.pctContingent}%)</span>`}</span>
         </div>
         <div style="height:5px;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;">
           <div style="height:100%;width:${barP}%;background:${colP};opacity:0.6;border-radius:4px;"></div>
@@ -15373,7 +15398,7 @@ function renderRapport() {
     <div class="rapport-section">
       <div class="rapport-title">⚖️ Situation légale — ${year}</div>
       <div class="rapport-row"><span class="rr-label">Heures sup cumulées</span><span class="rr-val ${annualCol === '#4CAF50' ? 'rr-ok' : annualCol === '#E53935' ? 'rr-danger' : 'rr-warn'}">${_fmtH(dN.totalHS)}</span></div>
-      <div class="rapport-row"><span class="rr-label">% du contingent (${(s.annual&&s.annual.contingentMax)||(_kitsuneGetCCN().contingent||220)}h)</span><span class="rr-val ${annualCol === '#4CAF50' ? 'rr-ok' : annualCol === '#E53935' ? 'rr-danger' : 'rr-warn'}">${pct}%</span></div>
+      ${_kitsuneSansContingent() ? `<div class="rapport-row"><span class="rr-label">Contingent annuel</span><span class="rr-val rr-ok">Aucun (convention)</span></div>` : `<div class="rapport-row"><span class="rr-label">% du contingent (${(s.annual&&s.annual.contingentMax)||(_kitsuneGetCCN().contingent||220)}h)</span><span class="rr-val ${annualCol === '#4CAF50' ? 'rr-ok' : annualCol === '#E53935' ? 'rr-danger' : 'rr-warn'}">${pct}%</span></div>`}
       <div class="rapport-row"><span class="rr-label">Journée max détectée</span><span class="rr-val ${s.daily?.hasDailyCrit ? 'rr-danger' : s.daily?.hasDailyRisk ? 'rr-warn' : 'rr-ok'}">${_fmtH(s.daily?.maxDayTotal || 0)}</span></div>
       <div class="rapport-row"><span class="rr-label">Semaine max détectée</span><span class="rr-val ${s.weekly?.hasWeekViol ? 'rr-danger' : s.weekly?.hasWeekAlert ? 'rr-warn' : 'rr-ok'}">${_fmtH(s.weekly?.maxWeekTotal || 35)}</span></div>
       <div class="rapport-row"><span class="rr-label">Niveau global</span><span class="rr-val" style="color:${levelColor(s.globalLevel || 'ok')};text-transform:uppercase;">${s.globalLevel || 'ok'}</span></div>
