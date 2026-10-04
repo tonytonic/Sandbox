@@ -960,23 +960,73 @@ function getGroupeForCCN(idcc) {
       if (e2) e = e2;
     }
   } catch (_) {}
+  return reglesEntree(e);
+}
+
+/* Règles d'UNE entrée de la table (CCN_ALIASES), exceptions x comprises.
+   03/10/2026 : exceptions propres a une convention (champ x de l'entree), verifiees
+   contre le texte en vigueur (fonds droit). Elles remplacent seulement les valeurs
+   citees ; tout le reste vient du groupe. Sans x : comportement d'origine. */
+function reglesEntree(e) {
   const base = getRules(e ? e.g : 'DC');
-  // 03/10/2026 : exceptions propres a une convention (champ x de l'entree), verifiees
-  // contre le texte en vigueur (fonds droit). Elles remplacent seulement les valeurs
-  // citees ; tout le reste vient du groupe. Sans x : comportement d'origine.
   if (!e || !e.x) return base;
   return Object.assign({}, base, e.x, { nom: e.n + ' — règles propres à la convention',
     notes: (base.notes || '') + (e.x.src ? ' | IDCC ' + e.i + ' : ' + e.x.src : '') });
 }
 
+/* 04/10/2026 : règles d'une convention choisie DANS UN MODULE (M6…), d'après l'IDCC et le
+   nom enregistré dans ce module, sans dépendre de la convention du menu. Sert quand un même
+   IDCC a plusieurs entrées (3239 : salarié du particulier employeur / assistant maternel).
+   Nom absent ou introuvable : même résultat que getGroupeForCCN. */
+function reglesPour(idcc, nom) {
+  const n = Number(idcc);
+  if (n && nom) {
+    const liste = CCN_ALIASES.filter(c => c.i === n);
+    if (liste.length > 1) {
+      const t = _norm(String(nom).trim());
+      const e = liste.find(c => _norm(c.n) === t);
+      if (e) return reglesEntree(e);
+    }
+  }
+  return getGroupeForCCN(n);
+}
+
+/* 04/10/2026 : vrai quand toutes les heures sup ont le même taux (pas de palier
+   intermédiaire et taux1 = taux2, ex. assistant maternel 10 % / 10 %). Les écrans
+   affichent alors une seule ligne au lieu de deux lignes identiques. */
+function tauxUnique(r) {
+  return !!r && !r.taux_inter && Number(r.taux1) === Number(r.taux2);
+}
+
+/* 04/10/2026 : anciennes conventions fusionnées dans l'IDCC 3239 au 1er janvier 2022.
+   Les chercher (numéro ou ancien nom) propose l'entrée 3239 correspondante : c'est elle qui
+   est enregistrée (IDCC 3239 + son nom), donc toutes les règles 3239 s'appliquent. */
+const CCN_RENVOIS = [
+  { ancien: 2111, nomAncien: 'Salariés du particulier employeur', cible: 'Particuliers employeurs emploi à domicile' },
+  { ancien: 2395, nomAncien: 'Assistants maternels du particulier employeur', cible: 'Assistant(e) maternel(le) agréé(e) — particuliers employeurs' },
+];
+function _renvois(t) {
+  const out = [];
+  CCN_RENVOIS.forEach(r => {
+    const num = /^\d{3,}$/.test(t) && String(r.ancien).startsWith(t);
+    const txt = t.length >= 4 && !/^\d+$/.test(t) && _norm(r.nomAncien).includes(t);
+    if (!num && !txt) return;
+    const e = CCN_ALIASES.find(c => c.i === 3239 && c.n === r.cible);
+    if (e) out.push(Object.assign({}, e, { renvoi: r.ancien, renvoiNom: r.nomAncien }));
+  });
+  return out;
+}
+
 function findCCN(terme) {
   if (!terme || !terme.trim()) return [];
   const t = _norm(terme.trim());
+  const ren = _renvois(t);
   if (/^\d+$/.test(t)) {
     const exact = CCN_ALIASES.filter(c => String(c.i).startsWith(t));
-    if (exact.length) return exact;
+    if (exact.length || ren.length) return ren.concat(exact);
   }
-  return CCN_ALIASES.filter(c => _norm(c.n).includes(t) || _norm(c.s).includes(t));
+  const res = CCN_ALIASES.filter(c => _norm(c.n).includes(t) || _norm(c.s).includes(t));
+  return ren.concat(res.filter(c => !ren.some(r => r.i === c.i && r.n === c.n)));
 }
 
 function calculerHS(hsReelles, absences, idcc) {
@@ -1125,7 +1175,7 @@ if (typeof localStorage !== 'undefined') loadCustomFromStorage();
 const CCN_API = {
   version: '5.7.0',
   REGLES_HS, CCN_ALIASES,
-  getRules, getGroupeForCCN, findCCN,
+  getRules, getGroupeForCCN, findCCN, CCN_RENVOIS, reglesEntree, reglesPour, tauxUnique,
   search: (terme, limit = 60) => findCCN(terme).slice(0, limit),
   calculerHS, verifierConformite, getGroupesDerogatoires, getStats,
   getCustomConfig, setCustom, loadCustomFromStorage, resetCustom,
