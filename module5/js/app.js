@@ -1910,7 +1910,7 @@ function searchCCN(term) {
       onmouseenter="this.style.background='rgba(109,40,217,0.20)'"
       onmouseleave="this.style.background=''">
       <span style="font-weight:600;color:#E9D5FF;">${ccn.n}</span>
-      <span style="font-size:11px;color:#A78BFA;">${ccn.s} — IDCC ${ccn.i} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></span>
+      <span style="font-size:11px;color:#A78BFA;">${ccn.s} — IDCC ${ccn.i}${ccn.renvoi?' (remplace l\'ex-IDCC '+ccn.renvoi+')':''} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></span>
     </div>`).join('');
 }
 
@@ -2431,7 +2431,7 @@ function wizSearchCCN(term) {
     <div onclick="wizPickCCN(${ccn.i},'${ccn.n.replace(/'/g,"\'")}','${ccn.s}',${ccn.cap})"
       style="padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid rgba(167,139,250,0.15);">
       <div style="font-weight:600;color:#E9D5FF;">${ccn.n}</div>
-      <div style="font-size:11px;color:#A78BFA;">${ccn.s} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></div>
+      <div style="font-size:11px;color:#A78BFA;">${ccn.s}${ccn.renvoi?' — IDCC 3239, remplace l\'ex-IDCC '+ccn.renvoi:''} — plafond <strong style="color:#DDD6FE;">${CCN_PARTIEL_API.capLabel(ccn.cap,true)}</strong></div>
     </div>`).join('');
 }
 
@@ -3047,7 +3047,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     var p=_getPaid(_periodKey());
     var n10=Math.max(0,due10-p.h10), n25=Math.max(0,due25-p.h25), nT=Math.round((n10+n25)*100)/100;
     function set(id,t){ var e=document.getElementById(id); if(e) e.textContent=t; }
-    set('m5-rep-10',_fmtH(n10)); set('m5-rep-25',_fmtH(n25));
+    if(card.getAttribute('data-uni')==='1') set('m5-rep-10',_fmtH(nT)); // 04/10/2026 : une seule tranche affichée
+    else { set('m5-rep-10',_fmtH(n10)); set('m5-rep-25',_fmtH(n25)); }
     set('m5-net-h',_fmtH(nT)); set('m5-hdr-net',_fmtH(nT));
     var eEl=document.getElementById('m5-net-eur');
     if(eEl) eEl.textContent = rate>0 ? ((n10*rate*(1+r1)+n25*rate*(1+r2)).toFixed(2)+' €') : '—';
@@ -3062,6 +3063,22 @@ document.addEventListener('DOMContentLoaded',()=>{
     m[k][tranche]=Math.round((h+min/60)*100)/100;
     try{ localStorage.setItem(M5_key('M5_HC_PAID'), JSON.stringify(m)); }catch(e){}
   }
+  /* 04/10/2026 : taux égaux (ex. 3239 : taux normal / taux normal) → un seul champ « payé ».
+     Le total saisi est réparti d'abord sur la 1re tranche (jusqu'à son dû), le reste sur la 2e :
+     les reports par tranche restent justes. */
+  function _savePaidUni(part, v){
+    var card=document.getElementById('m5-solde-card');
+    var due10=card?(+card.getAttribute('data-due10')||0):0;
+    var m=_getPaidMap(), k=_periodKey(); if(!m[k]||typeof m[k]!=='object') m[k]={};
+    var cur=(+m[k].h10||0)+(+m[k].h25||0), h=Math.floor(cur+1e-9), min=Math.round((cur-h)*60); if(min===60){h++;min=0;}
+    if(part==='h') h=Math.max(0,parseInt(String(v),10)||0);
+    else min=Math.max(0,Math.min(59,parseInt(String(v),10)||0));
+    var tot=Math.round((h+min/60)*100)/100, a10=Math.min(tot,due10);
+    m[k].h10=Math.round(a10*100)/100; m[k].h25=Math.round((tot-a10)*100)/100;
+    try{ localStorage.setItem(M5_key('M5_HC_PAID'), JSON.stringify(m)); }catch(e){}
+  }
+  window.M5setHCPaidUh=function(v){ _savePaidUni('h',v); window._m5UpdateNet(); };
+  window.M5setHCPaidUm=function(v){ _savePaidUni('m',v); window._m5UpdateNet(); };
   window.M5setHCPaid10h=function(v){ _savePaidHM('h10','h',v); window._m5UpdateNet(); };
   window.M5setHCPaid10m=function(v){ _savePaidHM('h10','m',v); window._m5UpdateNet(); };
   window.M5setHCPaid25h=function(v){ _savePaidHM('h25','h',v); window._m5UpdateNet(); };
@@ -3069,7 +3086,19 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Paiement au niveau de la PÉRIODE (vue mois) : le champ représente le total payé
   // de la période ; on ajuste la semaine de début pour atteindre ce total (les
   // paiements déjà saisis par semaine en vue semaine sont conservés).
-  window.M5setHCPaidPeriode=function(debutStr, finStr, tranche, part, v){
+  window.M5setHCPaidPeriode=function(debutStr, finStr, tranche, part, v, due10){
+    if(tranche==='u'){ // 04/10/2026 : taux égaux, un seul champ pour la période
+      var pmU=_getPaidMap(), t={h10:0,h25:0}, dk={h10:0,h25:0};
+      Object.keys(pmU).forEach(function(k){ if(k.indexOf('week:')===0){ var md=k.slice(5); if(md>=debutStr && md<=finStr){ ['h10','h25'].forEach(function(tr){ var val=+((pmU[k]||{})[tr])||0; t[tr]+=val; if(md===debutStr) dk[tr]=val; }); } } });
+      var curU=t.h10+t.h25, hU=Math.floor(curU+1e-9), mU=Math.round((curU-hU)*60); if(mU===60){hU++;mU=0;}
+      if(part==='h') hU=Math.max(0,parseInt(String(v),10)||0); else mU=Math.max(0,Math.min(59,parseInt(String(v),10)||0));
+      var totU=Math.round((hU+mU/60)*100)/100, a10=Math.min(totU, Math.max(0,+due10||0)), alloc={h10:a10,h25:totU-a10};
+      var kU='week:'+debutStr; if(!pmU[kU]||typeof pmU[kU]!=='object') pmU[kU]={};
+      ['h10','h25'].forEach(function(tr){ var other=t[tr]-dk[tr]; pmU[kU][tr]=Math.max(0, Math.round((alloc[tr]-other)*100)/100); });
+      try{ localStorage.setItem(M5_key('M5_HC_PAID'), JSON.stringify(pmU)); }catch(e){}
+      if(window.M5_refreshUI) requestAnimationFrame(window.M5_refreshUI);
+      return;
+    }
     var pm=_getPaidMap(), total=0, dkPaid=0;
     Object.keys(pm).forEach(function(k){ if(k.indexOf('week:')===0){ var md=k.slice(5); if(md>=debutStr && md<=finStr){ var val=+((pm[k]||{})[tranche])||0; total+=val; if(md===debutStr) dkPaid=val; } } });
     var other=Math.round((total-dkPaid)*100)/100;
@@ -3158,6 +3187,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   // chaque semaine avec ses propres cases de paiement (clé par semaine, sans ambiguïté).
   function _m5PeriodeWeeksCard(c, rate, r1, r2){
     var per=_currentPeriodBounds(); if(!per||!per.debutStr) return '';
+    var uni=Math.abs(r1-r2)<1e-9, L1=M5_tauxTxt(r1), L2=M5_tauxTxt(r2); // 04/10/2026 : libellés réels (taux normal en 3239)
     var rep=_computeHebdoReport(c, per.debutStr);
     var pm=_getPaidMap();
     var wks=_allWeeksRaw().filter(function(w){ return w.monday>=per.debutStr && w.monday<=per.finStr; });
@@ -3189,20 +3219,20 @@ document.addEventListener('DOMContentLoaded',()=>{
       var lbl='Sem. '+startTxt+' → '+JC[dowE]+' '+e.getDate()+' '+MOISC[e.getMonth()];
       return '<div style="background:rgba(255,255,255,0.06);border-radius:9px;padding:8px 11px;margin-top:7px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">'
         +'<span style="font-weight:700;font-size:12px;color:'+C_TXT+';">'+lbl+'</span>'
-        +'<span style="font-size:12px;"><b style="color:#FFC24B;">+10% '+_fmtH(w.g10)+'</b> &nbsp; <b style="color:#FF9B8A;">+25% '+_fmtH(w.g25)+'</b></span></div>';
+        +'<span style="font-size:12px;">'+(uni?'<b style="color:#FFC24B;">'+_fmtH(w.g10+w.g25)+' '+L1+'</b>':'<b style="color:#FFC24B;">'+_fmtH(w.g10)+' '+L1+'</b> &nbsp; <b style="color:#FF9B8A;">'+_fmtH(w.g25)+' '+L2+'</b>')+'</span></div>';
     }
     // Champ de paiement AU NIVEAU DE LA PÉRIODE (toujours présent, toujours éditable)
-    function periodPaid(tranche, paidVal, color, label){
+    function periodPaid(tranche, paidVal, color, label, d10){
       var _ph=Math.floor((paidVal||0)+1e-9), _pm=Math.round(((paidVal||0)-_ph)*60); if(_pm===60){_ph++;_pm=0;}
       var st='width:38px;padding:4px;border:1px solid rgba(255,255,255,0.3);border-radius:7px;text-align:center;font-size:12.5px;background:#fff;color:#18102E;';
       return '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-size:12.5px;color:'+C_SUB+';gap:8px;flex-wrap:wrap;">'
         +'<span>On m\'a payé <b style="color:'+color+';">'+label+'</b> :</span>'
-        +'<span><input type="number" inputmode="numeric" min="0" value="'+(paidVal?_ph:'')+'" placeholder="0" onchange="window.M5setHCPaidPeriode(\''+per.debutStr+'\',\''+per.finStr+'\',\''+tranche+'\',\'h\',this.value)" style="'+st+'">h '
-        +'<input type="number" inputmode="numeric" min="0" max="59" value="'+(paidVal?String(_pm).padStart(2,"0"):'')+'" placeholder="00" onchange="window.M5setHCPaidPeriode(\''+per.debutStr+'\',\''+per.finStr+'\',\''+tranche+'\',\'m\',this.value)" style="'+st+'">min</span></div>';
+        +'<span><input type="number" inputmode="numeric" min="0" value="'+(paidVal?_ph:'')+'" placeholder="0" onchange="window.M5setHCPaidPeriode(\''+per.debutStr+'\',\''+per.finStr+'\',\''+tranche+'\',\'h\',this.value,'+(+d10||0)+')" style="'+st+'">h '
+        +'<input type="number" inputmode="numeric" min="0" max="59" value="'+(paidVal?String(_pm).padStart(2,"0"):'')+'" placeholder="00" onchange="window.M5setHCPaidPeriode(\''+per.debutStr+'\',\''+per.finStr+'\',\''+tranche+'\',\'m\',this.value,'+(+d10||0)+')" style="'+st+'">min</span></div>';
     }
     var euroBtn='<button id="m5-euro-btn" onclick="event.stopPropagation();window.M5toggleEuro()" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:9px;border:1px solid rgba(255,255,255,0.28);background:rgba(255,255,255,0.15);color:#fff;cursor:pointer;white-space:nowrap;">'+(shown?'🙈 Masquer €':'👁️ Afficher €')+'</button>';
     var repLine=(rep.h10>0||rep.h25>0)
-      ? '<div style="display:flex;justify-content:space-between;font-size:12px;color:'+C_REP+';margin-top:8px;"><span>Report précédent</span><b>'+_fmtH(rep.h10)+' (+10%) · '+_fmtH(rep.h25)+' (+25%)</b></div>'
+      ? '<div style="display:flex;justify-content:space-between;font-size:12px;color:'+C_REP+';margin-top:8px;"><span>Report précédent</span><b>'+(uni?_fmtH(rep.h10+rep.h25)+' ('+L1+')':_fmtH(rep.h10)+' ('+L1+') · '+_fmtH(rep.h25)+' ('+L2+')')+'</b></div>'
       : '';
     var rowsHtml=rows.length? rows.map(weekBlock).join('') : '<div style="font-size:12px;color:'+C_SUB+';margin-top:8px;">Aucune heure comp. saisie dans cette période. Tu peux quand même enregistrer un paiement du report ci-dessous.</div>';
     var body=''
@@ -3211,8 +3241,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       +repLine
       +rowsHtml
       +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.18);font-size:12.5px;color:'+C_TXT+';font-weight:700;"><span>Total dû (brut) : '+_fmtH(due10+due25)+'</span><span>'+eur(due10*rate*(1+r1)+due25*rate*(1+r2))+'</span></div>'
-      +periodPaid('h10',paid10,'#FFC24B','+10%')
-      +periodPaid('h25',paid25,'#FF9B8A','+25%')
+      +(uni ? periodPaid('u',paid10+paid25,'#FFC24B',L1,due10)
+            : periodPaid('h10',paid10,'#FFC24B',L1)+periodPaid('h25',paid25,'#FF9B8A',L2))
       +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.18);font-size:14px;font-weight:800;color:'+C_TXT+';"><span>💰 Reste à payer (net) : '+_fmtH(net10+net25)+'</span><span class="m5-euro-val'+blur+'">'+(rate>0?(eT.toFixed(2)+' €'):'—')+'</span></div>';
     var head='<div onclick="window.M5toggleSolde()" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;user-select:none;">'
       +'<span style="font-size:12.5px;font-weight:800;color:'+C_TXT+';">💠 Heures comp. — semaine par semaine <span style="font-weight:500;color:'+C_SUB+';">(reste '+_fmtH(net10+net25)+')</span></span>'
@@ -3231,6 +3261,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       due10=Math.round((rep.h10+hc10)*100)/100; due25=Math.round((rep.h25+hc25)*100)/100;
       dtl10='report '+_fmtH(rep.h10)+' + période '+_fmtH(hc10); dtl25='report '+_fmtH(rep.h25)+' + période '+_fmtH(hc25);
       suffix='report par période';
+      var _dtlU='report '+_fmtH(rep.h10+rep.h25)+' + période '+_fmtH(hc10+hc25);
     } else if(_mode()==='HEBDO'){
       var wr=analysis.weekResult||{}, whc10=wr.compH1||0, whc25=wr.compH2||0;
       var cm=(window.M5_getCalMonday&&window.M5_getCalMonday())||'';
@@ -3238,6 +3269,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       due10=Math.round((wrep.h10+whc10)*100)/100; due25=Math.round((wrep.h25+whc25)*100)/100;
       dtl10='report '+_fmtH(wrep.h10)+' + semaine '+_fmtH(whc10); dtl25='report '+_fmtH(wrep.h25)+' + semaine '+_fmtH(whc25);
       suffix='semaine par semaine';
+      var _dtlU='report '+_fmtH(wrep.h10+wrep.h25)+' + semaine '+_fmtH(whc10+whc25);
     } else if(_mode()==='ANNUEL' && analysis.annuelResult){
       var ar=analysis.annuelResult, obj=+ar.objectifAnnuel||0, reel=+ar.reelCumule||0;
       var over=Math.max(0, reel-obj), thr=(c.threshold!=null?c.threshold:0.10);
@@ -3248,6 +3280,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     } else { return ''; }
     var e10=due10*rate*(1+r1), e25=due25*rate*(1+r2), eT=e10+e25;
     var p=_getPaid(_periodKey()), out10=Math.max(0,due10-p.h10), out25=Math.max(0,due25-p.h25);
+    // 04/10/2026 : libellés réels (« au taux normal » en 3239) et une seule ligne si les taux sont égaux
+    var uni=Math.abs(r1-r2)<1e-9, L1=M5_tauxTxt(r1), L2=M5_tauxTxt(r2);
+    var dtlU=(typeof _dtlU==='string')?_dtlU:dtl10;
     var shown=localStorage.getItem('M5_EURO_SHOWN')==='1', blur=shown?'':' m5-blur';
     var open=localStorage.getItem('M5_SOLDE_OPEN')==='1';
     var C_TXT='#ffffff', C_SUB='rgba(255,255,255,0.62)', C_REP='#CDB8FF';
@@ -3264,13 +3299,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     var body=''
       +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span style="font-size:11px;color:'+C_SUB+';">Non payées → reportées, tranche conservée.</span>'+euroBtn+'</div>'
       +(rate>0?'':'<div style="font-size:11.5px;color:'+C_SUB+';margin-top:4px;">💡 Renseigne ton <b>taux horaire</b> (⚙️) pour voir les montants.</div>')
-      +row('à +10 %','#FFC24B',dtl10,due10,eur(e10),p.h10,out10,'window.M5setHCPaid10','m5-rep-10')
-      +row('à +25 %','#FF9B8A',dtl25,due25,eur(e25),p.h25,out25,'window.M5setHCPaid25','m5-rep-25')
+      +(uni ? row(L1,'#FFC24B',dtlU,due10+due25,eur(e10+e25),p.h10+p.h25,out10+out25,'window.M5setHCPaidU','m5-rep-10')
+            : row(L1,'#FFC24B',dtl10,due10,eur(e10),p.h10,out10,'window.M5setHCPaid10','m5-rep-10')
+             +row(L2,'#FF9B8A',dtl25,due25,eur(e25),p.h25,out25,'window.M5setHCPaid25','m5-rep-25'))
       +'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.18);font-size:12px;color:'+C_SUB+';"><span>Total généré (brut) : '+_fmtH(due10+due25)+'</span><span>'+eur(eT)+'</span></div>'+'<div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;font-size:14px;font-weight:800;color:'+C_TXT+';"><span>💰 Reste à payer (net) : <span id="m5-net-h">'+_fmtH(out10+out25)+'</span></span><span id="m5-net-eur" class="m5-euro-val'+blur+'">'+(rate>0?((out10*rate*(1+r1)+out25*rate*(1+r2)).toFixed(2)+' €'):'—')+'</span></div>';
     var head='<div onclick="window.M5toggleSolde()" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 13px;cursor:pointer;user-select:none;">'
       +'<span style="font-size:12.5px;font-weight:800;color:'+C_TXT+';">💠 Heures comp. — '+suffix+' <span style="font-weight:500;color:'+C_SUB+';">(reste <span id="m5-hdr-net">'+_fmtH(out10+out25)+'</span>)</span></span>'
       +'<span id="m5-solde-chev" style="color:'+C_SUB+';font-size:13px;transition:transform .2s;'+(open?'transform:rotate(180deg);':'')+'">▾</span></div>';
-    return '<div id="m5-solde-card" data-due10="'+due10+'" data-due25="'+due25+'" data-rate="'+rate+'" data-r1="'+r1+'" data-r2="'+r2+'" style="margin-top:12px;background:linear-gradient(160deg,rgba(23,16,46,0.72),rgba(44,24,76,0.72));border:1.5px solid rgba(180,150,255,0.55);border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.30);">'
+    return '<div id="m5-solde-card" data-uni="'+(uni?'1':'0')+'" data-due10="'+due10+'" data-due25="'+due25+'" data-rate="'+rate+'" data-r1="'+r1+'" data-r2="'+r2+'" style="margin-top:12px;background:linear-gradient(160deg,rgba(23,16,46,0.72),rgba(44,24,76,0.72));border:1.5px solid rgba(180,150,255,0.55);border-radius:14px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.30);">'
       + head + '<div id="m5-solde-body" style="padding:0 13px 12px;'+(open?'':'display:none;')+'">'+body+'</div></div>';
   };
 
