@@ -257,6 +257,7 @@ async function runAuto(){
 
   // Données
   dataChecks();
+  await ccnChecks();
   ck.auto={t:new Date().toISOString(),ver:window.__ckVer,res:RES.filter(function(r){return r.st!=='run';})};save();
   renderAuto();$('runAuto').disabled=false;
 }
@@ -334,6 +335,32 @@ function dataChecks(){
   add('Autres modules','info','Rappel de sauvegarde',localStorage.getItem('SH_BACKUP_NUDGE')?'déjà montré : '+localStorage.getItem('SH_BACKUP_NUDGE'):'pas encore montré ce mois-ci');
 }
 
+/* ── Règles des conventions (04/10/2026, v10.11.46) : lecture seule ── */
+async function ccnChecks(){
+  var S='Règles des conventions';
+  try{
+    if(!window.CCN_API) await new Promise(function(res,rej){var sc=document.createElement('script');sc.src='ccn/conventions-collectives.js';sc.onload=res;sc.onerror=rej;document.head.appendChild(sc);});
+  }catch(e){add(S,'ko','Fichier des conventions illisible','ccn/conventions-collectives.js ne se charge pas.');renderAuto();return;}
+  var A=window.CCN_API;if(!A){add(S,'ko','Fichier des conventions illisible','');renderAuto();return;}
+  if(!A.reglesPour||!A.tauxUnique||!A.CCN_RENVOIS){add(S,'ko','Ancienne version du fichier des conventions','Fonctions v10.11.45-46 absentes : mise à jour pas encore arrivée.');renderAuto();return;}
+  var N_PE='Particuliers employeurs emploi à domicile',N_AM='Assistant(e) maternel(le) agréé(e) — particuliers employeurs';
+  var pe=A.reglesPour(3239,N_PE),am=A.reglesPour(3239,N_AM);
+  add(S,(pe.id==='PEMP40'&&pe.seuil===40&&pe.sansContingent)?'ok':'ko','3239 emploi à domicile','seuil '+pe.seuil+' h · '+(pe.sansContingent?'pas de contingent':'contingent '+pe.contingent+' h')+' · +'+pe.taux1+' % / +'+pe.taux2+' %');
+  add(S,(am.id==='AMAT45'&&am.seuil===45&&am.sansContingent&&A.tauxUnique(am))?'ok':'ko','3239 assistant maternel','seuil '+am.seuil+' h · '+(am.sansContingent?'pas de contingent':'contingent '+am.contingent+' h')+' · '+(A.tauxUnique(am)?'taux unique +'+am.taux1+' %':'+'+am.taux1+' % / +'+am.taux2+' %'));
+  var uni=Object.keys(A.REGLES_HS).filter(function(k){return A.tauxUnique(A.REGLES_HS[k]);});
+  add(S,(uni.length===1&&uni[0]==='AMAT45')?'ok':'warn','Conventions à taux unique',uni.join(', ')||'aucune');
+  var r1=A.search('2111',3)[0]||{},r2=A.search('2395',3)[0]||{};
+  add(S,(r1.renvoi===2111&&r1.n===N_PE&&r2.renvoi===2395&&r2.n===N_AM)?'ok':'ko','Renvois 2111 et 2395','2111 → '+(r1.n||'rien')+' · 2395 → '+(r2.n||'rien'));
+  var dc=A.getRules('DC'),h=A.getGroupeForCCN(1979),g=A.getGroupeForCCN(573);
+  add(S,(dc.seuil===35&&dc.contingent===220&&h.contingent===360&&g.contingent===180)?'ok':'ko','Non-régression','droit commun '+dc.seuil+' h / '+dc.contingent+' h · HCR '+h.contingent+' h · 573 '+g.contingent+' h');
+  try{var idc=parseInt(localStorage.getItem('CCN_IDCC')||'0',10);
+    if(localStorage.getItem('CCN_CUSTOM'))add(S,'info','Ta convention','Accord personnalisé');
+    else if(!idc)add(S,'info','Ta convention','Droit commun (35 h, 220 h)');
+    else{var mr=A.getGroupeForCCN(idc);add(S,'info','Ta convention','IDCC '+idc+' · '+(localStorage.getItem('CCN_NOM')||mr.nom)+' · seuil '+mr.seuil+' h · '+(mr.sansContingent?'pas de contingent':'contingent '+mr.contingent+' h'));}
+  }catch(e){}
+  renderAuto();
+}
+
 /* ── Test d'ouverture des modules (données remises à l'identique après) ── */
 var MODS=[['Menu','menu.html','initCCNBadge'],['Compteur annuel','heures/index.html','hsBilanPuisOuvrir'],['Heures mensualisées','paye/index.html','m2BilanLignes'],
   ['Fox','fox/index.html','hsOfficiel'],['Jumeau numérique (M4)','module4/index.html','DTE'],['Mizuki','module5/index.html','M5_Contract'],['Zenji','module6/index.html','M6_Storage'],
@@ -374,69 +401,67 @@ function testMod(md){return new Promise(function(res){
 
 /* ════════ CHECKLIST MANUELLE ════════ */
 var ITEMS=[
-{g:'0 · Préparation',id:'p1',t:'Bonne version chargée',v:'v10.10.96',o:'menu.html',h:'Bas du menu : ligne « Version ».',e:'« v10.10.96 · appli ». Android : Sandbox installé depuis Chrome (tonytonic.github.io/Sandbox/menu.html → Installer) ; l\'appli Play Store, elle, pointe sur la prod.'},
-{g:'0 · Préparation',id:'p2',t:'Copie de sauvegarde de ta vraie prod importée',v:'migration',o:'menu.html#sauvegarde',h:'Prod : Sauvegarde → faire une copie. Sandbox : Sauvegarde → importer ce fichier.',e:'Import accepté ; le résumé par module correspond à ta prod.'},
-{g:'0 · Préparation',id:'p3',t:'Diagnostic sans KO',v:'check',o:'check.html',h:'Onglet Diagnostic → Relancer, puis Tester l\'ouverture des modules.',e:'Aucun KO. Chaque « attention » est compris.'},
-{g:'0 · Préparation',id:'p4',t:'Accès caché au check',v:'v10.10.97',o:'menu.html',h:'Bas du menu : 5 appuis rapides sur la ligne « Version ».',e:'Ce check s\'ouvre dans l\'appli (mode « appli » en haut).'},
-{g:'1 · Affichage',id:'a1',t:'En-têtes sous l\'heure, sans flou',v:'v10.10.96',o:'module7/index.html',h:'Menu (fais défiler), Zenji, M7, outils Préavis, Frais, CDI·CDD·Intérim, Taiko, GrillePaye, M4.',e:'Le titre commence sous l\'heure ; rien de flouté en haut, même en faisant défiler.'},
-{g:'1 · Affichage',id:'a2',t:'Barres du bas au-dessus de la barre d\'accueil',v:'v10.10.96',o:'module6/index.html',h:'Zenji (Bilan, Semaines…), Mizuki, Taiko, M4.',e:'Tous les boutons du bas sont visibles et cliquables.'},
-{g:'1 · Affichage',id:'a3',t:'Pas de zoom quand on touche un champ',v:'v10.10.90',o:'outils/module-preavis.html',h:'Touche un champ : Préavis (ancienneté), Zenji (saisie), Taiko, Mizuki.',e:'iPhone : pas de zoom automatique. Android : n/a.'},
-{g:'1 · Affichage',id:'a4',t:'Pas de flash au démarrage',v:'v10.10.69',o:'GrillePaye/index.html',h:'Ouvre GrillePaye, Mizuki, Fox, Heures depuis le menu.',e:'La page s\'affiche directement, sans écran vide ni saut.'},
-{g:'1 · Affichage',id:'a5',t:'Popups Sauvegarde et Rappels bien cadrés',v:'v10.10.61',o:'menu.html',h:'Menu : Sauvegarde puis Rappels.',e:'La fenêtre tient dans l\'écran.'},
-{g:'1 · Affichage',id:'a6',t:'Taiko : long texte',v:'v10.10.85',o:'taiko.html',h:'Écris un très long texte sur un jour du calendrier.',e:'7 colonnes égales, texte coupé par « … ».'},
-{g:'1 · Affichage',id:'a7',t:'Préavis : référence en lien',v:'v10.10.93',o:'outils/module-preavis.html',h:'Carte « Référence », change aussi le motif.',e:'« Art. L… CT » cliquable, jamais de code « <a class… ».'},
-{g:'1 · Affichage',id:'a8',t:'Mode paysage',v:'général',o:'menu.html',h:'Tourne le téléphone sur le menu et un module.',e:'Rien de coupé ni de superposé (ou l\'appli reste en portrait).'},
-{g:'2 · Menu et paramètres',id:'m1',t:'Prénom',v:'v10.10.87',o:'menu.html',h:'Paramètres → Ton prénom, puis Fox, Mizuki, Zenji.',e:'Le prénom est utilisé quand le module n\'en a pas.'},
-{g:'2 · Menu et paramètres',id:'m2',t:'Convention collective',v:'v10.10.87',o:'menu.html',h:'Paramètres → Ma convention collective → choisir → Appliquer.',e:'Libellé et badge à jour.'},
-{g:'2 · Menu et paramètres',id:'m3',t:'GrillePaye sur ta CCN',v:'v10.10.87',o:'GrillePaye/index.html',h:'Ouvre GrillePaye.',e:'Fiche de ta CCN ouverte ; ← Retour = liste.'},
-{g:'2 · Menu et paramètres',id:'m4',t:'Saisir aujourd\'hui',v:'v10.10.79',o:'menu.html',h:'Menu → Saisir aujourd\'hui (pour chaque module configuré).',e:'Exercice et période d\'aujourd\'hui, saisie du jour ouverte.'},
-{g:'2 · Menu et paramètres',id:'m5',t:'Rappel de sauvegarde mensuel',v:'v10.10.70',o:'menu.html',h:'Clôture une période dans un module, puis ouvre-en d\'autres.',e:'Un seul rappel pour toute l\'appli dans le mois.'},
-{g:'2 · Menu et paramètres',id:'m6',t:'Rappels calendrier (.ics)',v:'v10.10.40–43',o:'menu.html',h:'Menu → Rappels → ajouter au calendrier.',e:'Le calendrier propose d\'ajouter les rappels.'},
-{g:'3 · Compteur annuel',id:'h1',t:'Ouverture sur l\'exercice en cours',v:'v10.10.77–82',o:'heures/index.html',h:'Choisis une autre année, quitte et reviens.',e:'Retour sur l\'exercice et la période d\'aujourd\'hui.'},
-{g:'3 · Compteur annuel',id:'h2',t:'Swipe et liste des périodes',v:'v10.10.77',o:'heures/index.html',h:'Swipe dans les deux sens jusqu\'aux bouts.',e:'Arrêt aux bornes ; la liste suit.'},
-{g:'3 · Compteur annuel',id:'h3',t:'Contingent limité à l\'exercice',v:'v10.10.77',o:'heures/index.html',h:'Heures après la clôture annuelle.',e:'Pas comptées dans l\'exercice terminé.'},
-{g:'3 · Compteur annuel',id:'h4',t:'Fériés et absences',v:'v10.10.80',o:'heures/index.html',h:'Heures dans une semaine avec férié.',e:'Bilan : saisies / comptées + explication de l\'écart.'},
-{g:'3 · Compteur annuel',id:'h5',t:'Exercice suivant à la main',v:'v10.10.77',o:'heures/index.html',h:'Crée l\'exercice suivant.',e:'Choix : clôtures automatiques ou manuelles.'},
-{g:'3 · Compteur annuel',id:'h6',t:'PDF',v:'v10.10.74',o:'heures/index.html',h:'Exporte les PDF (clôture en milieu de semaine).',e:'Mêmes totaux qu\'à l\'écran ; le PDF s\'ouvre ou se partage.'},
-{g:'3 · Compteur annuel',id:'h7',t:'Bilan + reste dû + image',v:'v10.10.73 / .88',o:'heures/index.html',h:'Bandeau de fin d\'exercice → bilan → Enregistrer en image.',e:'Encadré orange + 3 ans ; image partagée ou téléchargée.'},
-{g:'4 · Heures mensualisées',id:'q1',t:'Ouverture sur l\'année d\'aujourd\'hui',v:'v10.10.75–83',o:'paye/index.html',h:'Consulte une autre année, rouvre M2.',e:'Retour sur aujourd\'hui.'},
-{g:'4 · Heures mensualisées',id:'q2',t:'Fin décembre dans la période de janvier',v:'v10.10.75',o:'paye/index.html',h:'Clôture de décembre avant le 31, saisis le 30/12.',e:'Heures dans la période de janvier.'},
-{g:'4 · Heures mensualisées',id:'q3',t:'Clôtures manuelles selon la CCN',v:'v10.10.76',o:'paye/index.html',h:'Clôtures → saisie manuelle.',e:'Jours de clôture = jour de fin de semaine de ta CCN.'},
-{g:'4 · Heures mensualisées',id:'q4',t:'Nouvel exercice le lendemain de la clôture',v:'v10.10.76',o:'paye/index.html',h:'Après la dernière clôture de décembre.',e:'Bandeau → bilan → choix des clôtures.'},
-{g:'4 · Heures mensualisées',id:'q5',t:'Reste non payé : reporter',v:'v10.10.88',o:'paye/index.html',h:'Démo : bandeau « 8h non payées » → Reporter.',e:'Janvier : 8h « ↪ reporté de l\'exercice 2025 ».'},
-{g:'4 · Heures mensualisées',id:'q6',t:'Reste non payé : ne pas reporter',v:'v10.10.88',o:'paye/index.html',h:'Démo rechargée → Ne pas reporter.',e:'Bandeau disparu, janvier sans les 8h.'},
-{g:'4 · Heures mensualisées',id:'q7',t:'Bilan avec encadré + PDF',v:'v10.10.88',o:'paye/index.html',h:'Bilan 2025, puis PDF annuel.',e:'« Reste à payer » + encadré ; PDF lisible.'},
-{g:'4 · Heures mensualisées',id:'q8',t:'Autre année : bonne période + fin décembre',v:'v10.10.99',o:'paye/index.html',h:'📅 Exercice → année suivante puis précédente. Dans janvier, touche un jour de fin décembre (bordure jaune).',e:'Année future : janvier ; année passée : décembre. Les jours de fin décembre de la période de janvier s\'affichent et se modifient.'},
-{g:'5 · Mizuki',id:'z1',t:'Accueil et assistant',v:'v10.10.70–72',o:'module5/index.html',h:'Nouveau contrat de bout en bout.',e:'Durée semaine/mois/an, question 2e contrat, prénom et CCN préremplis.'},
-{g:'5 · Mizuki',id:'z2',t:'⚙️ Mon contrat',v:'v10.10.72',o:'module5/index.html',h:'Change l\'unité de durée.',e:'Mêmes choix que l\'assistant.'},
-{g:'5 · Mizuki',id:'z3',t:'CCN du menu reprise',v:'v10.10.87',o:'module5/index.html',h:'Contrat 1 en droit commun + CCN au menu.',e:'Message de reprise ; un retour manuel au droit commun est respecté.'},
-{g:'5 · Mizuki',id:'z4',t:'Multi-contrat',v:'v10.10.48–53',o:'module5/index.html',h:'Bascule entre contrats, vue d\'ensemble.',e:'Chaque contrat garde ses données ; totaux et repère 48 h.'},
-{g:'5 · Mizuki',id:'z5',t:'Santé sur le cumul',v:'v10.10.89',o:'module5/index.html',h:'Stats → santé sur chaque contrat.',e:'« Cumul de tes N contrats », mêmes scores partout.'},
-{g:'5 · Mizuki',id:'z6',t:'Alertes 48 h / 44 h / 10 h',v:'v10.10.73 / .89',o:'module5/index.html',h:'Semaine chargée sur deux contrats.',e:'Alertes rouges affichées.'},
-{g:'5 · Mizuki',id:'z7',t:'Congés sur tous les contrats',v:'v10.10.89',o:'module5/index.html',h:'Bouton « Je suis en congés sur mes N contrats », puis re-clic.',e:'Marqué puis retiré partout.'},
-{g:'5 · Mizuki',id:'z8',t:'Paiements des heures complémentaires',v:'v10.10.68',o:'module5/index.html',h:'Coche des heures payées (+10 %, +25 %).',e:'Le solde baisse ; il reste juste après rechargement.'},
-{g:'5 · Mizuki',id:'z9',t:'Bilan de fin d\'exercice',v:'v10.10.88',o:'module5/index.html',h:'Bandeau → bilan.',e:'HC payées, reste à payer, encadré + 3 ans.'},
-{g:'5 · Mizuki',id:'z10',t:'PDF',v:'général',o:'module5/index.html',h:'Export PDF.',e:'S\'ouvre ou se partage, chiffres = écran.'},
-{g:'5 · Mizuki',id:'z11',t:'Exercice passé consulté',v:'v10.10.99',o:'module5/index.html',h:'Change d\'année vers l\'exercice précédent.',e:'Bandeau « Tu consultes l\'exercice terminé » + Bilan + Aller à l\'exercice en cours.'},
-{g:'5 · Mizuki',id:'z12',t:'Reste dû de l\'exercice précédent',v:'v10.10.99',o:'module5/index.html',h:'Dans l\'exercice en cours : bandeau « heures non payées sur ton exercice précédent » → Choisir.',e:'Reporter : le solde garde ces heures ; Ne pas reporter : le solde repart de zéro. Le bandeau disparaît.'},
-{g:'5 · Mizuki',id:'z13',t:'Exercice suivant créé à l\'avance',v:'v10.10.99',o:'module5/index.html',h:'Années → Créer l\'année suivante avant la fin de l\'exercice.',e:'Question clôtures automatiques ou manuelles ; appliquée le jour du passage.'},
-{g:'5 · Mizuki',id:'z14',t:'PDF par contrat + PDF commun + heatmap commune',v:'v10.10.99',o:'module5/index.html',h:'Stats : heatmaps ; PDF d\'un contrat puis « PDF commun ».',e:'PDF contrat : section Paiement (dues, payées, reste). PDF commun : tous les contrats, 48 h / 44 h, heatmap. Stats : heatmap tous contrats.'},
-{g:'6 · Zenji',id:'c1',t:'Exercice en cours',v:'v10.10.78–83',o:'module6/index.html',h:'Exercice juin → mai.',e:'Exercice qui contient aujourd\'hui, calendrier borné.'},
-{g:'6 · Zenji',id:'c2',t:'Migration de tes données prod',v:'v10.10.86',o:'module6/index.html',h:'Après import de la sauvegarde prod.',e:'Janvier–mai visibles ; pas de bandeau en retard ; Diagnostic : 0 saisie hors exercice.'},
-{g:'6 · Zenji',id:'c3',t:'Nouvel exercice + bilan',v:'v10.10.76 / .88',o:'module6/index.html',h:'Bandeau → bilan → dates.',e:'Encadré ; dates un an plus tard ou à saisir.'},
-{g:'6 · Zenji',id:'c4',t:'Assistant prérempli',v:'v10.10.87',o:'module6/index.html',h:'⚙️ Contrat.',e:'Prénom et CCN préremplis, rien d\'écrasé.'},
-{g:'6 · Zenji',id:'c5',t:'Saisie et PDF',v:'général',o:'module6/index.html',h:'Saisis une semaine, exporte le PDF.',e:'Totaux cohérents, PDF lisible.'},
-{g:'6 · Zenji',id:'c6',t:'Réinitialiser les dates',v:'v10.10.99',o:'module6/index.html',h:'⚙️ Contrat → étape Exercice → Réinitialiser → terminer.',e:'Cases vides acceptées = année civile ; plus besoin de mettre une date.'},
-{g:'6 · Zenji',id:'c7',t:'Réglages propres à chaque exercice',v:'v10.10.99',o:'module6/index.html',h:'Flèche vers l\'exercice précédent, change un réglage (plafond…), reviens.',e:'Bandeau « exercice terminé » ; l\'exercice en cours n\'a pas changé.'},
-{g:'6 · Zenji',id:'c8',t:'Nouvel exercice',v:'v10.10.99',o:'module6/index.html',h:'Flèche suivante après le dernier exercice (ou 📅 Nouvel exercice).',e:'Choix des dates ; réglages copiés du précédent ; l\'exercice s\'ouvre avec le bandeau « à venir ».'},
-{g:'7 · Fox, M4, M7, GrillePaye',id:'f1',t:'Fox : chiffres officiels',v:'v10.10.82–84',o:'fox/index.html',h:'Données, vue pro, rapport.',e:'Même total que le contingent M1 ou M2.'},
-{g:'7 · Fox, M4, M7, GrillePaye',id:'f2',t:'M4 : heatmaps',v:'v10.10.81',o:'module4/index.html',h:'Jumeau numérique → heatmaps.',e:'Limitées à l\'exercice affiché.'},
-{g:'7 · Fox, M4, M7, GrillePaye',id:'f3',t:'M7 nuit, astreinte, primes',v:'général',o:'module7/index.html',h:'Saisis une nuit et une astreinte.',e:'Montants calculés, en-tête propre.'},
-{g:'8 · Hors ligne et système',id:'o1',t:'Hors ligne',v:'SW',o:'menu.html',h:'Mode avion, ouvre l\'appli, puis Heures, M2, Mizuki, un outil.',e:'Tout s\'ouvre sans réseau.'},
-{g:'8 · Hors ligne et système',id:'o2',t:'Mise à jour de l\'appli',v:'SW',o:'menu.html',h:'Après une nouvelle version : ferme et rouvre.',e:'La nouvelle version arrive sans réinstaller, données intactes.'},
-{g:'8 · Hors ligne et système',id:'o3',t:'Retour Android',v:'Android',o:'menu.html',h:'Geste ou bouton retour dans un module.',e:'Retour au menu, l\'appli ne se ferme pas brutalement. iPhone : n/a.'},
-{g:'9 · Sauvegarde',id:'b1',t:'Export puis réimport',v:'v10.10.62',o:'menu.html#sauvegarde',h:'Copie de sauvegarde puis réimport.',e:'Résumé correct, tout revient.'},
-{g:'9 · Sauvegarde',id:'b2',t:'Ancienne sauvegarde prod',v:'migration',o:'menu.html#sauvegarde',h:'Importe une sauvegarde faite avant ces changements.',e:'Import accepté ; Zenji re-range ses jours à l\'ouverture.'}
+/* 04/10/2026 : checklist v10.11.46 (règles par convention, 3239, paiement HS Zenji, renvois 2111/2395).
+   Identifiants nouveaux (suffixe _46) : les coches des anciennes versions ne se reportent pas. */
+{g:'0 · Préparation',id:'p1_46',t:'Bonne version chargée',v:'v10.11.48',o:'menu.html',h:'Bas du menu : ligne « Version ». Sinon : onglet Rapport → Outils → Chercher une mise à jour.',e:'« v10.11.48 · appli ».'},
+{g:'0 · Préparation',id:'p2_46',t:'Diagnostic sans KO',v:'check',o:'check.html',h:'Onglet Diagnostic → Relancer (section « Règles des conventions » comprise), puis Tester l\'ouverture des modules.',e:'Aucun KO. Chaque « attention » est compris.'},
+{g:'0 · Préparation',id:'p3_46',t:'Noter quelques chiffres avant de toucher à rien',v:'migration',o:'menu.html',h:'Ta convention, 2 ou 3 totaux de M1 et M5.',e:'Point de comparaison pour la partie migration.'},
+
+{g:'1 · Migration de tes données',id:'mg1_46',t:'Convention toujours sélectionnée',v:'v10.11.43',o:'menu.html',h:'Menu → Convention collective.',e:'Même nom, même IDCC qu\'avant.'},
+{g:'1 · Migration de tes données',id:'mg2_46',t:'M1 : historique et base hebdo',v:'v10.11.43',o:'heures/index.html',h:'Compteur annuel.',e:'Semaines intactes, mêmes totaux ; base = 35 h ou le seuil de ta convention (40 h / 45 h en 3239).'},
+{g:'1 · Migration de tes données',id:'mg3_46',t:'M2 : bulletins et heures',v:'v10.11.43',o:'paye/index.html',h:'Heures mensualisées.',e:'Mêmes montants qu\'avant pour une convention non modifiée.'},
+{g:'1 · Migration de tes données',id:'mg4_46',t:'M5 : contrats et semaines',v:'v10.11.43',o:'module5/index.html',h:'Mizuki, y compris le 2e contrat.',e:'Contrats et semaines intacts ; taux, plafond et prévenance repris de la convention.'},
+{g:'1 · Migration de tes données',id:'mg5_46',t:'Zenji : contrat forfait heures',v:'v10.11.43',o:'module6/index.html',h:'Zenji → Forfait heures.',e:'Valeurs restées au défaut légal → valeurs de la convention (HCR : 360 h, 10 %, palier 4 h) ; une valeur modifiée à la main reste telle quelle.'},
+
+{g:'2 · Rien n\'a bougé ailleurs',id:'r1_46',t:'M1 : semaines à 39 h puis 45 h',v:'non-régression',o:'heures/index.html',h:'Droit commun, puis 573 ou 1486.',e:'4 h à 25 % ; puis 8 h à 25 % + 2 h à 50 %. Contingent affiché avec la jauge (220 h droit commun, 180 h en 573).'},
+{g:'2 · Rien n\'a bougé ailleurs',id:'r2_46',t:'M2 : deux taux comme avant',v:'non-régression',o:'paye/index.html',h:'Droit commun.',e:'Tuiles 25 % / 50 %, deux champs « payées », mêmes montants et même PDF.'},
+{g:'2 · Rien n\'a bougé ailleurs',id:'r3_46',t:'M5 : contrat 24 h, semaine à 28 h',v:'non-régression',o:'module5/index.html',h:'Droit commun.',e:'HC « à +10% » jusqu\'à 2,4 h puis « à +25% », deux lignes de paiement, plafond 10 %.'},
+{g:'2 · Rien n\'a bougé ailleurs',id:'r4_46',t:'Zenji : forfait heures HCR et droit commun',v:'non-régression',o:'module6/index.html',h:'Forfait heures avec HCR, puis droit commun.',e:'Jauge de contingent (360 h / 220 h), tuiles par taux, carte paiement avec une ligne par taux, alertes de contingent inchangées.'},
+{g:'2 · Rien n\'a bougé ailleurs',id:'r5_46',t:'Zenji : forfait jours',v:'non-régression',o:'module6/index.html',h:'Forfait jours.',e:'Rien de changé.'},
+{g:'2 · Rien n\'a bougé ailleurs',id:'r6_46',t:'Fox, vue pro et M4',v:'non-régression',o:'fox/index.html',h:'Droit commun.',e:'Contingent 220 h, jauge et alertes présentes ; heatmap M4 inchangée.'},
+{g:'2 · Rien n\'a bougé ailleurs',id:'r7_46',t:'Retour au droit commun',v:'non-régression',o:'menu.html',h:'Menu → Je ne connais pas ma CCN.',e:'M1 repasse à 35 h, contingent 220 h.'},
+
+{g:'3 · 3239 emploi à domicile',id:'e1_46',t:'Base 40 h',v:'v10.11.43',o:'menu.html',h:'Menu : « Particuliers employeurs emploi à domicile ».',e:'40 h dans M1 et M2.'},
+{g:'3 · 3239 emploi à domicile',id:'e2_46',t:'M1 : semaines à 39 h et 50 h',v:'v10.11.43',o:'heures/index.html',h:'Saisis les deux semaines.',e:'39 h : aucune HS. 50 h : 8 h à 25 % puis 2 h à 50 %.'},
+{g:'3 · 3239 emploi à domicile',id:'e3_46',t:'Pas de contingent',v:'v10.11.43',o:'heures/index.html',h:'M1, M2, M4, Fox.',e:'Texte « pas de contingent » à la place de la jauge, aucune alerte de contingent.'},
+{g:'3 · 3239 emploi à domicile',id:'e4_46',t:'M5 : contrat 30 h, semaines à 38 h puis 40 h',v:'v10.11.43',o:'module5/index.html',h:'Mizuki.',e:'8 h puis 10 h « au taux normal », une seule ligne ; pas d\'alerte de requalification à 40 h ; 30 h = 75 % du temps plein.'},
+{g:'3 · 3239 emploi à domicile',id:'e5_46',t:'M5 : carte droits, Mizuki, PDF',v:'v10.11.43',o:'module5/index.html',h:'Accueil, analyse Mizuki, export PDF.',e:'« Pas de plafond », 40 h, « Règle 12 sem. : sans objet » ; PDF avec une seule colonne « Taux normal ».'},
+
+{g:'4 · 3239 assistant maternel',id:'am1_46',t:'Base 45 h',v:'v10.11.43',o:'menu.html',h:'Menu : « Assistant(e) maternel(le) agréé(e) — particuliers employeurs ».',e:'45 h ; repasser sur emploi à domicile remet 40 h (les deux entrées ne se mélangent pas).'},
+{g:'4 · 3239 assistant maternel',id:'am2_46',t:'M1 : semaine à 55 h',v:'v10.11.45',o:'heures/index.html',h:'Détails des calculs.',e:'« 10h à 10% » et une seule ligne « 10% : 10h × 1.10 » ; un seul « Total à 10% » dans le PDF.'},
+{g:'4 · 3239 assistant maternel',id:'am3_46',t:'M2 : un seul taux',v:'v10.11.45',o:'paye/index.html',h:'Période avec des heures sup.',e:'Une tuile « À 10% », « 10% sur toutes les heures sup », un seul champ « À 10% payées », restant dû et report sur une ligne. Mois déjà saisi avec deux montants : le champ affiche leur somme.'},
+{g:'4 · 3239 assistant maternel',id:'am4_46',t:'M5 : contrat 30 h, semaine à 40 h',v:'v10.11.45',o:'module5/index.html',h:'Carte « Heures comp. ».',e:'10 h « au taux normal » sur une ligne (plus « +10 % / +25 % »). Les 10 h restent dues : elles s\'ajoutent au salaire du contrat.'},
+{g:'4 · 3239 assistant maternel',id:'am5_46',t:'M5 : paiement partiel',v:'v10.11.45',o:'module5/index.html',h:'« On m\'a payé » 6 h sur 10 h, puis semaine suivante.',e:'Reste 4 h, reportées au taux normal la semaine suivante. Vue mois : un seul champ pour la période.'},
+
+{g:'5 · Zenji forfait heures en 3239',id:'z1_46',t:'Choix de la convention',v:'v10.11.45',o:'module6/index.html',h:'⚙️ Contrat → chercher « assistant ».',e:'Une seule carte (plus de doublon) : « Contingent : Aucun (convention) », « +10 % sur toutes les heures sup » ; champ contingent grisé, prorata masqué.'},
+{g:'5 · Zenji forfait heures en 3239',id:'z2_46',t:'Règles lues sur le contrat',v:'v10.11.45',o:'module6/index.html',h:'Menu sur « emploi à domicile », contrat Zenji sur « assistant maternel ».',e:'Zenji garde 45 h et 10 %.'},
+{g:'5 · Zenji forfait heures en 3239',id:'z3_46',t:'Bilan',v:'v10.11.45',o:'module6/index.html',h:'Saisis 2 ou 3 semaines au-delà de 45 h, avec un taux horaire.',e:'Bandeau « Pas de contingent » ; une tuile « HS à +10% » ; Montant brut HS rempli ; encart à la place de la jauge ; « Aucune alerte » ; une ligne TEPA.'},
+{g:'5 · Zenji forfait heures en 3239',id:'z4_46',t:'Paiement des heures sup mois par mois',v:'v10.11.45',o:'module6/index.html',h:'Bilan → carte « Paiement des heures sup ». Saisis un paiement partiel puis le total.',e:'Le non-payé passe au mois suivant (« + Xh reportées ») ; « ✓ Payées » quand tout est réglé ; restant dû en heures et en euros.'},
+{g:'5 · Zenji forfait heures en 3239',id:'z5_46',t:'Semaine à cheval sur deux mois',v:'v10.11.45',o:'module6/index.html',h:'Ex. semaine du 26/10 au 01/11.',e:'Comptée dans le mois de son dimanche (novembre).'},
+{g:'5 · Zenji forfait heures en 3239',id:'z6_46',t:'Semaines, Validité, PDF',v:'v10.11.45',o:'module6/index.html',h:'Onglets Semaines, Validité, Export (PDF mensuel et annuel).',e:'« Xh à +10% » par semaine, « Contingent restant : aucun » en saisie ; Validité « Sans objet » ; PDF « Contingent : Aucun ».'},
+
+{g:'6 · Fox en 3239',id:'fx1_46',t:'Données',v:'v10.11.45',o:'fox/index.html',h:'Dock → Données.',e:'« Pas de contingent annuel pour ta convention » ; en assistant maternel une seule colonne HS +10 %.'},
+{g:'6 · Fox en 3239',id:'fx2_46',t:'Vue pro',v:'v10.11.45',o:'fox/index.html',h:'Vue pro.',e:'« Contingent : Aucun », plus de barre de contingent, historique sans %, référence L7221-2.'},
+{g:'6 · Fox en 3239',id:'fx4_48',t:'Carte de la semaine',v:'v10.11.48',o:'fox/index.html',h:'Assistant maternel : une semaine (ou la semaine passée) au-delà de 48 h. Puis emploi à domicile au-delà de 50 h.',e:'Assistant maternel : « au-delà de 48h », 48 h en moyenne (IDCC 3239), HS à +10 %, niveau attention. Emploi à domicile : maximum 50 h, 8 h à +25 % puis +50 %. Plus aucune mention de L3121-20 ni de « +25 % » en assistant maternel.'},
+{g:'6 · Fox en 3239',id:'fx3_46',t:'Bulles, messages et rapport',v:'v10.11.45',o:'fox/index.html',h:'Plusieurs ouvertures, puis le rapport.',e:'Aucun message sur le contingent ou les 220 h ; rapport « Contingent annuel : Aucun ».'},
+
+{g:'7 · Autres conventions et GrillePaye',id:'ac1_46',t:'3221 et 3109',v:'v10.11.43',o:'menu.html',h:'Chercher 3221 puis 3109.',e:'3221 : « règles propres à la convention » dans M1/M2. 3109 : « Cinq branches industries alimentaires diverses… ».'},
+{g:'7 · Autres conventions et GrillePaye',id:'ac2_46',t:'Valeurs du menu',v:'v10.11.43',o:'menu.html',h:'HCR, 1517, banque.',e:'HCR 35 h / 360 h ; 1517 : 180 h ; banque : contingent de la convention.'},
+{g:'7 · Autres conventions et GrillePaye',id:'ac3_46',t:'M5 en 2494',v:'v10.11.43',o:'module5/index.html',h:'Coopération maritime.',e:'Plafond 33 %, taux 10 % / 10 % fusionnés en une tuile ; plafonds proposés 10, 20, 25, 30, 33, 100 %.'},
+{g:'7 · Autres conventions et GrillePaye',id:'ac4_46',t:'Zenji forfait heures en 1801',v:'v10.11.43',o:'module6/index.html',h:'⚙️ Contrat → 1801.',e:'Contingent et taux de la convention repris.'},
+{g:'7 · Autres conventions et GrillePaye',id:'ac5_46',t:'GrillePaye',v:'v10.11.43',o:'GrillePaye/index.html',h:'3239, 3255, 1621, 2494, 1267, 7010, 650, 1486.',e:'3239 : HS à partir de 40 h, pas de contingent ; nouveaux minima ; 7010 : 220 h ; 650 : droit commun ; 1486 inchangée.'},
+
+{g:'8 · Anciennes conventions 2111 et 2395',id:'rv1_46',t:'Menu : 2111',v:'v10.11.46',o:'menu.html',h:'Convention collective → taper 2111.',e:'« Particuliers employeurs emploi à domicile » · IDCC 3239 · « remplace l\'ex-IDCC 2111 ». La choisir donne 40 h.'},
+{g:'8 · Anciennes conventions 2111 et 2395',id:'rv2_46',t:'Menu : 2395',v:'v10.11.46',o:'menu.html',h:'Taper 2395.',e:'Entrée assistant maternel 3239 · « remplace l\'ex-IDCC 2395 ». La choisir donne 45 h.'},
+{g:'8 · Anciennes conventions 2111 et 2395',id:'rv3_46',t:'Mizuki et Zenji',v:'v10.11.46',o:'module5/index.html',h:'Recherche de convention du contrat : 2111 puis 2395.',e:'Même renvoi vers l\'entrée 3239 correspondante.'},
+{g:'8 · Anciennes conventions 2111 et 2395',id:'rv4_46',t:'GrillePaye',v:'v10.11.46',o:'GrillePaye/index.html',h:'Chercher 2111 ou 2395.',e:'La ligne « ancienne convention, fusionnée dans l\'IDCC 3239 » ouvre la fiche 3239.'},
+{g:'8 · Anciennes conventions 2111 et 2395',id:'rv5_46',t:'Recherches habituelles',v:'non-régression',o:'menu.html',h:'Taper 1486, syntec, 21.',e:'Résultats inchangés ; pas de renvoi tant qu\'on n\'a pas tapé 3 chiffres.'},
+
+{g:'9 · Hors ligne, système, sauvegarde',id:'o1_46',t:'Hors ligne',v:'SW',o:'menu.html',h:'Mode avion : appli, Heures, M2, Mizuki, Zenji, un outil.',e:'Tout s\'ouvre sans réseau.'},
+{g:'9 · Hors ligne, système, sauvegarde',id:'o2_46',t:'Mise à jour de l\'appli',v:'SW',o:'menu.html',h:'Après la prochaine version : ferme et rouvre.',e:'La nouvelle version arrive sans réinstaller, données intactes.'},
+{g:'9 · Hors ligne, système, sauvegarde',id:'o3_46',t:'Retour Android',v:'Android',o:'menu.html',h:'Geste ou bouton retour dans un module.',e:'Retour au menu. iPhone : n/a.'},
+{g:'9 · Hors ligne, système, sauvegarde',id:'b1_46',t:'Copie de sauvegarde puis réimport',v:'général',o:'menu.html#sauvegarde',h:'Menu → Sauvegarde.',e:'Résumé correct, tout revient.'},
+{g:'9 · Hors ligne, système, sauvegarde',id:'b2_46',t:'Zenji : export JSON des paiements',v:'v10.11.45',o:'module6/index.html',h:'Export → Exporter, puis Importer le fichier.',e:'Les paiements saisis mois par mois reviennent.'}
 ];
 var ORD=['todo','ok','ko','na'],LB={todo:'à faire',ok:'✅ OK',ko:'❌ KO',na:'n/a'},filtre='tous';
 function gs(id,d){return ((ck.s[id]||{})[d])||'todo';}
