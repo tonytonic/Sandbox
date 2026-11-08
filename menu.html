@@ -74,12 +74,11 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
 
   /* Vue « Mes droits » : peau Atelier de outils.html */
   html.vue-droit body{ background:#0a1626 !important; background-image:none !important; }
-  #vdBg{ display:none; }
-  html.vue-droit #vdBg{ display:block; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background:#0a1626 url('atelier-bg.jpg') center top / cover no-repeat; }
-  html.vue-droit #vdBg::after{ content:''; position:absolute; inset:0;
-    background:linear-gradient(180deg, rgba(7,14,26,.25) 0%, rgba(7,14,26,.55) 30%, rgba(8,16,30,.86) 62%, rgba(8,16,30,.96) 100%); }
-  body.mode-pro #vdBg{ background-image:none !important; }
+  /* boutons du haut (guide, écosystème, convention) : fond plein dans la vue Mes droits */
+  html.vue-droit #guideBtn, html.vue-droit #sommaireBtn, html.vue-droit #ccn-badge{
+    background:#13283f !important; border:1px solid rgba(240,192,64,.35) !important; color:#fbf4e6 !important;
+    box-shadow:0 6px 18px rgba(0,0,0,.35) !important; }
+  html.vue-droit #ccn-badge *{ color:#fbf4e6 !important; }
   #vueDroit{ width:92%; max-width:420px; margin:4px auto 10px; box-sizing:border-box;
     font-family:'Manrope',-apple-system,BlinkMacSystemFont,sans-serif; color:#f7f0e2; }
   .vd-hero{ text-align:center; padding:26px 0 16px; }
@@ -728,8 +727,8 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
          de présentation obligatoire (béton). Remplace l'accueil « Commencer / Explorer directement ». ══ -->
     <div class="wiz-step" id="wStepVue">
       <div class="wq-ic" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></div>
-      <h2>Tu viens pour quoi ?</h2>
-      <p class="wq-sub">On t'emmène directement au bon endroit. Tu pourras changer à tout moment.</p>
+      <h2>Bienvenue&nbsp;!<br>Qu'est-ce qui t'amène&nbsp;?</h2>
+      <p class="wq-sub">Dis-nous ce que tu cherches, on t'emmène au bon endroit. Tu pourras changer à tout moment.</p>
       <button type="button" class="wq-opt" onclick="wizVueChoix('calc')"><span class="ic">🧮</span>
         <div><b>Mes heures sup</b><span>Compteur, paie, temps partiel, cadres. On configure ton contrat en une minute.</span></div></button>
       <button type="button" class="wq-opt droit" onclick="wizVueChoix('droit')"><span class="ic">⚖️</span>
@@ -1622,7 +1621,6 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
 </div>
 
 <!-- ══ MENU À TROIS VUES (08/11/2026) : sélecteur toujours visible en haut ══ -->
-<div id="vdBg" aria-hidden="true"></div>
 <div id="vueSwitch" role="tablist" aria-label="Affichage du menu">
   <button type="button" role="tab" data-v="tout" aria-selected="true" onclick="setMenuVue('tout',true)">Tout</button>
   <button type="button" role="tab" data-v="calc" aria-selected="false" onclick="setMenuVue('calc',true)">Mes heures</button>
@@ -1630,7 +1628,7 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
 </div>
 <div style="display:flex;flex-direction:column;gap:10px;width:90%;max-width:340px;margin:0 auto;">
   <!-- Favoris : centré, AU-DESSUS du guide (inchangé, juste déplacé + plein largeur) -->
-  <div style="position:relative;width:100%;" id="favDropContainer">
+  <div style="position:relative;width:100%;" id="favDropContainer" data-vues="tout calc">
     <button onclick="toggleFavDrop()" title="Mes outils favoris — La caisse à outils"
       style="width:100%;cursor:pointer;border-radius:10px;padding:9px 12px;
              font-family:inherit;font-weight:700;font-size:12px;
@@ -1831,10 +1829,6 @@ try{var _eco=sessionStorage.getItem('ecoBack')==='1';sessionStorage.removeItem('
       <a class="vd-link vd-glass" href="https://www.simulateurheuressupfrance.fr" target="_blank" rel="noopener">
         <span class="e" style="background:rgba(240,192,64,.22)">📚</span>
         <div><b>Guides par métier</b><span>Tes droits expliqués, secteur par secteur</span></div><i aria-hidden="true">›</i>
-      </a>
-      <a class="vd-link vd-glass" href="taiko.html">
-        <span class="e" style="background:rgba(47,191,74,.28)">✅</span>
-        <div><b>Taiko — Ma to-do list</b><span>Tes tâches et rappels du quotidien</span></div><i aria-hidden="true">›</i>
       </a>
     </div>
   </section>
@@ -5364,7 +5358,11 @@ function hasConsent(){
     if(depuisBouton){
       ssDel('SH_VD_Y');
       try{ window.scrollTo(0,0); }catch(e){}
-      if(v==='calc' && !calcConfigure()) ouvrirEtapeContrat();
+      /* proposé une seule fois : « Passer, je verrai plus tard » ne le fait pas revenir */
+      if(v==='calc' && !calcConfigure() && lsGet('MENU_CALC_PROPOSE')!=='1'){
+        lsSet('MENU_CALC_PROPOSE','1');
+        ouvrirEtapeContrat();
+      }
     }
   };
 
