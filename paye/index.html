@@ -156,7 +156,7 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 </style>
 <script src="../js/vendor/jspdf.umd.min.js"></script>
 <script src="../ccn/conventions-collectives.js"></script>
-<script src="../js/heures-normales.js?v=1"></script>
+<script src="../js/heures-normales.js?v=2"></script>
 
 <style id="landscape-blocker-style">
 @media screen and (orientation: landscape) and (max-device-width: 1024px) {
@@ -1168,10 +1168,31 @@ function m2NH(){
     setOn:v=>{SETTINGS.heuresNormales=!!v;try{localStorage.setItem(kSettings(),JSON.stringify(SETTINGS))}catch(_){}},
     getSeuil:()=>getCCNRules().seuil||35,getDs:()=>getCCNRules().debutSemaine||1,
     getHS:m2NHhs,isLocked:s=>{try{return isDateLocked(new Date(s+"T12:00:00"))}catch(_){return false}},
-    getMonthKey:()=>currentKey,refresh:()=>renderCalendar(),closeDay:()=>closeHours(),toast:(m,t)=>toast(m,t)});}
+    getMonthKey:()=>currentKey,refresh:()=>{renderCalendar();recalc();},closeDay:()=>closeHours(),toast:(m,t)=>toast(m,t),
+    /* période de paie affichée (clôtures M2) */
+    getPeriod:()=>{const b=getPeriodBounds(currentKey);return{start:m2NHiso(b.start),end:m2NHiso(b.end)}},
+    getRate:()=>{if(!unlocked&&isBlurEnabled())return 0;return Number(document.getElementById("rate")?.value)||0},
+    getCoefNet:()=>Number(document.getElementById("coefNet")?.value)||1,
+    hsBrut:h=>m2NHhsBrut(h),
+    /* total de la semaine au-delà du seuil : ajout réel aux heures sup du jour choisi */
+    addHS:(s,h)=>m2NHaddHS(s,h)});}
   return HeuresNormales;
 }
 window.addEventListener("DOMContentLoaded",()=>{try{const nh=m2NH();if(nh)nh.mount("nhToggleHost")}catch(_){}});
+function m2NHhsBrut(h){const r=getCCNRules(),p=calcHsPaliers(h,r),rate=Number(document.getElementById("rate")?.value)||0;
+  const c25=Number(document.getElementById("coef25")?.value)||(1+r.taux1/100),cI=Number(document.getElementById("coefInter")?.value)||(1+(r.taux_inter||10)/100),c50=Number(document.getElementById("coef50")?.value)||(1+r.taux2/100);
+  return (p.h1*c25+p.hInter*cI+p.h2*c50)*rate}
+function m2NHaddHS(s,h){
+  if(!(h>0))return false;const d=new Date(s+"T12:00:00");if(isDateLocked(d))return false;
+  const mk=s.slice(0,7),dd=+s.slice(8),keep=_m2DayRef;
+  _m2DayRef=mk===currentKey?null:{y:m2ExoDe(mk),k:mk};
+  try{const _M=_m2Mois();
+    if(!_m2DayRef&&hasLaterActivity(currentKey))DATA[currentKey]._reliquatIncrement=(DATA[currentKey]._reliquatIncrement||0)+h;
+    _M.m.days[dd]=Math.round(((+_M.m.days[dd]||0)+h)*10000)/10000;
+    save();recalc();try{maybeShowReliquatPopup()}catch(_){}
+  }finally{_m2DayRef=keep}
+  return true;
+}
 function m2NHcell(date){try{const nh=m2NH();return nh?nh.cellHTML(m2NHiso(date)):""}catch(_){return ""}}
 function m2NHdayIso(){const k=_m2DayRef?_m2DayRef.k:currentKey;return k+"-"+String(currentDay).padStart(2,"0")}
 
@@ -2137,13 +2158,19 @@ function calcEuro(){
   const brut=wt*rate;
   const net=brut*cn;
   
-  document.getElementById("euroResult").textContent=net.toFixed(2)+" €";
+  /* 22/11/2026 (Sandbox) : heures normales affichées -> salaire de base mensualisé ajouté */
+  let _nhBase=0;try{const nh=m2NH();if(nh&&nh.enabled()&&rate>0)_nhBase=nh.baseMensuelle()*rate}catch(_){}
+  {const lab=document.getElementById("euroResult").closest("div").previousElementSibling;if(lab)lab.textContent=_nhBase?"Estimation nette (base + heures sup)":"Estimation nette";}
+  document.getElementById("euroResult").textContent=((brut+_nhBase)*cn).toFixed(2)+" €";
   
   if(rules.taux_inter!==null){
     document.getElementById("euroDetail").innerHTML=`${fmtH(h25)} × ${c25.toFixed(2)} = ${fmtH(w25)}<br>${fmtH(hInter)} × ${cInter.toFixed(2)} = ${fmtH(wInter)}<br>${fmtH(h50)} × ${c50.toFixed(2)} = ${fmtH(w50)}<br><b>Total pondéré : ${fmtH(wt)}</b>`;
   }else{
     document.getElementById("euroDetail").innerHTML=`${fmtH(h25)} × ${c25.toFixed(2)} = ${fmtH(w25)}<br>${fmtH(h50)} × ${c50.toFixed(2)} = ${fmtH(w50)}<br><b>Total pondéré : ${fmtH(wt)}</b>`;
   }
+  if(_nhBase){const nh=m2NH(),bm=nh.baseMensuelle();
+    document.getElementById("euroDetail").innerHTML=`Base mensualisée : ${fmtH(bm)} × ${rate.toFixed(2)} € = <b>${_nhBase.toFixed(2)} €</b><br>Heures sup : ${document.getElementById("euroDetail").innerHTML.replace(/<br>/g," · ")} → <b>${brut.toFixed(2)} €</b><br>Brut estimé : <b>${(brut+_nhBase).toFixed(2)} €</b> × ${cn.toFixed(2)}<br><span style="font-size:11px;opacity:.75">Sans absences, primes ni retenues</span>`;}
+  try{const nh=m2NH();if(nh&&nh.enabled())nh.decorate(document.getElementById("calendar"))}catch(_){}
   // Rafraîchir le restant dû avec les nouveaux coefs/taux
   updateRestantDu();
 }
