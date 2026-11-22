@@ -17,8 +17,9 @@
 
    22/11/2026 (2) : le total de la semaine se donne en HEURES TRAVAILLÉES
    (heures sup comprises), comme M5 : 40 h = 35 h normales + 5 h sup, et les
-   5 h sont ajoutées pour de vrai aux heures sup du module (cfg.addHS), sur le
-   jour choisi. Récap par PÉRIODE DE PAIE (clôtures du module, cfg.getPeriod)
+   5 h deviennent les heures sup de la semaine (cfg.setWeekHS) : les heures
+   sup saisies jour par jour cette semaine sont remplacées par l'excédent, mis
+   sur un seul jour. Le total fait foi : le ressaisir remplace, sans cumuler. Récap par PÉRIODE DE PAIE (clôtures du module, cfg.getPeriod)
    avec la base mensualisée (seuil × 52 / 12, 151,67 h pour 35 h) et un brut
    estimé si le taux horaire est connu (cfg.getRate, cfg.hsBrut).
 
@@ -160,7 +161,8 @@ function weekHTML(ws){
   var w=weekVal(ws), lim=seuil(), fin=addD(ws,6);
   var t='Sem. du '+dCourt(ws)+' au '+dCourt(fin)+' · ';
   if(w.v==null)
-    return t+'heures normales ? <span class="nh-src">— touche pour indiquer '+fh(lim)+' ou corriger</span>';
+    return t+(w.hs?'<b>'+fh(w.hs)+'</b> sup saisies jour par jour · heures normales ? <span class="nh-src">— touche pour donner le total de la semaine</span>':
+      'heures normales ? <span class="nh-src">— touche pour indiquer '+fh(lim)+' ou corriger</span>');
   var src={semaine:'✓ semaine',jour:'jour par jour',taiko:'太 planning Taiko',mixte:'jours + 太 Taiko'}[w.src]||'';
   var html=t+'<b>'+fh(w.v)+'</b> normales'+(w.hs?' + <b>'+fh(w.hs)+'</b> sup = <b>'+fh(w.v+w.hs)+'</b>':'')+
     ' <span class="nh-src">('+src+(w.src!=='semaine'&&w.n<7?', '+w.n+' jour'+(w.n>1?'s':'')+' renseigné'+(w.n>1?'s':''):'')+')</span>';
@@ -244,23 +246,30 @@ function openWeek(ws){
   if(C.isLocked&&days.every(function(s){return C.isLocked(s);})){toast('🔒 Période verrouillée','warn');return;}
   var t=taiko(),tk=0,tkn=0;
   if(t)days.forEach(function(s){if(t[s]!=null){tk+=+t[s];tkn++;}});
-  var nJ=days.filter(function(s){return S.d[s]!=null;}).length;
   var libres=days.filter(function(s){return !(C.isLocked&&C.isLocked(s));});
+  var bloq=0;days.forEach(function(s){if(libres.indexOf(s)<0)bloq+=(+C.getHS(s)||0);});
+  /* ce qui est saisi jour par jour et sera remplacé */
+  var nJ=days.filter(function(s){return S.d[s]!=null;}).length, hsJ=0, nHS=0;
+  libres.forEach(function(s){var h=+C.getHS(s)||0;if(h){hsJ+=h;nHS++;}});
   var cible=jourHS(ws), id='nhW'+(++uid);
-  var tot0=w.v!=null?Math.round((w.v+w.hs)*100)/100:Math.max(lim,w.hs?lim+w.hs:lim);
+  var tot0=w.v!=null?Math.round((w.v+w.hs)*100)/100:lim+w.hs;
   var opts=libres.map(function(s){return '<option value="'+s+'"'+(s===cible?' selected':'')+'>'+JOURS[pISO(s).getDay()]+' '+dCourt(s)+'</option>';}).join('');
+  var remplace=(nJ||nHS)&&S.w[ws]==null;
   modal(
-    '<h3>🕘 Heures travaillées de la semaine</h3>'+
-    '<div class="nh-sub">Du '+dCourt(ws)+' au '+dCourt(days[6])+' · heures sup comprises'+(w.hs?' · '+fh(w.hs)+' d’heures sup déjà saisies':'')+'</div>'+
+    '<h3>🕘 Total de la semaine</h3>'+
+    '<div class="nh-sub">Du '+dCourt(ws)+' au '+dCourt(days[6])+' · heures travaillées, heures sup comprises</div>'+
     '<div class="nh-q"><button data-v="'+lim+'">'+fh(lim)+' (semaine habituelle)</button>'+
-      (tkn?'<button data-v="'+(Math.round((tk+w.hs)*100)/100)+'">太 Taiko'+(w.hs?' + sup':'')+' : '+fh(tk+w.hs)+'</button>':'')+
+      (tkn?'<button data-v="'+(Math.round(tk*100)/100)+'">太 Taiko : '+fh(tk)+'</button>':'')+
       '<button data-v="0">0 h (pas travaillé)</button></div>'+
     hmInputs(id,tot0)+
     '<div class="nh-calc nh-note" style="font-weight:600;color:#1d2a30"></div>'+
     '<div class="nh-jour" style="display:none;margin:6px 0"><div class="nh-note" style="margin:0 0 4px">Mettre les heures sup sur :</div>'+
       '<select class="nh-sel" style="width:100%;padding:9px;border-radius:10px;border:1px solid #c9d8e0;font-size:15px;background:#fff;color:#1d2a30">'+opts+'</select></div>'+
-    (nJ?'<div class="nh-note">Valider ici remplace les heures normales saisies jour par jour pour cette semaine ('+nJ+' jour'+(nJ>1?'s':'')+').</div>':'')+
-    '<div class="nh-act"><button class="nh-ok">Valider</button>'+
+    (remplace?'<div class="nh-note" style="color:#c0392b;font-weight:600">⚠️ Ce total remplace ce que tu as saisi jour par jour cette semaine'+
+      (nHS?' : '+fh(hsJ)+' d’heures sup sur '+nHS+' jour'+(nHS>1?'s':''):'')+(nJ?(nHS?' et ':' : ')+'les heures normales de '+nJ+' jour'+(nJ>1?'s':''):'')+'.</div>':'')+
+    (bloq?'<div class="nh-note">'+fh(bloq)+' d’heures sup sont dans une période verrouillée : elles sont gardées et comptées.</div>':'')+
+    '<div class="nh-note">Le total fait foi : les heures sup de la semaine sont remplacées par l’excédent, sur un seul jour. Le saisir à nouveau le remplace, sans cumuler.</div>'+
+    '<div class="nh-act"><button class="nh-ok">'+(remplace?'Remplacer la semaine':'Valider')+'</button>'+
       (S.w[ws]!=null?'<button class="nh-sec nh-detail">Revenir au détail jour par jour</button>':'')+
       '<button class="nh-sec nh-cancel">Annuler</button></div>',
     function(box,close){
@@ -268,14 +277,11 @@ function openWeek(ws){
       function plan(){
         var v=readHM(box,id);
         if(v==null){calc.textContent='';jr.style.display='none';return null;}
-        var exc=Math.max(0,Math.round((v-lim)*100)/100), add=Math.round((exc-w.hs)*100)/100;
-        var hsF=Math.max(w.hs,exc), nv=Math.max(0,Math.round((v-hsF)*100)/100);
-        var txt=fh(nv)+' normales + '+fh(hsF)+' sup';
-        if(add>0.009)txt+=' → '+fh(add)+' d’heures sup ajoutées';
-        else if(w.hs>exc+0.009&&v>0)txt+=' (heures sup déjà saisies gardées)';
-        calc.textContent=txt;
-        jr.style.display=add>0.009?'':'none';
-        return {v:v,add:add>0.009?add:0,nv:nv};
+        var exc=Math.max(0,Math.round((v-lim)*100)/100), put=Math.max(0,Math.round((exc-bloq)*100)/100);
+        var nv=Math.round((v-Math.max(exc,bloq))*100)/100;if(nv<0)nv=0;
+        calc.textContent=fh(nv)+' normales + '+fh(Math.max(exc,bloq))+' sup'+(put?' ('+fh(put)+' le jour choisi)':'');
+        jr.style.display=put?'':'none';
+        return {v:v,put:put,nv:nv};
       }
       Array.prototype.forEach.call(box.querySelectorAll('.nh-q button'),function(b){b.onclick=function(){setHM(box,id,+b.getAttribute('data-v'));plan();};});
       Array.prototype.forEach.call(box.querySelectorAll('.nh-in input'),function(i){i.addEventListener('input',plan);});
@@ -286,14 +292,13 @@ function openWeek(ws){
       box.querySelector('.nh-ok').onclick=function(){
         var p=plan();if(!p){toast('Indique un nombre d’heures','warn');return;}
         if(p.v>80){toast('⛔ Plus de 80 h : vérifie la saisie','error');return;}
-        if(p.add){
-          var j=sel&&sel.value;
-          if(!j||!C.addHS){toast('⛔ Aucun jour libre pour les heures sup','error');return;}
-          var ok=false;try{ok=C.addHS(j,p.add)!==false;}catch(e){ok=false;}
-          if(!ok){toast('⛔ Heures sup non ajoutées (période verrouillée ?)','error');return;}
-        }
+        var map={},j=p.put?(sel&&sel.value):null;
+        if(p.put&&!j){toast('⛔ Aucun jour libre pour les heures sup','error');return;}
+        libres.forEach(function(s){map[s]=0;});if(j)map[j]=p.put;
+        var ok=false;try{ok=!C.setWeekHS||C.setWeekHS(map)!==false;}catch(e){ok=false;}
+        if(!ok){toast('⛔ Heures sup non enregistrées (période verrouillée ?)','error');return;}
         S.w[ws]=p.nv;days.forEach(function(s){delete S.d[s];});save();close();C.refresh();
-        toast(p.add?'✅ '+fh(p.nv)+' normales + '+fh(p.add)+' d’heures sup ajoutées le '+dCourt(sel.value):'✅ Semaine enregistrée','success');
+        toast('✅ '+fh(p.nv)+' normales'+(p.put?' + '+fh(p.put)+' sup le '+dCourt(j):'')+' — semaine remplacée','success');
       };
     });
 }
