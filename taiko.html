@@ -1859,7 +1859,34 @@ function recapMode(){
   catch(e){ return 'light'; }
 }
 
+/* 22/11/2026 : heures prévues par jour, pour les heures normales des modules
+   annuel et mensuel (option « Afficher aussi mes heures normales », cachée par
+   défaut). Clé séparée de TAIKO_RECAP : le menu ne la lit pas, et elle couvre
+   aussi le passé (400 jours en arrière, 60 en avant) puisqu'on saisit ses
+   heures après coup. h = heures travaillées prévues (durée du poste moins la
+   pause déduite) ; 0 = repos, congé ou absence posés dans Taiko. Un jour sans
+   planning n'est pas publié : le module ne devine rien. */
+var HEURES_KEY='TAIKO_HEURES';
+function publierHeures(){
+  var h={}, n=0, d=addD(today(),-400);
+  for(var i=0;i<461;i++){
+    var dISO=iso(d), p='';
+    try{ p=posteFor(dISO)||''; }catch(e){ p=''; }
+    if(p){
+      var s=null;
+      try{ s=SHIFT(dISO); }catch(e){ s=null; }
+      h[dISO]=s?Math.round(s.work/60*100)/100:0; n++;
+    }
+    d=addD(d,1);
+  }
+  try{
+    if(n) localStorage.setItem(HEURES_KEY, JSON.stringify({v:1,maj:iso(today()),h:h}));
+    else localStorage.removeItem(HEURES_KEY);
+  }catch(e){}
+}
+
 function publierRecap(){
+  try{ publierHeures(); }catch(e){}
   var mode=recapMode();
   if(mode==='off'){
     // On retire la clé plutôt que d'y laisser des données : le menu ne doit
