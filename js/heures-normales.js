@@ -21,7 +21,7 @@
    sup saisies jour par jour cette semaine sont remplacées par l'excédent, mis
    sur un seul jour. Le total fait foi : le ressaisir remplace, sans cumuler. Récap par PÉRIODE DE PAIE (clôtures du module, cfg.getPeriod)
    avec la base mensualisée (seuil × 52 / 12, 151,67 h pour 35 h) et un brut
-   estimé si le taux horaire est connu (cfg.getRate, cfg.hsBrut).
+   estimé dans la zone Valeur € du module seulement (pas de montant dans le calendrier).
 
    Stockage : une clé à part par module ({v,d:{iso:h},w:{iso début semaine:h}}),
    jamais dans les données d'heures sup existantes.
@@ -95,10 +95,12 @@ function css(){
   st.textContent=
   '.nh-cell{display:block;font-size:10px;line-height:1.15;font-weight:600;opacity:.85;color:'+(dark?'#cfe9ee':'#2e5560')+'}'+
   '.nh-cell .nh-tk{font-weight:400;opacity:.75}'+
-  '.nh-week{grid-column:1/-1;margin:-1px 0 4px;padding:6px 10px;border-radius:10px;font-size:12px;line-height:1.35;cursor:pointer;'+
-    'background:'+(dark?'rgba(255,255,255,.05)':'#f4f8fb')+';border:1px dashed '+(dark?'rgba(255,255,255,.18)':'#c9d8e0')+';color:'+(dark?'#e6eef0':'#26424a')+'}'+
-  '.nh-week b{color:'+a+'}.nh-week .nh-src{opacity:.7;font-size:11px}.nh-week .nh-warn{display:block;color:#e67e22;font-size:11px;margin-top:2px}'+
-  '.nh-week.nh-vide{opacity:.75}'+
+  '.nh-week{grid-column:1/-1;display:flex;justify-content:flex-end;margin:-2px 0 2px;padding:0;min-height:0;background:none;border:none}'+
+  '.nh-week .nh-wbtn{width:auto!important;margin:0!important;padding:3px 10px!important;min-height:0!important;border-radius:99px!important;font-size:11px!important;font-weight:600;line-height:1.3;box-shadow:none!important;'+
+    'background:'+(dark?'rgba(255,255,255,.07)':'#eef4f7')+'!important;border:1px solid '+(dark?'rgba(255,255,255,.16)':'#c9d8e0')+'!important;color:'+(dark?'#e6eef0':'#26424a')+'!important}'+
+  '.nh-week .nh-wbtn b{color:'+a+'}.nh-week .nh-wbtn.nh-vide{opacity:.7}.nh-week .nh-warn{color:#e67e22}'+
+  '.nh-mois summary{cursor:pointer;list-style:none;font-weight:600}.nh-mois summary::-webkit-details-marker{display:none}'+
+  '.nh-mois summary:after{content:" ▾";opacity:.6}.nh-mois[open] summary:after{content:" ▴"}.nh-mois .nh-det{margin-top:6px}'+
   '.nh-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px}'+
   '.nh-box{background:#fff;color:#1d2a30;border-radius:18px;max-width:380px;width:100%;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.35);font-size:14px;max-height:90vh;overflow:auto}'+
   '.nh-box h3{margin:0 0 4px;font-size:16px}.nh-box .nh-sub{color:#5d6b70;font-size:12px;margin-bottom:12px}'+
@@ -158,20 +160,11 @@ function cellHTML(s){
   return '<span class="nh-cell">'+(x.src==='taiko'?'<span class="nh-tk">太 </span>':'')+fh(x.v)+'</span>';
 }
 function weekHTML(ws){
-  var w=weekVal(ws), lim=seuil(), fin=addD(ws,6);
-  var t='Sem. du '+dCourt(ws)+' au '+dCourt(fin)+' · ';
-  if(w.v==null)
-    return t+(w.hs?'<b>'+fh(w.hs)+'</b> sup saisies jour par jour · heures normales ? <span class="nh-src">— touche pour donner le total de la semaine</span>':
-      'heures normales ? <span class="nh-src">— touche pour indiquer '+fh(lim)+' ou corriger</span>');
-  var src={semaine:'✓ semaine',jour:'jour par jour',taiko:'太 planning Taiko',mixte:'jours + 太 Taiko'}[w.src]||'';
-  var html=t+'<b>'+fh(w.v)+'</b> normales'+(w.hs?' + <b>'+fh(w.hs)+'</b> sup = <b>'+fh(w.v+w.hs)+'</b>':'')+
-    ' <span class="nh-src">('+src+(w.src!=='semaine'&&w.n<7?', '+w.n+' jour'+(w.n>1?'s':'')+' renseigné'+(w.n>1?'s':''):'')+')</span>';
-  var r=rate();
-  if(r&&w.v>0){var bN=w.v*r,bH=hsBrut(w.hs);
-    html+='<span class="nh-eur" style="display:block;opacity:.85;font-size:11px;margin-top:2px">💶 '+fh(w.v)+' × '+eur(r)+' = '+eur(bN)+
-      (w.hs?' + heures sup '+eur(bH)+' = <b>'+eur(bN+bH)+'</b>':'')+' brut estimé</span>';}
-  if(w.v>lim+0.001)html+='<span class="nh-warn">⚠️ Au-delà de '+fh(lim)+', ce sont des heures sup : touche ici pour les ajouter à tes heures sup.</span>';
-  return html;
+  var w=weekVal(ws), lim=seuil();
+  if(w.v==null)return w.hs?'Total semaine · <b>'+fh(w.hs)+'</b> sup saisies':'Total semaine ?';
+  var tot=w.v+w.hs;
+  return 'Total semaine · <b>'+fh(tot)+'</b>'+(w.hs?' dont '+fh(w.hs)+' sup':'')+(w.src==='taiko'||w.src==='mixte'?' 太':'')+
+    (w.v>lim+0.001?' <span class="nh-warn">⚠️</span>':'');
 }
 function decorate(cal){
   if(!cal)return;
@@ -189,10 +182,10 @@ function decorate(cal){
     var ws=null;
     for(var j=0;j<r.length;j++){var s=r[j].getAttribute('data-iso');if(s){ws=addD(s,-j);break;}}
     if(!ws)return;
-    var b=document.createElement('div');b.className='nh-week';b.setAttribute('role','button');
-    var w=weekVal(ws);if(w.v==null)b.classList.add('nh-vide');
-    b.innerHTML=weekHTML(ws);
-    b.onclick=function(){openWeek(ws);};
+    var b=document.createElement('div');b.className='nh-week';
+    var w=weekVal(ws),bt=document.createElement('button');bt.type='button';bt.className='nh-wbtn';
+    if(w.v==null)bt.classList.add('nh-vide');
+    bt.innerHTML=weekHTML(ws);bt.onclick=function(){openWeek(ws);};b.appendChild(bt);
     var last=r[r.length-1];
     if(last.nextSibling)cal.insertBefore(b,last.nextSibling);else cal.appendChild(b);
     semaines.push(ws);
@@ -210,7 +203,7 @@ function periodCard(cal){
   while(ws<=b&&guard++<10){
     var days=weekDays(ws).filter(function(s){return inRange(s,a,b);});
     var whs=0;days.forEach(function(s){whs+=(+C.getHS(s)||0);});
-    hs+=whs;hsB+=hsBrut(whs);
+    hs+=whs;
     var w=weekVal(ws);
     if(w.v==null)vides++;
     else if(w.src==='semaine')nv+=w.v*days.length/7;
@@ -218,16 +211,13 @@ function periodCard(cal){
     ws=addD(ws,7);
   }
   nv=Math.round(nv*100)/100;hs=Math.round(hs*100)/100;
-  var box=document.createElement('div');box.id='nhMois';box.className='nh-mois';
-  var r=rate(),bm=baseMens(),cn=0;try{cn=+(C.getCoefNet&&C.getCoefNet())||0;}catch(e){}
-  var html='🕘 <b>Période du '+dCourt(a)+' au '+dCourt(b)+'</b> : '+fh(nv)+' normales + '+fh(hs)+' sup = <b>'+fh(nv+hs)+'</b> travaillées'+
-    (vides?'<br><span style="opacity:.75">'+vides+' semaine'+(vides>1?'s':'')+' sans heures normales indiquées.</span>':'')+
-    '<br>📄 Base payée chaque mois : <b>'+fh(bm)+'</b> ('+fh(seuil())+' × 52 ÷ 12), quel que soit le nombre de semaines de la période.';
-  if(r){var bB=bm*r,tot=bB+hsB;
-    html+='<br>💶 Base '+fh(bm)+' × '+eur(r)+' = '+eur(bB)+' + heures sup '+eur(hsB)+' = <b>'+eur(tot)+' brut estimé</b>'+
-      (cn>0&&cn!==1?' (≈ '+eur(tot*cn)+' net)':'');}
-  html+='<br><span style="opacity:.6;font-size:11px">Estimation sans absences, primes ni retenues : seul le bulletin de paie fait foi.</span>';
-  box.innerHTML=html;
+  var box=document.createElement('details');box.id='nhMois';box.className='nh-mois';if(periodCard.open)box.open=true;
+  box.addEventListener('toggle',function(){periodCard.open=box.open;});
+  box.innerHTML='<summary>🕘 Période du '+dCourt(a)+' au '+dCourt(b)+' · '+fh(nv+hs)+' travaillées</summary><div class="nh-det">'+
+    fh(nv)+' normales + '+fh(hs)+' sup = <b>'+fh(nv+hs)+'</b>'+
+    (vides?'<br><span style="opacity:.75">'+vides+' semaine'+(vides>1?'s':'')+' sans total indiqué.</span>':'')+
+    '<br>Base payée chaque mois : <b>'+fh(baseMens())+'</b> ('+fh(seuil())+' × 52 ÷ 12), quel que soit le nombre de semaines de la période.'+
+    '<br><span style="opacity:.6;font-size:11px">Pour information : seul le bulletin de paie fait foi.</span></div>';
   cal.parentNode.insertBefore(box,cal.nextSibling);
 }
 
