@@ -156,7 +156,7 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 </style>
 <script src="../js/vendor/jspdf.umd.min.js"></script>
 <script src="../ccn/conventions-collectives.js"></script>
-<script src="../js/heures-normales.js?v=3"></script>
+<script src="../js/heures-normales.js?v=4"></script>
 
 <style id="landscape-blocker-style">
 @media screen and (orientation: landscape) and (max-device-width: 1024px) {
@@ -2173,7 +2173,7 @@ function calcEuro(){
     document.getElementById("euroDetail").innerHTML=`${fmtH(h25)} × ${c25.toFixed(2)} = ${fmtH(w25)}<br>${fmtH(h50)} × ${c50.toFixed(2)} = ${fmtH(w50)}<br><b>Total pondéré : ${fmtH(wt)}</b>`;
   }
   if(_nhBase){const nh=m2NH(),bm=nh.baseMensuelle();
-    document.getElementById("euroDetail").innerHTML=`Base mensualisée : ${fmtH(bm)} × ${rate.toFixed(2)} € = <b>${_nhBase.toFixed(2)} €</b><br>Heures sup : ${document.getElementById("euroDetail").innerHTML.replace(/<br>/g," · ")} → <b>${brut.toFixed(2)} €</b><br>Brut estimé : <b>${(brut+_nhBase).toFixed(2)} €</b> × ${cn.toFixed(2)}<br><span style="font-size:11px;opacity:.75">Sans absences, primes ni retenues</span>`;}
+    document.getElementById("euroDetail").innerHTML=`Base mensualisée : ${fmtH(bm)} × ${rate.toFixed(2)} € = <b>${_nhBase.toFixed(2)} €</b><br>Heures sup :<br>${document.getElementById("euroDetail").innerHTML.replace(/<b>Total pondéré : ([^<]*)<\/b>/,"Total pondéré : $1")} × ${rate.toFixed(2)} € = <b>${brut.toFixed(2)} €</b><br>Brut estimé : <b>${(brut+_nhBase).toFixed(2)} €</b> × ${cn.toFixed(2)}<br><span style="font-size:11px;opacity:.75">Sans absences, primes ni retenues</span>`;}
   try{const nh=m2NH();if(nh&&nh.enabled())nh.decorate(document.getElementById("calendar"))}catch(_){}
   // Rafraîchir le restant dû avec les nouveaux coefs/taux
   updateRestantDu();
