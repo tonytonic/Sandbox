@@ -489,6 +489,7 @@ document.addEventListener("DOMContentLoaded", function(){
         <input type="checkbox" id="cpJurisToggle" style="width:18px;height:18px;flex-shrink:0;margin:0;accent-color:#2e7d32;">
         <span style="font-size:14px;">Les cong&eacute;s pay&eacute;s comptent pour le seuil des heures sup<span style="display:block;font-size:11px;color:#888;margin-top:2px;">Cass. soc. 10 sept. 2025 (n&deg; 23-14.455) et 7 janv. 2026 (n&deg; 24-19.410)&nbsp;: pour un d&eacute;compte &agrave; la semaine ou sur deux semaines, les jours de CP comptent pour atteindre le seuil (sans devenir des heures sup). Coche &laquo;&nbsp;C&apos;est un cong&eacute; pay&eacute;&nbsp;&raquo; en saisissant l&apos;absence. En cas d&apos;annualisation ou de modulation, v&eacute;rifie ton accord.</span></span>
       </label>
+      <div id="nhToggleHost"></div>
     </div>
 
     <!-- SECTION 4 : SAUVEGARDE (dépliable) -->
@@ -642,6 +643,7 @@ document.addEventListener("DOMContentLoaded", function(){
   <div class="popup-content" style="max-height:85svh;">
     <div class="sheet-handle"></div>
     <h3 id="popupDate"></h3>
+    <div id="nhDayBox" style="display:none"></div>
     <div id="popup-ferie-info" style="display:none;background:#e3f2fd;border:1px solid #1976d2;border-radius:12px;padding:10px;font-size:13px;color:#1565c0;margin-bottom:10px;line-height:1.5;"></div>
 
     <!-- CONGÉ PAYÉ EN UN GESTE -->
@@ -748,6 +750,7 @@ function confirmModal(msg,onOk,okLabel,danger){
 
 </script>
 <script src="../ccn/conventions-collectives.js"></script>
+<script src="../js/heures-normales.js?v=1"></script>
 <script>
 function toast(msg,type,duration){type=type||"info";duration=duration||2800;var c=document.getElementById("toastContainer");if(!c)return;var t=document.createElement("div");t.className="toast "+type;t.textContent=msg;c.appendChild(t);requestAnimationFrame(function(){requestAnimationFrame(function(){t.classList.add("show");});});setTimeout(function(){t.classList.remove("show");setTimeout(function(){t.remove();},300);},duration);}
 
@@ -872,7 +875,7 @@ function _decToHM(dec,hId,mId){dec=Number(dec)||0;var he=document.getElementById
 /* Congé payé en un geste : la journée entière (DAILY_WORK_HOURS) est enregistrée comme congé payé. */
 function cpJourneeRapide(){if(!selectedDate)return;const d=data[selectedDate]||{extra:0,recup:0,absent:0};d.extra=_hmToDec('manualExtraH','manualExtraM')||0;d.recup=_hmToDec('manualRecupH','manualRecupM')||0;d.absent=DAILY_WORK_HOURS;d.cp=1;data[selectedDate]=d;save();const _sd=selectedDate;closePopup();showSaveFeedback(_sd);}
 function cpCaseChange(el){if(!el.checked)return;const a=document.getElementById('isAbsent');if(a)a.checked=true;if(!_hmToDec('absentH','absentM'))_decToHM(DAILY_WORK_HOURS,'absentH','absentM');}
-function saveManual(){if(!selectedDate)return;if(!data[selectedDate])data[selectedDate]={extra:0,recup:0,absent:0};data[selectedDate].extra=_hmToDec('manualExtraH','manualExtraM');data[selectedDate].recup=_hmToDec('manualRecupH','manualRecupM');{const _cpEl=document.getElementById('absentCP');const _cp=!!(_cpEl&&_cpEl.checked);data[selectedDate].absent=(isAbsent.checked||_cp)?(_hmToDec('absentH','absentM')||DAILY_WORK_HOURS):0;if(_cp&&data[selectedDate].absent>0)data[selectedDate].cp=1;else delete data[selectedDate].cp;}save();const _sd1=selectedDate;closePopup();showSaveFeedback(_sd1);}
+function saveManual(){if(!selectedDate)return;try{if(_saisieMode==='worked'){const nh=m1NH();if(nh&&nh.enabled()){const w=_hmToDec('workedHoursH','workedHoursM');if(w>0)nh.fromWorked(selectedDate,w,_hmToDec('manualExtraH','manualExtraM'));}}}catch(_){}if(!data[selectedDate])data[selectedDate]={extra:0,recup:0,absent:0};data[selectedDate].extra=_hmToDec('manualExtraH','manualExtraM');data[selectedDate].recup=_hmToDec('manualRecupH','manualRecupM');{const _cpEl=document.getElementById('absentCP');const _cp=!!(_cpEl&&_cpEl.checked);data[selectedDate].absent=(isAbsent.checked||_cp)?(_hmToDec('absentH','absentM')||DAILY_WORK_HOURS):0;if(_cp&&data[selectedDate].absent>0)data[selectedDate].cp=1;else delete data[selectedDate].cp;}save();const _sd1=selectedDate;closePopup();showSaveFeedback(_sd1);}
 function closeYearsPopup(){document.getElementById("popupYears").style.display="none";}
 function confirmSwitchYear(){const val=document.getElementById("newYearInput").value;if(!val)return;
   /* 26/09/2026 : nouvelle année qui suit un exercice existant → même chemin que le bandeau
@@ -1206,7 +1209,7 @@ function generateCalendar(){
   const closureSet=new Set(closures);
   for(let d=1;d<=days;d++){
     const key=`${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    const div=document.createElement("div");div.className="day";
+    const div=document.createElement("div");div.className="day";div.setAttribute("data-iso",key);
     if(pStartKey&&key>=pStartKey&&key<=pEndKey)div.classList.add("in-period");
     if(closureSet.has(key))div.classList.add("closure-day");
     const dayLocked=isPeriodLocked(key);
@@ -1218,11 +1221,32 @@ function generateCalendar(){
     if(specialDays[key]==="ferie"){html+=`<small style="color:#0d47a1;font-weight:bold">🎌 Férié</small>`;div.style.background="#e3f2fd";div.style.border="2px dashed #1976d2";}
     else if(day.absent&&day.cp){html+=`<small style="color:#2e7d32;font-weight:bold">CP ${fmtHShort(day.absent)}</small>`;div.style.background="#e8f5e9";div.style.border="2px solid #2e7d32";}
     else if(day.absent){html+=`<small style="color:#c62828;font-weight:bold">ABS ${fmtHShort(day.absent)}</small>`;div.style.background="#ffebee";div.style.border="2px solid #c62828";}
+    html+=m1NHcell(key);
     div.innerHTML=html;
     if(key===dateKeyLocal(new Date()))div.classList.add("today");
     div.onclick=()=>{if(dayLocked){toast("🔒 Période verrouillée","warn");return;}openPopup(key);};calendar.appendChild(div);
   }
+  try{const nh=m1NH();if(nh)nh.decorate(calendar);}catch(_){}
 }
+
+/* 22/11/2026 (Sandbox) : heures normales, pour information (option cachée par
+   défaut, voir ../js/heures-normales.js). Rien ne change dans data : Fox et M4
+   lisent les mêmes données qu'avant. Clé à part, indépendante de l'exercice
+   (les jours sont rangés par date). */
+function m1NH(){
+  if(!window.HeuresNormales)return null;
+  if(!m1NH._i){m1NH._i=1;HeuresNormales.init({
+    storeKey:"HEURES_NORMALES_M1",theme:"light",accent:"#2196a6",dayBoxId:"nhDayBox",toggleHost:"nhToggleHost",
+    isOn:()=>localStorage.getItem("HEURES_NORMALES_M1_ON")==="1",
+    setOn:v=>{try{if(v)localStorage.setItem("HEURES_NORMALES_M1_ON","1");else localStorage.removeItem("HEURES_NORMALES_M1_ON")}catch(_){}},
+    getSeuil:()=>getCCNRules().seuil||BASE_HEBDO||35,getDs:()=>getCCNRules().debutSemaine||1,
+    getHS:s=>(data[s]&&+data[s].extra)||0,isAbsent:s=>!!(data[s]&&(+data[s].absent>0||data[s].cp)),isLocked:s=>{try{return isPeriodLocked(s)}catch(_){return false}},
+    getMonthKey:()=>viewYear+"-"+String(viewMonth+1).padStart(2,"0"),
+    refresh:()=>generateCalendar(),closeDay:()=>closePopup(),toast:(m,t)=>toast(m,t)});}
+  return HeuresNormales;
+}
+window.addEventListener("DOMContentLoaded",()=>{try{const nh=m1NH();if(nh)nh.mount("nhToggleHost")}catch(_){}});
+function m1NHcell(key){try{const nh=m1NH();return nh?nh.cellHTML(key):""}catch(_){return ""}}
 
 function getLastValidReport(index){for(let i=index-1;i>=0;i--)if(reports[i]!==undefined&&reports[i]!==null)return Number(reports[i])||0;return 0;}
 
@@ -1302,7 +1326,7 @@ function calculate(){
   const brut=brut1+brutInter+brut2+reportPrev,net=brut-totalRecup;
   reports[period.index]=net;localStorage.setItem(STORAGE.reports,JSON.stringify(reports));
   const interLine=rules.taux_inter?`<br>${rules.taux_inter}% : ${fmtH(hInter)} × ${coefInter.toFixed(2)} = ${fmtH(brutInter)}`:'';
-  totaux.innerHTML=`<details class="calc-details"><summary>📊 Détails des calculs</summary><div class="breakdown">${details.join("<br>")}<hr>${(!rules.taux_inter && Number(rules.taux1)===Number(rules.taux2)) ? `${rules.taux1}% : ${fmtH(h1+h2)} × ${coef1.toFixed(2)} = ${fmtH(brut1+brut2)}` : `${rules.taux1}% : ${fmtH(h1)} × ${coef1.toFixed(2)} = ${fmtH(brut1)}${interLine}<br>${rules.taux2}% : ${fmtH(h2)} × ${coef2.toFixed(2)} = ${fmtH(brut2)}`}<br>Report précédent : ${fmtH(reportPrev)}</div></details><div class="soldes-grid"><div class="solde-card"><div class="solde-card-label">Solde brut</div><div class="solde-card-value">${fmtH(brut)}</div></div><div class="solde-card recup"><div class="solde-card-label">Récupération</div><div class="solde-card-value">${fmtH(totalRecup)}</div></div></div><div class="solde-card-net"><div class="solde-card-label">Solde net</div><div class="solde-card-value">${fmtH(net)}</div></div>`;
+  totaux.innerHTML=`<details class="calc-details"><summary>📊 Détails des calculs</summary><div class="breakdown">${details.join("<br>")}${rules.id==='PEMP40'?'<div style="font-size:0.85em;opacity:.8;margin-top:6px">Heures sup comptées semaine par semaine (art. 136 de ta convention). Si ton contrat prévoit une durée de travail irrégulière, elles se calculent sur une moyenne de 40 h sur 8 semaines : l\'appli peut alors en compter plus que ta paie.</div>':''}<hr>${(!rules.taux_inter && Number(rules.taux1)===Number(rules.taux2)) ? `${rules.taux1}% : ${fmtH(h1+h2)} × ${coef1.toFixed(2)} = ${fmtH(brut1+brut2)}` : `${rules.taux1}% : ${fmtH(h1)} × ${coef1.toFixed(2)} = ${fmtH(brut1)}${interLine}<br>${rules.taux2}% : ${fmtH(h2)} × ${coef2.toFixed(2)} = ${fmtH(brut2)}`}<br>Report précédent : ${fmtH(reportPrev)}</div></details><div class="soldes-grid"><div class="solde-card"><div class="solde-card-label">Solde brut</div><div class="solde-card-value">${fmtH(brut)}</div></div><div class="solde-card recup"><div class="solde-card-label">Récupération</div><div class="solde-card-value">${fmtH(totalRecup)}</div></div></div><div class="solde-card-net"><div class="solde-card-label">Solde net</div><div class="solde-card-value">${fmtH(net)}</div></div>`;
   const rateContainer=document.getElementById("rateContainer");rateContainer.innerHTML="";
   if(shouldShowAnnualClosure()){if(!document.getElementById("hourlyRateInput")){rateContainer.innerHTML=`<div style="background:#e0f4f7;padding:10px;border-radius:6px;border:1px solid #4FB3C2;margin-top:10px;box-sizing:border-box;width:100%;"><label style="display:block;font-weight:bold;margin-bottom:4px;">Taux horaire (€)</label><input type="number" id="hourlyRateInput" step="any" value="${annualRate}" style="width:100%;box-sizing:border-box;margin:0;"></div>`;const _hri=document.getElementById("hourlyRateInput");_hri.oninput=()=>{const v=Number(_hri.value);if(!isNaN(v)&&v>0){annualRate=v;localStorage.setItem("ANNUAL_RATE_"+currentSuffix,annualRate);}};_hri.onchange=()=>{calculate();};}else if(document.activeElement.id!=="hourlyRateInput"){document.getElementById("hourlyRateInput").value=annualRate;}totaux.innerHTML+=`<hr><div style="background:#e0f4f7;padding:15px;border:2px solid #2196a6;border-radius:8px;"><h3 style="margin:0;color:#2196a6;">🎯 Clôture Annuelle</h3><b>Paiement (${annualRate}€/h) :</b> ${(net*annualRate).toFixed(2)} €</div>`;}
 }
@@ -1334,6 +1358,7 @@ function openPopup(date){
   // Restore saisie mode
   setSaisieMode(_saisieMode);
   if(_saisieMode==='worked'){const base=getBaseJour();const total=d.extra>0?d.extra+base:0;_decToHM(total,'workedHoursH','workedHoursM');calcFromWorked();}
+  try{const nh=m1NH();if(nh)nh.fillDayBox(date)}catch(_){}
   lockBodyScroll();popup.style.display="flex";
 }
 function closePopup(){document.getElementById("popup").style.display="none";const had=selectedDate;selectedDate="";unlockBodyScroll();if(had&&typeof update==="function")update();}
@@ -1346,7 +1371,7 @@ function save(){
 function getPeriodIndexForDate(dateStr){const base=getBaseStartDate();if(!base)return 0;const d=new Date(dateStr);d.setHours(0,0,0,0);if(!closures.length)return 0;let start=new Date(base);start.setHours(0,0,0,0);for(let i=0;i<closures.length;i++){const end=new Date(closures[i]);end.setHours(0,0,0,0);if(d>=start&&d<=end)return i;start=new Date(end);start.setDate(start.getDate()+1);}return Math.max(0,closures.length-1);}
 function isIOS(){return/iPad|iPhone|iPod/.test(navigator.userAgent);}
 function createSnapshot(label){const key="SNAPSHOT_"+Date.now();localStorage.setItem(key,JSON.stringify({label,date:new Date().toISOString(),data,closures,reports,periodMeta,exerciseStart,annualDate,specialDays,BASE_HEBDO,annualRate}));const snaps=Object.keys(localStorage).filter(k=>k.startsWith("SNAPSHOT_")).sort();while(snaps.length>5)localStorage.removeItem(snaps.shift());}
-function exportJSON(){createSnapshot("before_export");const blob=new Blob([JSON.stringify({version:1,exercise:currentSuffix,data,closures,reports,periodMeta,exerciseStart,annualDate,specialDays,BASE_HEBDO,annualRate},null,2)],{type:"application/json"});const fn=`heures_sup_${currentSuffix}.json`;if(navigator.canShare&&navigator.canShare({files:[new File([blob],fn)]})){
+function exportJSON(){createSnapshot("before_export");const blob=new Blob([JSON.stringify(Object.assign({version:1,exercise:currentSuffix,data,closures,reports,periodMeta,exerciseStart,annualDate,specialDays,BASE_HEBDO,annualRate},(()=>{try{const nh=m1NH(),nd=nh&&nh.exportData();return nd?{NORMALES:nd}:{}}catch(_){return {}}})()),null,2)],{type:"application/json"});const fn=`heures_sup_${currentSuffix}.json`;if(navigator.canShare&&navigator.canShare({files:[new File([blob],fn)]})){
   localStorage.setItem("FILE_SAVE_DATE_"+currentSuffix,new Date().toISOString());updateSaveBadges();
   navigator.share({files:[new File([blob],fn,{type:"application/json"})],title:"Sauvegarde heures supplémentaires"}).catch(e=>{
     if(e.name!=="AbortError"){const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=fn;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);if(window.hsIsAndroid&&window.hsIsAndroid())window.hsFileSnack(blob,fn,{accent:"#2196a6"});}
@@ -1373,7 +1398,7 @@ function importJSON(){
 }
 function updateSaveBadges(){const ae=document.getElementById("autoSaveBadge"),fe=document.getElementById("fileSaveBadge");if(!ae||!fe)return;const a=localStorage.getItem("AUTO_SAVE_DATE_"+currentSuffix);const f=localStorage.getItem("FILE_SAVE_DATE_"+currentSuffix);ae.textContent=a?"🟢 Dans l'application : "+new Date(a).toLocaleString():"🟢 Dans l'application : —";fe.textContent=f?"💾 Sauvegarde fichier : "+new Date(f).toLocaleString():"💾 Sauvegarde fichier : —";}
 function confirmImportJSON(){loadJSON(jsonArea.value);closeJSONPopup();}
-function loadJSON(text){let obj;try{obj=JSON.parse(text);}catch(e){toast("❌ JSON invalide","error");return;}if(obj.version!==1){toast("❌ Version incompatible","error");return;}if(obj.exercise&&String(obj.exercise)!==String(currentSuffix)){confirmModal(`Ce fichier appartient à l'exercice ${obj.exercise}.\nBasculer dessus ?`,()=>{loadExercise(obj.exercise);},"Basculer");return;}if(!obj.data||!obj.closures){toast("❌ Sauvegarde invalide","error");return;}createSnapshot("before_import");data=obj.data;closures=obj.closures;reports=obj.reports||{};periodMeta=obj.periodMeta||{};exerciseStart=obj.exerciseStart||"";annualDate=obj.annualDate||"";specialDays=obj.specialDays||{};BASE_HEBDO=Number(obj.BASE_HEBDO)||35;annualRate=Number(obj.annualRate)||10;localStorage.setItem(STORAGE.data,JSON.stringify(data));localStorage.setItem(STORAGE.closures,JSON.stringify(closures));localStorage.setItem(STORAGE.reports,JSON.stringify(reports));localStorage.setItem(STORAGE.periodMeta,JSON.stringify(periodMeta));localStorage.setItem(STORAGE.exerciseStart,exerciseStart);localStorage.setItem(STORAGE.annualDate,annualDate);localStorage.setItem(STORAGE.specialDays,JSON.stringify(specialDays));localStorage.setItem("BASE_HEBDO_"+currentSuffix,BASE_HEBDO);localStorage.setItem("ANNUAL_RATE_"+currentSuffix,annualRate);if(typeof update==="function")update();toast("✅ Import réussi","success");}
+function loadJSON(text){let obj;try{obj=JSON.parse(text);}catch(e){toast("❌ JSON invalide","error");return;}if(obj.version!==1){toast("❌ Version incompatible","error");return;}try{if(obj.NORMALES){const nh=m1NH();if(nh)nh.importData(obj.NORMALES)}}catch(_){}if(obj.exercise&&String(obj.exercise)!==String(currentSuffix)){confirmModal(`Ce fichier appartient à l'exercice ${obj.exercise}.\nBasculer dessus ?`,()=>{loadExercise(obj.exercise);},"Basculer");return;}if(!obj.data||!obj.closures){toast("❌ Sauvegarde invalide","error");return;}createSnapshot("before_import");data=obj.data;closures=obj.closures;reports=obj.reports||{};periodMeta=obj.periodMeta||{};exerciseStart=obj.exerciseStart||"";annualDate=obj.annualDate||"";specialDays=obj.specialDays||{};BASE_HEBDO=Number(obj.BASE_HEBDO)||35;annualRate=Number(obj.annualRate)||10;localStorage.setItem(STORAGE.data,JSON.stringify(data));localStorage.setItem(STORAGE.closures,JSON.stringify(closures));localStorage.setItem(STORAGE.reports,JSON.stringify(reports));localStorage.setItem(STORAGE.periodMeta,JSON.stringify(periodMeta));localStorage.setItem(STORAGE.exerciseStart,exerciseStart);localStorage.setItem(STORAGE.annualDate,annualDate);localStorage.setItem(STORAGE.specialDays,JSON.stringify(specialDays));localStorage.setItem("BASE_HEBDO_"+currentSuffix,BASE_HEBDO);localStorage.setItem("ANNUAL_RATE_"+currentSuffix,annualRate);if(typeof update==="function")update();toast("✅ Import réussi","success");}
 function closeJSONPopup(){popupJSON.style.display="none";}
 async function importFeries(){const by=Number(currentSuffix),years=[by-1,by,by+1];try{for(const y of years){const res=await fetch(`https://calendrier.api.gouv.fr/jours-feries/metropole/${y}.json`);const f=await res.json();Object.keys(f).forEach(d=>{if(!specialDays[d])specialDays[d]="ferie";});}localStorage.setItem(STORAGE.specialDays,JSON.stringify(specialDays));localStorage.setItem(STORAGE.data,JSON.stringify(data));if(typeof update==="function")update();toast("✅ Jours fériés importés (N-1/N/N+1)","success");}catch(e){toast("❌ Import fériés impossible","error");}}
 
