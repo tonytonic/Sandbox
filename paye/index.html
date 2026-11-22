@@ -156,7 +156,7 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 </style>
 <script src="../js/vendor/jspdf.umd.min.js"></script>
 <script src="../ccn/conventions-collectives.js"></script>
-<script src="../js/heures-normales.js?v=2"></script>
+<script src="../js/heures-normales.js?v=3"></script>
 
 <style id="landscape-blocker-style">
 @media screen and (orientation: landscape) and (max-device-width: 1024px) {
@@ -1175,21 +1175,25 @@ function m2NH(){
     getCoefNet:()=>Number(document.getElementById("coefNet")?.value)||1,
     hsBrut:h=>m2NHhsBrut(h),
     /* total de la semaine au-delà du seuil : ajout réel aux heures sup du jour choisi */
-    addHS:(s,h)=>m2NHaddHS(s,h)});}
+    setWeekHS:m=>m2NHsetWeekHS(m)});}
   return HeuresNormales;
 }
 window.addEventListener("DOMContentLoaded",()=>{try{const nh=m2NH();if(nh)nh.mount("nhToggleHost")}catch(_){}});
 function m2NHhsBrut(h){const r=getCCNRules(),p=calcHsPaliers(h,r),rate=Number(document.getElementById("rate")?.value)||0;
   const c25=Number(document.getElementById("coef25")?.value)||(1+r.taux1/100),cI=Number(document.getElementById("coefInter")?.value)||(1+(r.taux_inter||10)/100),c50=Number(document.getElementById("coef50")?.value)||(1+r.taux2/100);
   return (p.h1*c25+p.hInter*cI+p.h2*c50)*rate}
-function m2NHaddHS(s,h){
-  if(!(h>0))return false;const d=new Date(s+"T12:00:00");if(isDateLocked(d))return false;
-  const mk=s.slice(0,7),dd=+s.slice(8),keep=_m2DayRef;
-  _m2DayRef=mk===currentKey?null:{y:m2ExoDe(mk),k:mk};
-  try{const _M=_m2Mois();
-    if(!_m2DayRef&&hasLaterActivity(currentKey))DATA[currentKey]._reliquatIncrement=(DATA[currentKey]._reliquatIncrement||0)+h;
-    _M.m.days[dd]=Math.round(((+_M.m.days[dd]||0)+h)*10000)/10000;
-    save();recalc();try{maybeShowReliquatPopup()}catch(_){}
+/* total de la semaine : HS de chaque jour libre de la semaine remplacées ({iso:h}) */
+function m2NHsetWeekHS(map){
+  const keep=_m2DayRef;let dCur=0;
+  try{for(const s of Object.keys(map)){
+      if(isDateLocked(new Date(s+"T12:00:00")))continue;
+      const mk=s.slice(0,7),dd=+s.slice(8),h=Math.round((+map[s]||0)*10000)/10000;
+      _m2DayRef=mk===currentKey?null:{y:m2ExoDe(mk),k:mk};
+      const _M=_m2Mois(),old=+_M.m.days[dd]||0;
+      if(h>0)_M.m.days[dd]=h;else delete _M.m.days[dd];
+      if(mk===currentKey)dCur+=h-old;}
+    if(dCur&&hasLaterActivity(currentKey))DATA[currentKey]._reliquatIncrement=Math.max(0,(DATA[currentKey]._reliquatIncrement||0)+dCur);
+    save();recalc();try{if(dCur>0)maybeShowReliquatPopup()}catch(_){}
   }finally{_m2DayRef=keep}
   return true;
 }
