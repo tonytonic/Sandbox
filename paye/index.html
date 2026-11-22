@@ -156,6 +156,7 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 </style>
 <script src="../js/vendor/jspdf.umd.min.js"></script>
 <script src="../ccn/conventions-collectives.js"></script>
+<script src="../js/heures-normales.js?v=1"></script>
 
 <style id="landscape-blocker-style">
 @media screen and (orientation: landscape) and (max-device-width: 1024px) {
@@ -387,6 +388,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <!-- POPUP HEURES -->
 <div class="modal" id="hoursModal"><div class="modal-content">
   <h3>&#x23F1;&#xFE0F; Ajouter des heures</h3>
+  <div id="nhDayBox" style="display:none"></div>
 
   <!-- MODE TOGGLE -->
   <div class="saisie-toggle">
@@ -646,6 +648,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <span class="badge file">&#x1F464; Usage personnel – outil indicatif</span>
     <span class="badge file">&#x1F4BE; Dernier fichier : <span id="fileDate">—</span></span>
    <button onclick="window.location.href='../module4/index.html'" style="background:linear-gradient(135deg,#4FB3C2,#2196a6);color:#fff;border:none;border-radius:20px;padding:8px 22px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;">📊 Prédiction</button>
+    <div id="nhToggleHost"></div>
     <button onclick="exportJSON()">&#x1F4BE; Sauvegarde dans un fichier</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
     <button class="secondary" onclick="document.getElementById('importFile').click()">&#x1F4E5; Importer une sauvegarde</button>
@@ -1127,9 +1130,9 @@ function renderCalendar(){
   for(let i=0;i<_blank;i++)cal.appendChild(document.createElement("div"));
   _prev.forEach(date=>{
     const pk=_pmk,py=m2ExoDe(pk),dd=date.getDate(),div=document.createElement("div"),_mc=MOIS_NOMS[date.getMonth()].slice(0,4).toLowerCase();
-    div.className="day prev-year";const lk=isDateLocked(date);if(lk)div.classList.add("locked");
+    div.className="day prev-year";div.setAttribute("data-iso",m2NHiso(date));const lk=isDateLocked(date);if(lk)div.classList.add("locked");
     const v=((ALL_DATA[py]||{})[pk]||{days:{}}).days[dd];
-    div.innerHTML=`<b style="font-size:12px">${dd}<span style="font-size:9px;opacity:.75"> ${_mc}</span></b><br><span style="color:#fff;font-weight:600;font-size:11px;display:block;line-height:1.2">${v?fmtH(v):""}</span>`;
+    div.innerHTML=`<b style="font-size:12px">${dd}<span style="font-size:9px;opacity:.75"> ${_mc}</span></b><br><span style="color:#fff;font-weight:600;font-size:11px;display:block;line-height:1.2">${v?fmtH(v):""}</span>${m2NHcell(date)}`;
     div.title="Fin "+MOIS_NOMS[date.getMonth()].toLowerCase()+" "+date.getFullYear()+" : compté dans la période de "+MOIS_NOMS[m-1].toLowerCase();
     div.onclick=()=>{if(lk){toast("🔒 Période verrouillée","warn");return}openHoursRef(py,pk,dd)};
     cal.appendChild(div);
@@ -1137,17 +1140,40 @@ function renderCalendar(){
 
   for(let d=1;d<=dim;d++){
     const div=document.createElement("div");div.className="day";
-    const date=new Date(y,m-1,d);
+    const date=new Date(y,m-1,d);div.setAttribute("data-iso",m2NHiso(date));
     const dayLocked = isDateLocked(date); // verrou basé sur la PÉRIODE du jour
     if(date>end)div.classList.add("after-closing");
     if(dayLocked)div.classList.add("locked");
     if(isCurMonth&&d===today.getDate()){div.classList.add("today");div.id="todayCell"}
     const val=DATA[currentKey].days[d];
-    div.innerHTML=`<b style="font-size:13px">${d}</b><br><span style="color:#fff;font-weight:600;font-size:11px;display:block;line-height:1.2">${val?fmtH(val):""}</span>`;
+    div.innerHTML=`<b style="font-size:13px">${d}</b><br><span style="color:#fff;font-weight:600;font-size:11px;display:block;line-height:1.2">${val?fmtH(val):""}</span>${m2NHcell(date)}`;
     div.onclick=()=>{if(dayLocked){toast("🔒 Période verrouillée","warn");return}openHours(d)};
     cal.appendChild(div);
   }
+  try{const nh=m2NH();if(nh)nh.decorate(cal);}catch(_){}
 }
+
+/* 22/11/2026 (Sandbox) : heures normales, pour information (option cachée par
+   défaut, voir ../js/heures-normales.js). Rien ne change dans DATA : Fox et M4
+   lisent les mêmes données qu'avant. */
+function m2NHiso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function m2NHhs(s){try{const mk=s.slice(0,7),dd=+s.slice(8),y=m2ExoDe(mk);
+  if(!ALL_DATA[y]){const l=loadYearData(y);if(l&&Object.keys(l).length)ALL_DATA[y]=l;}
+  const yd=ALL_DATA[y];return (yd&&yd[mk]&&yd[mk].days&&+yd[mk].days[dd])||0}catch(_){return 0}}
+function m2NH(){
+  if(!window.HeuresNormales)return null;
+  if(!m2NH._i){m2NH._i=1;HeuresNormales.init({
+    storeKey:`${STORAGE_PREFIX}_HEURES_NORMALES`,theme:"dark",accent:"#2196a6",dayBoxId:"nhDayBox",toggleHost:"nhToggleHost",
+    isOn:()=>SETTINGS.heuresNormales===true,
+    setOn:v=>{SETTINGS.heuresNormales=!!v;try{localStorage.setItem(kSettings(),JSON.stringify(SETTINGS))}catch(_){}},
+    getSeuil:()=>getCCNRules().seuil||35,getDs:()=>getCCNRules().debutSemaine||1,
+    getHS:m2NHhs,isLocked:s=>{try{return isDateLocked(new Date(s+"T12:00:00"))}catch(_){return false}},
+    getMonthKey:()=>currentKey,refresh:()=>renderCalendar(),closeDay:()=>closeHours(),toast:(m,t)=>toast(m,t)});}
+  return HeuresNormales;
+}
+window.addEventListener("DOMContentLoaded",()=>{try{const nh=m2NH();if(nh)nh.mount("nhToggleHost")}catch(_){}});
+function m2NHcell(date){try{const nh=m2NH();return nh?nh.cellHTML(m2NHiso(date)):""}catch(_){return ""}}
+function m2NHdayIso(){const k=_m2DayRef?_m2DayRef.k:currentKey;return k+"-"+String(currentDay).padStart(2,"0")}
 
 /* POPUP HEURES */
 /* 27/09/2026 : jour à modifier rangé dans un autre mois que celui affiché
@@ -1159,7 +1185,7 @@ function _m2Mois(){if(_m2DayRef){const yd=ALL_DATA[_m2DayRef.y]||(ALL_DATA[_m2Da
   return {k:_m2DayRef.k,m:yd[_m2DayRef.k]};}return {k:currentKey,m:DATA[currentKey]};}
 function openHoursRef(y,k,d){_m2DayRef={y:String(y),k:k};currentDay=d;_openHoursUI();}
 function openHours(d){_m2DayRef=null;currentDay=d;_openHoursUI();}
-function _openHoursUI(){const d=currentDay;const c=document.getElementById("hoursChoices");c.innerHTML="";[0.25,0.5,0.75,1,1.25,1.5,2].forEach(v=>{const b=document.createElement("button");b.textContent="+"+fmtH(v);b.onclick=()=>applyHours(v);c.appendChild(b)});setM2SaisieMode(_m2SaisieMode);document.getElementById("hoursModal").classList.add("open");lockBodyScroll()}
+function _openHoursUI(){const d=currentDay;try{const nh=m2NH();if(nh)nh.fillDayBox(m2NHdayIso())}catch(_){}const c=document.getElementById("hoursChoices");c.innerHTML="";[0.25,0.5,0.75,1,1.25,1.5,2].forEach(v=>{const b=document.createElement("button");b.textContent="+"+fmtH(v);b.onclick=()=>applyHours(v);c.appendChild(b)});setM2SaisieMode(_m2SaisieMode);document.getElementById("hoursModal").classList.add("open");lockBodyScroll()}
 function closeHours(){document.getElementById("hoursModal").classList.remove("open");unlockBodyScroll()}
 function applyHours(h){
   if(h<=0)return;
@@ -1214,7 +1240,11 @@ function confirmM2Worked(){
   const w=window._hmToDec('m2WorkedHoursH','m2WorkedHoursM');
   const base=getM2BaseJour();
   const extra=Math.max(0,Math.round((w-base)*60)/60);
-  if(extra<=0){toast("⛔ Pas d'HS calculées","error");return;}
+  const _nh=m2NH(),_nhOn=_nh&&_nh.enabled(),_iso=m2NHdayIso();
+  if(extra<=0){
+    if(_nhOn&&w>0){_nh.fromWorked(_iso,w,0);closeHours();renderCalendar();toast("✅ "+fmtH(w)+" normales, pas d'heures sup ce jour","success");return;}
+    toast("⛔ Pas d'HS calculées","error");return;}
+  if(_nhOn)_nh.fromWorked(_iso,w,extra);
   applyHours(extra);document.getElementById('m2WorkedHoursH').value='';document.getElementById('m2WorkedHoursM').value='';
 }
 
@@ -2358,6 +2388,7 @@ function exportJSON(){
   prepareExport();
   const y=getYearFromMonth(currentKey),
         p={exportedAt:new Date().toISOString(),year:y,appVersion:APP_VERSION,dataVersion:DATA_VERSION,DATA,SETTINGS};
+  try{const nh=m2NH(),nd=nh&&nh.exportData();if(nd)p.NORMALES=nd}catch(_){}
   const b=new Blob([JSON.stringify(p,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(b);
   const a=document.createElement("a");
@@ -2903,7 +2934,7 @@ function generatePeriodPDF(){
   closePdfModal();
 }
 function formatDate(d){return d.toLocaleDateString("fr-FR")}
-function importJSONFile(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{createSnapshot("before_import");let payload,dv="1.0";try{payload=JSON.parse(reader.result);dv=payload.dataVersion||"1.0"}catch{toast("❌ JSON invalide","error");return}if(typeof payload!=="object"||typeof payload.DATA!=="object"||!payload.year){toast("❌ Structure invalide","error");return}const year=String(payload.year);if(!/^\d{4}$/.test(year)){toast("❌ Année invalide","error");return}if(dv==="1.0")Object.values(payload.DATA).forEach(m=>{if(typeof m.closing!=="number")m.closing=null;if(typeof m.locked!=="boolean")m.locked=false});registerYear(year);const existing=loadYearData(year);let imp=0,rep=0;Object.entries(payload.DATA).forEach(([mk,m])=>{if(!/^\d{4}-\d{2}$/.test(mk))return;if(!m.days||typeof m.days!=="object"){m.days={};rep++}if(typeof m.paid!=="number")m.paid=0;if(typeof m.carry!=="number")m.carry=0;if(typeof m.closing!=="number")m.closing=null;if(typeof m.locked!=="boolean")m.locked=false;existing[mk]=m;imp++});saveYearData(year,existing);ALL_DATA[year]=existing;recalcCascade();DATA=ALL_DATA[getYearFromMonth(currentKey)];loadMonth();toast(`✅ Import : ${imp} mois importés`,"success")};reader.readAsText(file);e.target.value=""}
+function importJSONFile(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{createSnapshot("before_import");let payload,dv="1.0";try{payload=JSON.parse(reader.result);dv=payload.dataVersion||"1.0"}catch{toast("❌ JSON invalide","error");return}if(typeof payload!=="object"||typeof payload.DATA!=="object"||!payload.year){toast("❌ Structure invalide","error");return}const year=String(payload.year);if(!/^\d{4}$/.test(year)){toast("❌ Année invalide","error");return}if(dv==="1.0")Object.values(payload.DATA).forEach(m=>{if(typeof m.closing!=="number")m.closing=null;if(typeof m.locked!=="boolean")m.locked=false});registerYear(year);try{const nh=m2NH();if(nh&&payload.NORMALES)nh.importData(payload.NORMALES)}catch(_){}const existing=loadYearData(year);let imp=0,rep=0;Object.entries(payload.DATA).forEach(([mk,m])=>{if(!/^\d{4}-\d{2}$/.test(mk))return;if(!m.days||typeof m.days!=="object"){m.days={};rep++}if(typeof m.paid!=="number")m.paid=0;if(typeof m.carry!=="number")m.carry=0;if(typeof m.closing!=="number")m.closing=null;if(typeof m.locked!=="boolean")m.locked=false;existing[mk]=m;imp++});saveYearData(year,existing);ALL_DATA[year]=existing;recalcCascade();DATA=ALL_DATA[getYearFromMonth(currentKey)];loadMonth();toast(`✅ Import : ${imp} mois importés`,"success")};reader.readAsText(file);e.target.value=""}
 document.getElementById("importFile").addEventListener("change",importJSONFile);
 
 
